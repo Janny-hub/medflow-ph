@@ -1,0 +1,6 @@
+{
+  "name": "MedFlow PH | Clinical Workflow & AI SOAP Suite",
+  "description": "Philippine Clinical Workflow & AI SOAP Suite featuring DOH-aligned Clinical Practice Guidelines (CPGs), Antenatal Care, AI-assisted SOAP documentation, Prescriptions, Lab & Imaging requests, and multi-user clinician authentication.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

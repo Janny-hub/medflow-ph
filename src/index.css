@@ -1,0 +1,162 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-serif: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --color-clinical-50: #f0fdfa;
+  --color-clinical-100: #ccfbf1;
+  --color-clinical-500: #14b8a6;
+  --color-clinical-600: #0d9488;
+  --color-clinical-700: #0f766e;
+  --color-clinical-800: #115e59;
+  --color-clinical-900: #134e4a;
+}
+
+body,
+input,
+select,
+textarea,
+button,
+code,
+pre {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+body {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* Printable Paper Previews */
+.paper-a4 {
+  width: 100%;
+  max-width: 210mm;
+  min-height: 297mm;
+  background: white;
+  margin: 0 auto;
+  padding: 16mm 18mm;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+}
+
+/* 1/4 Bond Paper / A6 Prescription Pad Size (105mm x 148mm) */
+.paper-a6 {
+  width: 100%;
+  max-width: 105mm;
+  min-height: 148mm;
+  background: white;
+  margin: 0 auto;
+  padding: 8mm 9mm;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+  border: 1px solid #cbd5e1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* 2-in-1 Dual A6 Sheet (Half-Bond Landscape: 210mm x 148mm) */
+.paper-dual-a6 {
+  width: 100%;
+  max-width: 210mm;
+  min-height: 148mm;
+  background: white;
+  margin: 0 auto;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+  border: 1px solid #cbd5e1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  position: relative;
+}
+
+.paper-dual-a6-half {
+  padding: 8mm 9mm;
+  min-height: 148mm;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.paper-dual-a6-divider {
+  border-right: 1.5px dashed #94a3b8;
+  position: relative;
+}
+
+/* Half-Bond Paper Card (210mm x 148mm — Rekord ni Nanay Maternal Card) */
+.paper-half-bond {
+  width: 100%;
+  max-width: 210mm;
+  min-height: 148mm;
+  background: white;
+  margin: 0 auto;
+  padding: 9mm 11mm;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+  border: 1px solid #cbd5e1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* Print Media Queries */
+@media print {
+  body {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  #app-header, #bottom-nav, #toast-container, #modal-overlay {
+    display: none !important;
+  }
+  #main-workspace {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+  body.printing-specific-element .print-only-target:not([data-active-print-target="true"]) {
+    display: none !important;
+  }
+  .print-only-target {
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 auto !important;
+    width: 100% !important;
+  }
+  .paper-a4 {
+    max-width: 100% !important;
+    min-height: auto !important;
+    padding: 10mm 12mm !important;
+  }
+  .paper-a6 {
+    width: 105mm !important;
+    max-width: 105mm !important;
+    min-height: 145mm !important;
+    padding: 6mm 8mm !important;
+    border: 1px dashed #94a3b8 !important;
+    page-break-inside: avoid;
+  }
+  .paper-dual-a6 {
+    width: 210mm !important;
+    max-width: 210mm !important;
+    min-height: 145mm !important;
+    border: 1px solid #cbd5e1 !important;
+    page-break-inside: avoid;
+  }
+  .paper-half-bond {
+    width: 210mm !important;
+    max-width: 210mm !important;
+    min-height: 144mm !important;
+    padding: 7mm 9mm !important;
+    border: 1px solid #cbd5e1 !important;
+    page-break-inside: avoid;
+  }
+}

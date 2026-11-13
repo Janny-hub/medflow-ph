@@ -1,0 +1,50 @@
+{
+  "entities": {
+    "ClinicianAccount": {
+      "title": "ClinicianAccount",
+      "description": "Registered Doctor, Medical Clerk, or Medical Intern account profile and credentials",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique account ID" },
+        "username": { "type": "string", "description": "Unique login username (lowercase)" },
+        "email": { "type": "string", "format": "email", "description": "Clinician email address" },
+        "phone": { "type": "string", "description": "Clinician contact phone number" },
+        "passwordHash": { "type": "string", "description": "Password hash for username/email sign-in" },
+        "name": { "type": "string", "description": "Full display name with title (e.g., Dr. Maria Clara Santos, MD)" },
+        "role": { "type": "string", "enum": ["Doctor", "Medical Clerk", "Medical Intern"], "description": "Clinical role" },
+        "specialty": { "type": "string", "description": "Specialty or clinical rotation" },
+        "facility": { "type": "string", "description": "Assigned hospital, RHU, or clinic facility" },
+        "address": { "type": "string", "description": "Facility / clinic address" },
+        "school": { "type": "string", "description": "Current affiliation medical school (for Clerk/Intern)" },
+        "supervisingDoctor": { "type": "string", "description": "Supervising physician name and credentials (for Clerk/Intern)" },
+        "prc": { "type": "string", "description": "PRC License Number" },
+        "ptr": { "type": "string", "description": "PTR Number" },
+        "s2": { "type": "string", "description": "S2 License Number" },
+        "approvalStatus": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "Admin subscription approval status" },
+        "createdAt": { "type": "string", "description": "ISO timestamp of registration" }
+      },
+      "required": ["id", "username", "email", "name", "role", "facility", "approvalStatus", "createdAt"]
+    },
+    "ClinicianWorkspace": {
+      "title": "ClinicianWorkspace",
+      "description": "Per-clinician isolated patient records and active workspace state",
+      "type": "object",
+      "properties": {
+        "clinicianId": { "type": "string", "description": "Owner clinician account ID" },
+        "patientsJson": { "type": "string", "description": "Serialized JSON array of the clinician's private patient records" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp of last sync" }
+      },
+      "required": ["clinicianId", "patientsJson", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/clinicians/{clinicianId}": {
+      "schema": { "$ref": "#/entities/ClinicianAccount" },
+      "description": "Registered clinician accounts for multi-user login and external admin approval"
+    },
+    "/workspaces/{clinicianId}": {
+      "schema": { "$ref": "#/entities/ClinicianWorkspace" },
+      "description": "Isolated patient records belonging strictly to the specific clinician"
+    }
+  }
+}

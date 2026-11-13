@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isValidClinician(data) {
+      return data.keys().hasAll(['id', 'username', 'email', 'name', 'role', 'facility', 'approvalStatus', 'createdAt'])
+        && data.id is string && data.id.size() > 0 && data.id.size() < 128
+        && data.username is string && data.username.size() >= 2 && data.username.size() < 80
+        && data.email is string && data.email.size() >= 3 && data.email.size() < 150
+        && data.name is string && data.name.size() >= 2 && data.name.size() < 150
+        && data.role in ['Doctor', 'Medical Clerk', 'Medical Intern']
+        && data.facility is string && data.facility.size() < 300
+        && data.approvalStatus in ['pending', 'approved', 'rejected'];
+    }
+
+    match /clinicians/{clinicianId} {
+      allow read: if true;
+      allow create, update: if isValidClinician(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /workspaces/{clinicianId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasAll(['clinicianId', 'patientsJson', 'updatedAt'])
+        && request.resource.data.clinicianId == clinicianId
+        && request.resource.data.patientsJson is string
+        && request.resource.data.patientsJson.size() < 950000;
+      allow delete: if false;
+    }
+  }
+}

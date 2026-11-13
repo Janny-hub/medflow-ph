@@ -488,43 +488,12 @@ export function getPatientPrenatalVisits(p: any): any[] {
     return anc.prenatalVisits;
   }
   const visitDate = p?.consultationDate || new Date().toISOString().split('T')[0];
-  if (p?.id === 'PT-2025-1002') {
-    return [
-      {
-        visitNo: 1,
-        date: '2025-01-20',
-        aog: '10 weeks 1 day (1st Tri)',
-        bpWeight: '108/70 mmHg • 56 kg',
-        obExam: 'FH: Pre-umbilical • FHT: Doppler (+)',
-        careSummary: 'CBC, UA, Blood Type (O+), HBsAg, RPR, HIV • Td1 given • Iron + Folate started',
-        nextVisit: '2025-03-17'
-      },
-      {
-        visitNo: 2,
-        date: '2025-03-17',
-        aog: '18 weeks 1 day (2nd Tri)',
-        bpWeight: '110/70 mmHg • 58.5 kg',
-        obExam: 'FH: 18 cm • FHT: 146 bpm • Quickening (+)',
-        careSummary: 'Td2 completed • Albendazole 400mg single dose • Calcium 500mg TID started',
-        nextVisit: visitDate
-      },
-      {
-        visitNo: 3,
-        date: visitDate,
-        aog: `${anc.aogWeeks || '26 weeks 2 days'} (${anc.trimester || '2nd'} Tri)`,
-        bpWeight: `${p?.vitals?.bp || '110/70'} mmHg • ${p?.vitals?.weight || '61'} kg`,
-        obExam: `FH: ${anc.fundicHeight || '26 cm'} • FHT: ${anc.fht || '144 bpm'} • ${anc.presentation || 'Cephalic'}`,
-        careSummary: '75g 2-Hr OGTT, Repeat CBC & UA, CAS reviewed • Continue Iron+Folate & Calcium',
-        nextVisit: p?.doctorSoap?.followUpDate || 'In 4 weeks'
-      }
-    ];
-  }
   return [
     {
       visitNo: 1,
       date: visitDate,
       aog: `${anc.aogWeeks || 'Baseline'} (${anc.trimester || '1st'} Tri)`,
-      bpWeight: `${p?.vitals?.bp || '110/70'} mmHg • ${p?.vitals?.weight || '-'} kg`,
+      bpWeight: `${p?.vitals?.bp || '-'} mmHg • ${p?.vitals?.weight || '-'} kg`,
       obExam: `FH: ${anc.fundicHeight || '-'} • FHT: ${anc.fht || '-'} • ${anc.presentation || 'Cephalic'}`,
       careSummary: `${anc.tetanusStatus || 'Td1'} • ${anc.ironFolate || 'Iron + Folic Acid'}`,
       nextVisit: p?.doctorSoap?.followUpDate || 'In 4 weeks'
@@ -2165,7 +2134,6 @@ export function buildPatientRecordsHTML(appState: any): string {
             <p class="text-sm font-bold text-slate-700">No patient folders found.</p>
             <div class="flex justify-center gap-2 mt-4">
               <button onclick="startNewPatientRegistration()" class="px-4 py-2 rounded-xl bg-teal-600 text-white text-xs font-bold cursor-pointer">+ Register Patient</button>
-              <button onclick="loadSamplePatientsForCurrentClinician()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">Load Sample Patients</button>
             </div>
           </div>
         ` : filtered.map((p: any) => {
@@ -2281,3 +2249,471 @@ export function buildPatientRecordsHTML(appState: any): string {
     </div>
   `;
 }
+
+export function isClinicianSubscriptionExpired(acc: any): boolean {
+  if (!acc) return true;
+  if (!acc.subscriptionEndDate) return false;
+  const todayStr = new Date().toISOString().split('T')[0];
+  return todayStr > acc.subscriptionEndDate;
+}
+
+export function getSubscriptionDaysRemaining(acc: any): number | null {
+  if (!acc?.subscriptionEndDate || !/^\d{4}-\d{2}-\d{2}$/.test(acc.subscriptionEndDate)) {
+    return null;
+  }
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [ty, tm, td] = todayStr.split('-').map(Number);
+  const [ey, em, ed] = acc.subscriptionEndDate.split('-').map(Number);
+  const todayUtc = Date.UTC(ty, tm - 1, td);
+  const endUtc = Date.UTC(ey, em - 1, ed);
+  return Math.floor((endUtc - todayUtc) / 86400000);
+}
+
+export function buildHiddenAdminPortalHTML(appState: any, firebaseConfigObj: any): string {
+  const isUnlocked = Boolean(appState.adminPortalUnlocked);
+  const adminUrl = `${window.location.origin}${window.location.pathname}?portal=admin`;
+  const todayStr = new Date().toISOString().split('T')[0];
+  const defaultEndDate = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+
+  if (!isUnlocked) {
+    return `
+      <div class="max-w-md mx-auto my-12 bg-white rounded-2xl border border-slate-200 shadow-lg overflow-hidden">
+        <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 p-6 text-white">
+          <span class="px-2.5 py-0.5 rounded-full bg-teal-500/20 border border-teal-400/30 text-[10px] font-extrabold uppercase tracking-wider">
+            Direct Link Only • Hidden Portal
+          </span>
+          <h2 class="text-xl font-extrabold tracking-tight mt-1.5">MedFlow Administrator Portal</h2>
+          <p class="text-xs text-teal-100/90 mt-1">Enrollment Approval, ₱199/Month Subscription Control &amp; Clinician Registry</p>
+        </div>
+        <form onsubmit="handleAdminPortalLogin(event)" class="p-6 space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Admin Email or Passkey <span class="text-teal-700">*</span></label>
+            <input
+              id="admin-portal-passkey"
+              type="password"
+              required
+              placeholder="Enter Admin Passkey (Default: admin199)"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+            />
+            <p class="text-[11px] text-slate-500 mt-1.5">Default Admin Passkey: <code class="font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded">admin199</code> (or your admin email <code class="font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded">artjanny303@gmail.com</code>)</p>
+          </div>
+          <button
+            type="submit"
+            class="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
+          >
+            Unlock Admin Portal
+          </button>
+          <div class="pt-3 border-t border-slate-100 text-center">
+            <a href="${window.location.pathname}" class="text-xs font-bold text-slate-500 hover:text-teal-700">
+              ← Return to Clinician Sign-In
+            </a>
+          </div>
+        </form>
+      </div>
+    `;
+  }
+
+  const allAccounts: any[] = Array.isArray(appState.clinicianAccounts) ? appState.clinicianAccounts : [];
+  const filterTab = appState.adminFilterTab || 'all';
+  const searchQ = (appState.adminSearchQuery || '').trim().toLowerCase();
+
+  // Compute summary metrics
+  const totalUsers = allAccounts.length;
+  const totalDoctors = allAccounts.filter((a) => a.role === 'Doctor').length;
+  const totalClerks = allAccounts.filter((a) => a.role === 'Medical Clerk').length;
+  const totalInterns = allAccounts.filter((a) => a.role === 'Medical Intern').length;
+
+  const pendingAccounts = allAccounts.filter((a) => a.approvalStatus === 'pending');
+  const activeAccounts = allAccounts.filter(
+    (a) => a.approvalStatus === 'approved' && !isClinicianSubscriptionExpired(a)
+  );
+  const expiredAccounts = allAccounts.filter(
+    (a) => a.approvalStatus === 'approved' && isClinicianSubscriptionExpired(a)
+  );
+  const bannedOrRejectedAccounts = allAccounts.filter(
+    (a) => a.approvalStatus === 'banned' || a.approvalStatus === 'rejected'
+  );
+
+  const monthlyRevenuePhp = activeAccounts.length * 199;
+
+  const filteredAccounts = allAccounts.filter((acc) => {
+    const expired = isClinicianSubscriptionExpired(acc);
+    if (filterTab === 'pending' && acc.approvalStatus !== 'pending') return false;
+    if (filterTab === 'active' && !(acc.approvalStatus === 'approved' && !expired)) return false;
+    if (filterTab === 'expired' && !(acc.approvalStatus === 'approved' && expired)) return false;
+    if (filterTab === 'banned' && !(acc.approvalStatus === 'banned' || acc.approvalStatus === 'rejected')) return false;
+
+    if (!searchQ) return true;
+    const hay = [
+      acc.name,
+      acc.username,
+      acc.email,
+      acc.phone,
+      acc.role,
+      acc.specialty,
+      acc.facility,
+      acc.address,
+      acc.school,
+      acc.supervisingDoctor,
+      acc.prc,
+      acc.ptr,
+      acc.s2
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    return hay.includes(searchQ);
+  });
+
+  return `
+    <div class="space-y-6 pb-12">
+      <!-- Top Admin Banner -->
+      <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+          <div class="flex flex-wrap items-center gap-2 mb-1.5">
+            <span class="px-2.5 py-0.5 rounded-full bg-teal-500/20 border border-teal-300/30 text-[10px] font-extrabold uppercase tracking-wider">
+              Hidden Admin Portal • ₱199 / Month Subscription Plan
+            </span>
+            <span class="px-2.5 py-0.5 rounded-full bg-slate-800/80 text-teal-200 text-[10px] font-bold">
+              Direct Link: ${escapeHTML(adminUrl)}
+            </span>
+          </div>
+          <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">
+            Clinician Enrollment, Credentials &amp; Subscription Administration
+          </h2>
+          <p class="text-xs text-teal-100/90 mt-1">
+            Approve sign-ups, set subscription start &amp; due dates (₱199/month), monitor user credentials, and ban or lock overdue accounts.
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onclick="refreshAdminPortalAccounts()"
+            class="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+          >
+            ↻ Sync Cloud Accounts
+          </button>
+          <button
+            type="button"
+            onclick="copyAdminPortalLink()"
+            class="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-bold transition cursor-pointer"
+          >
+            Copy Admin Link
+          </button>
+          <button
+            type="button"
+            onclick="exitAdminPortal()"
+            class="px-3.5 py-2 rounded-xl bg-white text-teal-900 hover:bg-teal-50 text-xs font-bold shadow-xs transition cursor-pointer"
+          >
+            Exit to Clinical App →
+          </button>
+        </div>
+      </div>
+
+      <!-- User Tracking & Subscription Revenue Metrics -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
+          <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 block">Total Registered Users</span>
+          <div class="flex items-baseline justify-between mt-1">
+            <span class="text-3xl font-extrabold text-slate-900">${totalUsers}</span>
+            <span class="text-xs font-bold text-teal-700">Clinicians</span>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
+            <strong>${totalDoctors}</strong> Doctors • <strong>${totalClerks}</strong> Clerks • <strong>${totalInterns}</strong> Interns
+          </p>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-teal-200 p-5 shadow-xs">
+          <span class="text-[11px] font-extrabold uppercase tracking-wider text-teal-700 block">Active Subscriptions (₱199/mo)</span>
+          <div class="flex items-baseline justify-between mt-1">
+            <span class="text-3xl font-extrabold text-teal-800">${activeAccounts.length}</span>
+            <span class="text-sm font-extrabold text-teal-900">₱${monthlyRevenuePhp.toLocaleString()}/mo</span>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
+            Rate: <strong>₱199.00 PHP / month</strong> per active clinician
+          </p>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
+          <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 block">Pending Sign-Up Enrollments</span>
+          <div class="flex items-baseline justify-between mt-1">
+            <span class="text-3xl font-extrabold text-slate-900">${pendingAccounts.length}</span>
+            <span class="text-xs font-bold text-teal-700">Awaiting Action</span>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
+            Requires Admin approval &amp; subscription start/end dates
+          </p>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
+          <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 block">Due / Expired or Banned</span>
+          <div class="flex items-baseline justify-between mt-1">
+            <span class="text-3xl font-extrabold text-slate-900">${expiredAccounts.length + bannedOrRejectedAccounts.length}</span>
+            <span class="text-xs font-bold text-slate-600">Locked Out</span>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
+            <strong>${expiredAccounts.length}</strong> Subscription Due • <strong>${bannedOrRejectedAccounts.length}</strong> Banned/Declined
+          </p>
+        </div>
+      </div>
+
+      <!-- Filter Tabs & Search Bar -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+          ${[
+            { id: 'all', label: `All Users (${totalUsers})` },
+            { id: 'pending', label: `Pending Enrollment (${pendingAccounts.length})` },
+            { id: 'active', label: `Active ₱199/mo (${activeAccounts.length})` },
+            { id: 'expired', label: `Due / Expired (${expiredAccounts.length})` },
+            { id: 'banned', label: `Banned / Declined (${bannedOrRejectedAccounts.length})` }
+          ]
+            .map(
+              (t) => `
+            <button
+              type="button"
+              onclick="setAdminFilterTab('${t.id}')"
+              class="px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                filterTab === t.id ? 'bg-white text-teal-800 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }"
+            >
+              ${t.label}
+            </button>
+          `
+            )
+            .join('')}
+        </div>
+        <div class="w-full md:w-80">
+          <input
+            type="text"
+            value="${escapeHTML(appState.adminSearchQuery || '')}"
+            oninput="updateAdminSearchQuery(this.value)"
+            placeholder="Search name, PRC/PTR/S2, school, facility, email..."
+            class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-teal-500"
+          />
+        </div>
+      </div>
+
+      <!-- Clinician Accounts, Credentials & Subscription Control List -->
+      <div class="space-y-4">
+        ${
+          filteredAccounts.length === 0
+            ? `
+          <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center">
+            <p class="text-sm font-bold text-slate-700">No clinician accounts match this filter.</p>
+            <p class="text-xs text-slate-400 mt-1">When doctors, clerks, or interns submit the Sign Up form, their enrollment and credentials appear here automatically.</p>
+          </div>
+        `
+            : filteredAccounts
+                .map((acc) => {
+                  const expired = isClinicianSubscriptionExpired(acc);
+                  const daysLeft = getSubscriptionDaysRemaining(acc);
+                  const startVal = acc.subscriptionStartDate || todayStr;
+                  const endVal = acc.subscriptionEndDate || defaultEndDate;
+                  const isTrainee = acc.role === 'Medical Clerk' || acc.role === 'Medical Intern';
+
+                  let statusBadgeHTML = '';
+                  if (acc.approvalStatus === 'banned') {
+                    statusBadgeHTML = `<span class="px-2.5 py-1 rounded-full bg-slate-900 text-white text-[10px] font-extrabold uppercase">BANNED / BLOCKED</span>`;
+                  } else if (acc.approvalStatus === 'rejected') {
+                    statusBadgeHTML = `<span class="px-2.5 py-1 rounded-full bg-slate-200 text-slate-700 text-[10px] font-extrabold uppercase">DECLINED</span>`;
+                  } else if (acc.approvalStatus === 'pending') {
+                    statusBadgeHTML = `<span class="px-2.5 py-1 rounded-full bg-teal-50 text-teal-800 border border-teal-300 text-[10px] font-extrabold uppercase">PENDING ENROLLMENT</span>`;
+                  } else if (expired) {
+                    statusBadgeHTML = `<span class="px-2.5 py-1 rounded-full bg-slate-800 text-white text-[10px] font-extrabold uppercase">SUBSCRIPTION DUE / EXPIRED (LOCKED)</span>`;
+                  } else {
+                    statusBadgeHTML = `<span class="px-2.5 py-1 rounded-full bg-teal-600 text-white text-[10px] font-extrabold uppercase">ACTIVE SUBSCRIBER (₱199/MO${daysLeft !== null ? ` • ${daysLeft}d left` : ''})</span>`;
+                  }
+
+                  return `
+                    <div class="bg-white rounded-2xl border-2 ${
+                      acc.approvalStatus === 'pending'
+                        ? 'border-teal-500'
+                        : acc.approvalStatus === 'banned' || expired
+                        ? 'border-slate-400'
+                        : 'border-slate-200'
+                    } p-5 shadow-xs space-y-4">
+                      <!-- Top Row: Identity, Role & Status -->
+                      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
+                        <div class="flex items-start gap-3.5">
+                          <div class="w-11 h-11 rounded-xl bg-teal-600 text-white flex items-center justify-center font-extrabold text-base shrink-0">
+                            ${escapeHTML((acc.name || 'U').charAt(0).toUpperCase())}
+                          </div>
+                          <div>
+                            <div class="flex flex-wrap items-center gap-2">
+                              <h3 class="text-base font-extrabold text-slate-900">${escapeHTML(acc.name)}</h3>
+                              <span class="px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-800 text-[11px] font-bold">${escapeHTML(acc.role)}</span>
+                              ${statusBadgeHTML}
+                            </div>
+                            <p class="text-xs text-slate-500 mt-0.5">
+                              Username: <strong class="text-slate-800">${escapeHTML(acc.username)}</strong> •
+                              Email: <strong class="text-slate-800">${escapeHTML(acc.email)}</strong> •
+                              Phone: <strong class="text-slate-800">${escapeHTML(acc.phone || 'N/A')}</strong> •
+                              Registered: ${escapeHTML((acc.createdAt || '').split('T')[0] || 'N/A')}
+                            </p>
+                          </div>
+                        </div>
+                        <div class="text-left lg:text-right shrink-0">
+                          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Subscription Plan</span>
+                          <span class="text-sm font-extrabold text-teal-800">₱${escapeHTML(acc.subscriptionAmountPhp || 199)}.00 PHP / Month</span>
+                        </div>
+                      </div>
+
+                      <!-- Middle Row: Credentials & Facility Summary -->
+                      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
+                          <span class="text-[10px] font-extrabold uppercase tracking-wider text-teal-800 block">Assigned Facility &amp; Address</span>
+                          <p class="font-bold text-slate-900">${escapeHTML(acc.facility || 'Not specified')}</p>
+                          <p class="text-slate-600 text-[11px]">${escapeHTML(acc.address || 'No address provided')}</p>
+                          <p class="text-slate-500 text-[11px]">Specialty/Rotation: <strong>${escapeHTML(acc.specialty || 'General')}</strong></p>
+                        </div>
+
+                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
+                          <span class="text-[10px] font-extrabold uppercase tracking-wider text-teal-800 block">Submitted Credentials Summary</span>
+                          ${
+                            isTrainee
+                              ? `
+                            <p><strong>Affiliation School:</strong> ${escapeHTML(acc.school || 'N/A')}</p>
+                            <p><strong>Supervising Doctor:</strong> ${escapeHTML(acc.supervisingDoctor || 'N/A')}</p>
+                            <p><strong>Trainee ID:</strong> ${escapeHTML(acc.prc || 'N/A')}</p>
+                          `
+                              : `
+                            <p><strong>PRC License No.:</strong> <span class="font-extrabold text-slate-900">${escapeHTML(acc.prc || 'N/A')}</span></p>
+                            <p><strong>PTR No.:</strong> ${escapeHTML(acc.ptr || 'N/A')}</p>
+                            <p><strong>S2 License No.:</strong> ${escapeHTML(acc.s2 || 'N/A')}</p>
+                          `
+                          }
+                        </div>
+
+                        <!-- Subscription Start Date & End Date Controls -->
+                        <div class="p-3 rounded-xl bg-teal-50/60 border border-teal-200 space-y-2">
+                          <div class="flex items-center justify-between">
+                            <span class="text-[10px] font-extrabold uppercase tracking-wider text-teal-900">Subscription Period (₱199/mo)</span>
+                            <div class="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onclick="setAdminPresetMonths('${escapeHTML(acc.id)}', 1)"
+                                class="px-2 py-0.5 rounded bg-white hover:bg-teal-100 text-teal-900 border border-teal-300 text-[10px] font-bold cursor-pointer"
+                                title="Set 1 Month from Start Date"
+                              >+1 Mo</button>
+                              <button
+                                type="button"
+                                onclick="setAdminPresetMonths('${escapeHTML(acc.id)}', 3)"
+                                class="px-2 py-0.5 rounded bg-white hover:bg-teal-100 text-teal-900 border border-teal-300 text-[10px] font-bold cursor-pointer"
+                                title="Set 3 Months from Start Date"
+                              >+3 Mos</button>
+                              <button
+                                type="button"
+                                onclick="setAdminPresetMonths('${escapeHTML(acc.id)}', 12)"
+                                class="px-2 py-0.5 rounded bg-white hover:bg-teal-100 text-teal-900 border border-teal-300 text-[10px] font-bold cursor-pointer"
+                                title="Set 1 Year from Start Date"
+                              >+1 Yr</button>
+                            </div>
+                          </div>
+                          <div class="grid grid-cols-2 gap-2">
+                            <div>
+                              <label class="block text-[10px] font-bold text-slate-700 mb-0.5">Start Date</label>
+                              <input
+                                type="date"
+                                id="admin-sub-start-${escapeHTML(acc.id)}"
+                                value="${escapeHTML(startVal)}"
+                                class="w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold"
+                              />
+                            </div>
+                            <div>
+                              <label class="block text-[10px] font-bold text-slate-700 mb-0.5">End Date (Due Date)</label>
+                              <input
+                                type="date"
+                                id="admin-sub-end-${escapeHTML(acc.id)}"
+                                value="${escapeHTML(endVal)}"
+                                class="w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- Bottom Row: Admin Enrollment & Enforcement Actions -->
+                      <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                        <div class="text-[11px] text-slate-500">
+                          ${
+                            acc.subscriptionStartDate && acc.subscriptionEndDate
+                              ? `Active Window: <strong>${escapeHTML(acc.subscriptionStartDate)}</strong> to <strong>${escapeHTML(acc.subscriptionEndDate)}</strong>`
+                              : 'Set Start Date and End Date above, then click Accept Enrollment & Activate.'
+                          }
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onclick="adminApproveAndSetSubscription('${escapeHTML(acc.id)}')"
+                            class="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-2xs transition cursor-pointer"
+                          >
+                            ✓ Accept Enrollment &amp; Save Subscription (₱199/mo)
+                          </button>
+                          ${
+                            acc.approvalStatus !== 'banned'
+                              ? `
+                            <button
+                              type="button"
+                              onclick="adminBanClinicianAccount('${escapeHTML(acc.id)}')"
+                              class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition cursor-pointer"
+                            >
+                              Ban / Suspend Account
+                            </button>
+                          `
+                              : `
+                            <button
+                              type="button"
+                              onclick="adminApproveAndSetSubscription('${escapeHTML(acc.id)}')"
+                              class="px-3.5 py-2 rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-xs font-bold transition cursor-pointer"
+                            >
+                              Unban &amp; Restore Subscription
+                            </button>
+                          `
+                          }
+                          <button
+                            type="button"
+                            onclick="adminDeleteClinicianAccount('${escapeHTML(acc.id)}')"
+                            class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  `;
+                })
+                .join('')
+        }
+      </div>
+
+      <!-- Firebase & Cloud Storage Connection Guide -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+        <div class="border-b border-slate-100 pb-3">
+          <span class="text-[10px] font-extrabold uppercase tracking-wider text-teal-700 block">Cloud Infrastructure &amp; Storage</span>
+          <h3 class="text-base font-extrabold text-slate-900">Firebase Firestore &amp; Firebase Cloud Storage Connection</h3>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+          <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+            <span class="text-[10px] font-bold uppercase text-slate-400 block">Connected Firebase Project ID</span>
+            <p class="font-extrabold text-slate-900 mt-0.5">${escapeHTML(firebaseConfigObj?.projectId || 'Not configured')}</p>
+          </div>
+          <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+            <span class="text-[10px] font-bold uppercase text-slate-400 block">Connected Firestore Database</span>
+            <p class="font-extrabold text-teal-800 mt-0.5 truncate">${escapeHTML(firebaseConfigObj?.firestoreDatabaseId || '(default)')}</p>
+          </div>
+          <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+            <span class="text-[10px] font-bold uppercase text-slate-400 block">Connected Firebase Storage Bucket</span>
+            <p class="font-extrabold text-slate-900 mt-0.5">${escapeHTML(firebaseConfigObj?.storageBucket || 'Not configured')}</p>
+          </div>
+        </div>
+        <div class="text-xs text-slate-600 space-y-1.5 leading-relaxed bg-teal-50/50 border border-teal-200 rounded-xl p-4">
+          <p class="font-bold text-teal-950">How your app connects to Firebase Storage &amp; Firestore:</p>
+          <p>1. <strong>Already Configured in App:</strong> The Firebase Web SDK (<code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">firebase/firestore</code> and <code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">firebase/storage</code>) is initialized in <code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">src/firebase.ts</code> using <code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">firebase-applet-config.json</code>.</p>
+          <p>2. <strong>Automatic Attachment Uploads:</strong> When clinicians attach lab results, imaging files, or documents during patient registration, the app uploads them to <code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">gs://${escapeHTML(firebaseConfigObj?.storageBucket || 'your-bucket')}/clinicians/{clinicianId}/attachments/</code> when online and stores an offline copy for offline access.</p>
+          <p>3. <strong>Connecting Your Own External Firebase Project (if deploying outside AI Studio):</strong> Open the <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer" class="text-teal-700 font-bold underline">Firebase Console</a> → Project Settings → Your Apps (Web App), copy your <code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">firebaseConfig</code> values (<code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">projectId</code>, <code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">apiKey</code>, <code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">storageBucket</code>, <code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">firestoreDatabaseId</code>) into <code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">firebase-applet-config.json</code>, and enable <strong>Build → Storage</strong> in the Firebase Console.</p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+

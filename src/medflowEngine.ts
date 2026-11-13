@@ -10,7 +10,6 @@ import html2canvas from 'html2canvas-pro';
 import {
   escapeHTML,
   resolveAncTrimesterBundle,
-  renderPatientSelectorBannerHTML,
   getPatientPrenatalVisits,
   buildRekordNiNanayHalfBondHTML,
   buildA4SoapRecordSheetHTML,
@@ -19,11 +18,16 @@ import {
   buildSoapWorkspaceHTML,
   buildPrescriptionWorkspaceHTML,
   buildDiagnosticsWorkspaceHTML,
-  buildPatientRecordsHTML
+  buildPatientRecordsHTML,
+  isClinicianSubscriptionExpired,
+  getSubscriptionDaysRemaining,
+  buildHiddenAdminPortalHTML
 } from './medflowViews';
 import {
   ClinicianAccount,
+  firebaseConfig,
   syncClinicianToFirestore,
+  deleteClinicianFromFirestore,
   fetchAllCliniciansFromFirestore,
   syncWorkspaceToFirestore,
   fetchWorkspaceFromFirestore
@@ -35,199 +39,14 @@ declare global {
   }
 }
 
-const DEFAULT_SAMPLE_PATIENTS = [
-  {
-    id: 'PT-2025-1001',
-    patientType: 'regular',
-    name: 'Juan Dela Cruz',
-    age: 54,
-    sex: 'Male',
-    dob: '1971-03-14',
-    civilStatus: 'Married',
-    contact: '0917-555-0192',
-    address: 'Brgy. San Antonio, Pasig City, Metro Manila',
-    philhealth: '12-094817263-4',
-    allergies: 'No Known Drug Allergies (NKDA)',
-    comorbidities: 'Hypertension (5 yrs), Dyslipidemia',
-    consultationDate: new Date().toISOString().split('T')[0],
-    vitals: {
-      bp: '152/94',
-      hr: '82',
-      rr: '18',
-      temp: '36.7',
-      spo2: '98',
-      weight: '78',
-      height: '165',
-      bmi: '28.7',
-      bmiCategory: 'Obese I (Asia-Pacific)'
-    },
-    chiefComplaint: 'Occasional nape heaviness and elevated home BP monitoring (150-160/90-95 mmHg) for 1 week',
-    hpi: '54-year-old Filipino male with known hypertension for 5 years, previously on intermittent Amlodipine 5mg OD with poor compliance over the past 2 months. Reports occasional morning nape heaviness ("mabigat ang batok") and mild dizziness after salty meals. Denies chest pain, dyspnea, orthopnea, visual blurring, or focal weakness.',
-    peFindings: 'Conscious, coherent, not in cardiorespiratory distress. BP 152/94 mmHg (repeat 150/92 mmHg). Anicteric sclerae, pink palpebral conjunctivae. Neck supple, no JVD. Chest symmetrical, clear breath sounds. Heart adynamic precordium, normal rate, regular rhythm, no murmurs. Abdomen soft, non-tender. No bipedal edema.',
-    anc: {},
-    aiSoap: null,
-    doctorSoap: {
-      subjective: '54-year-old Filipino male presenting with 1-week history of occasional morning nape heaviness and elevated home BP readings (150-160/90-95 mmHg). Known hypertensive with sub-optimal adherence to Amlodipine 5mg OD. No chest pain, dyspnea, or neurologic deficits.',
-      objective: 'BP: 152/94 mmHg | HR: 82 bpm | RR: 18 cpm | Temp: 36.7 °C | SpO2: 98% | Wt: 78 kg | Ht: 165 cm | BMI: 28.7 kg/m² (Obese I Asia-Pacific).\nPE: Awake, coherent, not in distress. Clear breath sounds, regular cardiac rhythm, no murmurs, no bipedal edema.',
-      assessment: 'Essential Hypertension, Stage 2, Uncontrolled (ICD-10: I10); Overweight/Obese Class I (Asia-Pacific Criteria); Screen for Type 2 Diabetes Mellitus & Dyslipidemia',
-      plan: '1. Initiate single-pill combination therapy per PSH CPG: Losartan 50mg + Amlodipine 5mg 1 tablet PO OD in the morning.\n2. Request baseline diagnostics: FBS, HbA1c, Lipid Profile, Serum Creatinine with eGFR, Serum K+, Urinalysis, and 12-Lead ECG.\n3. Advise DASH diet (<2g sodium/day), limit bagoong/patis/processed meats, and 150 mins/week brisk walking.\n4. Home BP diary twice daily; follow up in 2 weeks with lab results.',
-      followUpDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-      medications: [
-        { genericName: 'Losartan Potassium + Amlodipine Besilate 50mg/5mg Tablet', brandExample: 'Exforge / Co-Amlodin', sig: 'Take 1 tablet orally once daily in the morning', quantity: '#30' },
-        { genericName: 'Atorvastatin Calcium 20mg Tablet', brandExample: 'Lipitor / Avamax', sig: 'Take 1 tablet orally once daily at bedtime', quantity: '#30' }
-      ]
-    },
-    diagnostics: {
-      labs: ['Fasting Blood Sugar (FBS)', 'HbA1c (Glycosylated Hemoglobin)', 'Lipid Profile (Total, HDL, LDL, Triglycerides)', 'Creatinine (Serum) & eGFR', 'Electrolytes (Na, K, Cl, iCa, Mg)', 'Routine Urinalysis (UA)'],
-      imaging: ['12-Lead Electrocardiogram (ECG)', 'Chest X-Ray (PA View)'],
-      clinicalImpression: 'Essential Hypertension Stage 2 (I10); Dyslipidemia',
-      notes: 'Advise 8 to 10 hours fasting (water only) prior to blood extraction for FBS and Lipid Profile.'
-    },
-    consultationHistory: [],
-    attachments: []
-  },
-  {
-    id: 'PT-2025-1002',
-    patientType: 'antenatal',
-    name: 'Maria Teresa Villanueva',
-    age: 28,
-    sex: 'Female',
-    dob: '1997-06-20',
-    civilStatus: 'Married',
-    contact: '0918-234-8891',
-    address: 'Brgy. Poblacion, Makati City, Metro Manila',
-    philhealth: '19-203948172-1',
-    allergies: 'No Known Drug Allergies (NKDA)',
-    comorbidities: 'None (Low-Risk Pregnancy)',
-    consultationDate: new Date().toISOString().split('T')[0],
-    vitals: {
-      bp: '110/70',
-      hr: '80',
-      rr: '18',
-      temp: '36.6',
-      spo2: '99',
-      weight: '61',
-      height: '156',
-      bmi: '25.1',
-      bmiCategory: 'Obese I (Asia-Pacific)'
-    },
-    chiefComplaint: 'Routine 2nd Trimester Antenatal Care Check-up at 26 weeks AOG',
-    hpi: '28-year-old G2P1 (1001) at 26 weeks and 2 days AOG by LMP presenting for routine 2nd trimester prenatal check-up. Good fetal movement perceived daily. Compliant with daily Ferrous Sulfate + Folic Acid and Calcium Carbonate. Denies vaginal bleeding, watery discharge, dysuria, headache, visual blurring, or epigastric pain.',
-    peFindings: 'Conscious, coherent, pink conjunctivae. BP 110/70 mmHg. Abdomen globular, Fundic Height 26 cm, Fetal Heart Tone 144 bpm at RLQ, Cephalic presentation. No bipedal edema.',
-    anc: {
-      gravida: 2,
-      para: 1,
-      term: 1,
-      preterm: 0,
-      abortion: 0,
-      living: 1,
-      lmp: '2024-11-10',
-      aogWeeks: '26 weeks 2 days',
-      edc: '2025-08-17',
-      trimester: '2nd',
-      fht: '144 bpm (RLQ)',
-      fundicHeight: '26 cm',
-      presentation: 'Cephalic',
-      fetalMovement: 'Present / Active (>=10 kicks/12h)',
-      edema: 'None',
-      bloodType: 'O+ (Rh Positive)',
-      dangerSigns: [],
-      ironFolate: 'Ferrous Sulfate 60mg Elemental Iron + Folic Acid 400mcg 1 tab PO OD',
-      calcium: 'Calcium Carbonate 500mg 1 tab PO TID with meals',
-      tetanusStatus: 'Td2 Completed',
-      deworming: 'Albendazole 400mg single dose given (2nd Trimester)',
-      facilityBirthPlan: 'Ospital ng Makati (Level 3 Birthing Facility)',
-      philhealthStatus: 'Active Member (MCP Eligible)',
-      emergencyTransport: 'Family vehicle / Barangay Emergency Ambulance',
-      bloodDonorName: 'Mark Villanueva (Husband, O+)',
-      companionName: 'Mark Villanueva (Husband)',
-      obNotes: 'Instructed on Cardiff Count-to-Ten fetal kick counting starting at 28 weeks.'
-    },
-    aiSoap: null,
-    doctorSoap: {
-      subjective: '28-year-old G2P1 (1001) at 26 weeks 2 days AOG presenting for routine 2nd trimester prenatal visit. Good fetal movements. No maternal danger signs.',
-      objective: 'BP: 110/70 mmHg | HR: 80 bpm | Wt: 61 kg | FH: 26 cm | FHT: 144 bpm | Presentation: Cephalic | Edema: None.',
-      assessment: 'Pregnancy Uterine, 26 weeks 2 days AOG by LMP, Cephalic, Live Singleton, in Latent/Not in Labor; G2P1 (1001), Low-Risk Antenatal Care (ICD-10: Z34.8)',
-      plan: '1. Continue Ferrous Sulfate 60mg + Folic Acid 400mcg 1 tab PO OD.\n2. Continue Calcium Carbonate 500mg 1 tab PO TID.\n3. Request 75g 2-Hour Oral Glucose Tolerance Test (OGTT) for universal GDM screening (POGS guideline).\n4. Repeat CBC and Urinalysis; Congenital Anomaly Scan (CAS) completed/reviewed.\n5. Follow up in 4 weeks or immediately if any DOH Maternal Danger Signs occur.',
-      followUpDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
-      medications: [
-        { genericName: 'Ferrous Sulfate + Folic Acid 60mg/400mcg Tablet', brandExample: 'Hemarate FA / Sangobion', sig: 'Take 1 tablet orally once daily before meals', quantity: '#30' },
-        { genericName: 'Calcium Carbonate 500mg Tablet', brandExample: 'Caltrate / Calvin Plus', sig: 'Take 1 tablet orally three times daily with meals', quantity: '#60' }
-      ]
-    },
-    diagnostics: {
-      labs: ['75g Oral Glucose Tolerance Test (OGTT - 2 Hr)', 'Complete Blood Count with Platelet (CBC + PC)', 'Routine Urinalysis (UA)'],
-      imaging: ['Congenital Anomaly Scan (CAS)'],
-      clinicalImpression: 'Pregnancy Uterine 26 2/7 wks AOG, G2P1 (1001), Routine 2nd Trimester Screening',
-      notes: '8 hours fasting required prior to 75g 2-hour OGTT.'
-    },
-    consultationHistory: [],
-    attachments: []
-  }
-];
+const LEGACY_DUMMY_ACCOUNT_IDS = new Set([
+  'doc-santos-001',
+  'clerk-juan-002',
+  'intern-bea-003'
+]);
 
-const INITIAL_DEMO_CLINICIANS: ClinicianAccount[] = [
-  {
-    id: 'doc-santos-001',
-    username: 'dr.santos',
-    email: 'maria.santos@medflow.ph',
-    phone: '+63 (02) 8554-8400 / 0917-800-1122',
-    passwordHash: 'password123',
-    name: 'Dr. Maria Clara Santos, MD, FPCP',
-    role: 'Doctor',
-    specialty: 'Internal Medicine & Primary Care',
-    facility: 'Philippine General Hospital - Out-Patient Department',
-    address: 'Taft Avenue, Ermita, Manila 1000, Philippines',
-    school: '',
-    supervisingDoctor: '',
-    prc: '0128492',
-    ptr: '8492011',
-    s2: 'S2-094812-PH',
-    approvalStatus: 'approved',
-    createdAt: '2025-01-10T08:00:00.000Z'
-  },
-  {
-    id: 'clerk-juan-002',
-    username: 'clerk.juan',
-    email: 'juan.reyes@upm.edu.ph',
-    phone: '0917-332-9940',
-    passwordHash: 'password123',
-    name: 'Juan Miguel Reyes, Clinical Clerk',
-    role: 'Medical Clerk',
-    specialty: 'Clinical Clerkship — Internal Medicine & OB-GYN Rotation',
-    facility: 'Philippine General Hospital - Ward 1 / OPD',
-    address: 'Taft Avenue, Ermita, Manila 1000',
-    school: 'University of the Philippines College of Medicine (UPCM)',
-    supervisingDoctor: 'Dr. Maria Clara Santos, MD, FPCP (PRC #0128492)',
-    prc: 'CLERK-UPCM-2025',
-    ptr: 'N/A (Clinical Clerk)',
-    s2: 'N/A',
-    approvalStatus: 'approved',
-    createdAt: '2025-01-12T08:00:00.000Z'
-  },
-  {
-    id: 'intern-bea-003',
-    username: 'intern.bea',
-    email: 'bea.mendoza@ust.edu.ph',
-    phone: '0918-771-4021',
-    passwordHash: 'password123',
-    name: 'Beatriz Mendoza, MD (PGI)',
-    role: 'Medical Intern',
-    specialty: 'Post-Graduate Internship — Community & Primary Care',
-    facility: 'Ospital ng Makati - Department of Family & Community Medicine',
-    address: 'Sampaguita St., Pembo, Makati City',
-    school: 'UST Faculty of Medicine and Surgery',
-    supervisingDoctor: 'Dr. Roberto Villanueva, MD, FPAFP (PRC #0109384)',
-    prc: 'PGI-2025-088',
-    ptr: 'N/A (Medical Intern)',
-    s2: 'N/A',
-    approvalStatus: 'approved',
-    createdAt: '2025-01-15T08:00:00.000Z'
-  }
-];
-
-const ACCOUNTS_STORAGE_KEY = 'medflow_ph_clinician_accounts_v2';
-const SESSION_STORAGE_KEY = 'medflow_ph_active_clinician_id_v2';
+const ACCOUNTS_STORAGE_KEY = 'medflow_ph_clinician_accounts_v3';
+const SESSION_STORAGE_KEY = 'medflow_ph_active_clinician_id_v3';
 const AI_SOAP_STORAGE_KEY = 'medflow_ph_ai_soap_enabled_v1';
 
 function getWorkspaceStorageKey(clinicianId: string): string {
@@ -239,6 +58,14 @@ function getWorkspaceTimestampKey(clinicianId: string): string {
 }
 
 export function initMedFlowEngine(): void {
+  // Purge legacy dummy storage keys so the app starts completely clean
+  localStorage.removeItem('medflow_ph_clinician_accounts_v2');
+  localStorage.removeItem('medflow_ph_active_clinician_id_v2');
+  LEGACY_DUMMY_ACCOUNT_IDS.forEach((dummyId) => {
+    localStorage.removeItem(getWorkspaceStorageKey(dummyId));
+    localStorage.removeItem(getWorkspaceTimestampKey(dummyId));
+  });
+
   const savedAiPref = localStorage.getItem(AI_SOAP_STORAGE_KEY);
   const appState: any = {
     currentView: 'home',
@@ -251,21 +78,21 @@ export function initMedFlowEngine(): void {
     signupRole: 'Doctor', // 'Doctor' | 'Medical Clerk' | 'Medical Intern'
     clinicianAccounts: [] as ClinicianAccount[],
     doctor: {
-      id: 'doc-santos-001',
-      username: 'dr.santos',
-      email: 'maria.santos@medflow.ph',
-      name: 'Dr. Maria Clara Santos, MD, FPCP',
+      id: '',
+      username: '',
+      email: '',
+      name: '',
       role: 'Doctor',
-      specialty: 'Internal Medicine & Primary Care',
-      facility: 'Philippine General Hospital - Out-Patient Department',
-      clinic: 'Philippine General Hospital - Out-Patient Department',
-      address: 'Taft Avenue, Ermita, Manila 1000, Philippines',
-      phone: '+63 (02) 8554-8400',
+      specialty: '',
+      facility: '',
+      clinic: '',
+      address: '',
+      phone: '',
       school: '',
       supervisingDoctor: '',
-      prc: '0128492',
-      ptr: '8492011',
-      s2: 'S2-094812-PH'
+      prc: '',
+      ptr: '',
+      s2: ''
     },
     patients: [],
     activePatientId: null,
@@ -283,43 +110,63 @@ export function initMedFlowEngine(): void {
     registryOpenFolderPatientId: '',
     registryPreviewPatientId: '',
     registryPreviewDocType: '',
+    adminPortalUnlocked: sessionStorage.getItem('medflow_ph_admin_unlocked') === 'true',
+    adminFilterTab: 'all',
+    adminSearchQuery: '',
     followUpExpanded: false,
     pendingAttachments: []
   };
 
   window.appState = appState;
 
+  function isHiddenAdminPortalRoute(): boolean {
+    const params = new URLSearchParams(window.location.search);
+    const hash = (window.location.hash || '').toLowerCase();
+    return (
+      params.get('portal') === 'admin' ||
+      params.has('admin') ||
+      hash === '#admin' ||
+      hash === '#admin-portal'
+    );
+  }
+
+  function canClinicianAccessApp(acc: ClinicianAccount | null): boolean {
+    if (!acc) return false;
+    if (acc.approvalStatus !== 'approved') return false;
+    if (isClinicianSubscriptionExpired(acc)) return false;
+    return true;
+  }
+
   function loadClinicianAccounts(): void {
     try {
       const raw = localStorage.getItem(ACCOUNTS_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          appState.clinicianAccounts = parsed;
+        if (Array.isArray(parsed)) {
+          appState.clinicianAccounts = parsed.filter(
+            (acc: ClinicianAccount) => acc && !LEGACY_DUMMY_ACCOUNT_IDS.has(acc.id)
+          );
         } else {
-          appState.clinicianAccounts = JSON.parse(JSON.stringify(INITIAL_DEMO_CLINICIANS));
+          appState.clinicianAccounts = [];
         }
       } else {
-        appState.clinicianAccounts = JSON.parse(JSON.stringify(INITIAL_DEMO_CLINICIANS));
-        localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(appState.clinicianAccounts));
+        appState.clinicianAccounts = [];
       }
     } catch {
-      appState.clinicianAccounts = JSON.parse(JSON.stringify(INITIAL_DEMO_CLINICIANS));
+      appState.clinicianAccounts = [];
     }
 
-    // Seed demo workspace for dr.santos if not yet created
-    const santosKey = getWorkspaceStorageKey('doc-santos-001');
-    if (!localStorage.getItem(santosKey)) {
-      localStorage.setItem(santosKey, JSON.stringify(DEFAULT_SAMPLE_PATIENTS));
-    }
-
-    // Background sync with Firestore to pull any newly registered or admin-approved accounts
+    // Background sync with Firestore to pull any real registered accounts (filtering out legacy dummy accounts)
     fetchAllCliniciansFromFirestore().then((remoteAccounts) => {
       if (remoteAccounts && remoteAccounts.length > 0) {
         const mergedMap = new Map<string, ClinicianAccount>();
-        appState.clinicianAccounts.forEach((acc: ClinicianAccount) => mergedMap.set(acc.id, acc));
+        appState.clinicianAccounts.forEach((acc: ClinicianAccount) => {
+          if (!LEGACY_DUMMY_ACCOUNT_IDS.has(acc.id)) mergedMap.set(acc.id, acc);
+        });
         remoteAccounts.forEach((rem: ClinicianAccount) => {
-          mergedMap.set(rem.id, rem);
+          if (rem && !LEGACY_DUMMY_ACCOUNT_IDS.has(rem.id)) {
+            mergedMap.set(rem.id, rem);
+          }
         });
         appState.clinicianAccounts = Array.from(mergedMap.values());
         localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(appState.clinicianAccounts));
@@ -329,7 +176,13 @@ export function initMedFlowEngine(): void {
             appState.activeClinician = updatedSelf;
             syncDoctorFromClinician(updatedSelf);
             updateHeaderDoctorName();
+            if (!isHiddenAdminPortalRoute() && !canClinicianAccessApp(updatedSelf)) {
+              renderAuthScreen();
+            }
           }
+        }
+        if (isHiddenAdminPortalRoute()) {
+          renderHiddenAdminPortal();
         }
       }
     });
@@ -371,8 +224,7 @@ export function initMedFlowEngine(): void {
         const parsed = JSON.parse(raw);
         appState.patients = Array.isArray(parsed) ? parsed : [];
       } else {
-        // Each new doctor/clerk starts with an isolated patient list (or sample patients only for demo dr.santos)
-        appState.patients = clinicianId === 'doc-santos-001' ? JSON.parse(JSON.stringify(DEFAULT_SAMPLE_PATIENTS)) : [];
+        appState.patients = [];
         localStorage.setItem(key, JSON.stringify(appState.patients));
       }
       appState.activePatientId = appState.patients[0]?.id || null;
@@ -394,7 +246,6 @@ export function initMedFlowEngine(): void {
       ) {
         const localTs = localStorage.getItem(getWorkspaceTimestampKey(clinicianId)) || '';
         const remoteTs = remoteResult.updatedAt || '';
-        // Only adopt remote patients if local workspace is empty OR remote timestamp is newer than local offline save
         if (appState.patients.length === 0 || (remoteTs && (!localTs || remoteTs > localTs))) {
           appState.patients = remoteResult.patients;
           appState.patients.forEach((p: any) => {
@@ -408,7 +259,6 @@ export function initMedFlowEngine(): void {
             localStorage.setItem(getWorkspaceTimestampKey(clinicianId), remoteTs);
           }
         } else if (localTs && (!remoteTs || localTs > remoteTs)) {
-          // Local offline data is newer; sync it up to Firestore
           syncWorkspaceToFirestore(clinicianId, appState.patients);
         }
       }
@@ -477,7 +327,7 @@ export function initMedFlowEngine(): void {
 
   function updateHeaderDoctorName(): void {
     const actionsEl = document.getElementById('header-account-actions');
-    if (!appState.activeClinician) {
+    if (!appState.activeClinician || isHiddenAdminPortalRoute() || !canClinicianAccessApp(appState.activeClinician)) {
       if (actionsEl) actionsEl.style.display = 'none';
       return;
     }
@@ -498,44 +348,279 @@ export function initMedFlowEngine(): void {
   }
 
   // ============================================================================
-  // MULTI-USER AUTHENTICATION (SIGN IN & REGISTRATION FOR DOCTORS, CLERKS, INTERNS)
+  // HIDDEN ADMINISTRATOR PORTAL (DIRECT LINK ONLY: ?portal=admin OR #admin)
   // ============================================================================
-  function renderAuthScreen(): void {
+  function renderHiddenAdminPortal(): void {
     const main = document.getElementById('main-workspace');
     const bottomNav = document.getElementById('bottom-nav');
     if (bottomNav) bottomNav.style.display = 'none';
+    updateHeaderDoctorName();
+    if (!main) return;
+    main.innerHTML = buildHiddenAdminPortalHTML(appState, firebaseConfig);
+  }
+
+  window.handleAdminPortalLogin = (e: Event) => {
+    e.preventDefault();
+    const passInput = ((document.getElementById('admin-portal-passkey') as HTMLInputElement)?.value || '').trim();
+    if (passInput === 'admin199' || passInput.toLowerCase() === 'artjanny303@gmail.com') {
+      appState.adminPortalUnlocked = true;
+      sessionStorage.setItem('medflow_ph_admin_unlocked', 'true');
+      renderHiddenAdminPortal();
+      showToast('Admin Portal unlocked.');
+    } else {
+      showToast('Invalid Admin Passkey.', 'warning');
+    }
+  };
+
+  window.setAdminFilterTab = (tab: string) => {
+    appState.adminFilterTab = tab;
+    renderHiddenAdminPortal();
+  };
+
+  window.updateAdminSearchQuery = (val: string) => {
+    appState.adminSearchQuery = val;
+    renderHiddenAdminPortal();
+    const input = document.querySelector('input[oninput="updateAdminSearchQuery(this.value)"]') as HTMLInputElement | null;
+    if (input) {
+      input.focus();
+      input.setSelectionRange(val.length, val.length);
+    }
+  };
+
+  window.setAdminPresetMonths = (clinicianId: string, months: number) => {
+    const startInput = document.getElementById(`admin-sub-start-${clinicianId}`) as HTMLInputElement | null;
+    const endInput = document.getElementById(`admin-sub-end-${clinicianId}`) as HTMLInputElement | null;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const startVal = startInput?.value && /^\d{4}-\d{2}-\d{2}$/.test(startInput.value) ? startInput.value : todayStr;
+    if (startInput) startInput.value = startVal;
+    const [y, m, d] = startVal.split('-').map(Number);
+    const dt = new Date(y, m - 1 + months, d);
+    const endStr = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    if (endInput) endInput.value = endStr;
+  };
+
+  window.adminApproveAndSetSubscription = (clinicianId: string) => {
+    const idx = appState.clinicianAccounts.findIndex((a: ClinicianAccount) => a.id === clinicianId);
+    if (idx < 0) return;
+    const startInput = document.getElementById(`admin-sub-start-${clinicianId}`) as HTMLInputElement | null;
+    const endInput = document.getElementById(`admin-sub-end-${clinicianId}`) as HTMLInputElement | null;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const defaultEnd = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+    const startDate = startInput?.value || todayStr;
+    const endDate = endInput?.value || defaultEnd;
+
+    if (endDate < startDate) {
+      showToast('End Date cannot be earlier than Start Date.', 'warning');
+      return;
+    }
+
+    const updated: ClinicianAccount = {
+      ...appState.clinicianAccounts[idx],
+      approvalStatus: 'approved',
+      subscriptionStartDate: startDate,
+      subscriptionEndDate: endDate,
+      subscriptionAmountPhp: 199
+    };
+
+    appState.clinicianAccounts[idx] = updated;
+    if (appState.activeClinician?.id === clinicianId) {
+      appState.activeClinician = updated;
+    }
+    saveClinicianAccounts();
+    syncClinicianToFirestore(updated);
+    renderHiddenAdminPortal();
+    showToast(`Approved ${updated.name} (₱199/mo: ${startDate} to ${endDate})`);
+  };
+
+  window.adminBanClinicianAccount = (clinicianId: string) => {
+    const idx = appState.clinicianAccounts.findIndex((a: ClinicianAccount) => a.id === clinicianId);
+    if (idx < 0) return;
+    const updated: ClinicianAccount = {
+      ...appState.clinicianAccounts[idx],
+      approvalStatus: 'banned'
+    };
+    appState.clinicianAccounts[idx] = updated;
+    if (appState.activeClinician?.id === clinicianId) {
+      appState.activeClinician = updated;
+    }
+    saveClinicianAccounts();
+    syncClinicianToFirestore(updated);
+    renderHiddenAdminPortal();
+    showToast(`Banned & suspended account: ${updated.name}`, 'warning');
+  };
+
+  window.adminDeleteClinicianAccount = (clinicianId: string) => {
+    const target = appState.clinicianAccounts.find((a: ClinicianAccount) => a.id === clinicianId);
+    appState.clinicianAccounts = appState.clinicianAccounts.filter((a: ClinicianAccount) => a.id !== clinicianId);
+    if (appState.activeClinician?.id === clinicianId) {
+      appState.activeClinician = null;
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+    }
+    localStorage.removeItem(getWorkspaceStorageKey(clinicianId));
+    localStorage.removeItem(getWorkspaceTimestampKey(clinicianId));
+    saveClinicianAccounts();
+    deleteClinicianFromFirestore(clinicianId);
+    renderHiddenAdminPortal();
+    showToast(`Deleted account ${target?.name || clinicianId}`);
+  };
+
+  window.refreshAdminPortalAccounts = async () => {
+    showToast('Syncing clinician accounts from Firestore...');
+    const remoteAccounts = await fetchAllCliniciansFromFirestore();
+    if (remoteAccounts && remoteAccounts.length > 0) {
+      const mergedMap = new Map<string, ClinicianAccount>();
+      appState.clinicianAccounts.forEach((acc: ClinicianAccount) => {
+        if (!LEGACY_DUMMY_ACCOUNT_IDS.has(acc.id)) mergedMap.set(acc.id, acc);
+      });
+      remoteAccounts.forEach((rem: ClinicianAccount) => {
+        if (rem && !LEGACY_DUMMY_ACCOUNT_IDS.has(rem.id)) mergedMap.set(rem.id, rem);
+      });
+      appState.clinicianAccounts = Array.from(mergedMap.values());
+      saveClinicianAccounts();
+    }
+    renderHiddenAdminPortal();
+    showToast('Admin registry synced.');
+  };
+
+  window.copyAdminPortalLink = () => {
+    const adminUrl = `${window.location.origin}${window.location.pathname}?portal=admin`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(adminUrl).then(() => {
+        showToast(`Copied Admin Portal link: ${adminUrl}`);
+      });
+    } else {
+      showToast(`Admin Portal Link: ${adminUrl}`);
+    }
+  };
+
+  window.exitAdminPortal = () => {
+    window.history.pushState({}, '', window.location.pathname);
+    if (canClinicianAccessApp(appState.activeClinician)) {
+      switchView('home');
+    } else {
+      renderAuthScreen();
+    }
+  };
+
+  // ============================================================================
+  // MULTI-USER AUTHENTICATION (SIGN IN & REGISTRATION FOR DOCTORS, CLERKS, INTERNS)
+  // ============================================================================
+  function renderAuthScreen(): void {
+    if (isHiddenAdminPortalRoute()) {
+      renderHiddenAdminPortal();
+      return;
+    }
+
+    const main = document.getElementById('main-workspace');
+    const bottomNav = document.getElementById('bottom-nav');
+    if (bottomNav) bottomNav.style.display = 'none';
+    updateHeaderDoctorName();
     if (!main) return;
 
-    // Check if logged in as a Pending Approval Doctor
-    if (appState.activeClinician && appState.activeClinician.role === 'Doctor' && appState.activeClinician.approvalStatus === 'pending' && !appState.bypassPendingInPreview) {
+    // 1. Check if account is Banned or Rejected
+    if (
+      appState.activeClinician &&
+      (appState.activeClinician.approvalStatus === 'banned' ||
+        appState.activeClinician.approvalStatus === 'rejected')
+    ) {
       const c = appState.activeClinician;
       main.innerHTML = `
-        <div class="max-w-xl mx-auto my-8 bg-white rounded-2xl border border-slate-200 shadow-lg overflow-hidden">
-          <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 p-6 text-white">
-            <span class="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest bg-white/15 mb-2">Subscription Enrollment Verification</span>
-            <h2 class="text-xl font-extrabold">Doctor Account Pending Admin Approval</h2>
-            <p class="text-xs text-teal-100 mt-1">All registered doctors must be approved by the Administrator before full subscription activation.</p>
+        <div class="max-w-xl mx-auto my-8 bg-white rounded-2xl border-2 border-slate-300 shadow-lg overflow-hidden">
+          <div class="bg-slate-900 p-6 text-white">
+            <span class="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest bg-white/15 mb-2">Access Restricted</span>
+            <h2 class="text-xl font-extrabold">Account Banned / Suspended</h2>
+            <p class="text-xs text-slate-300 mt-1">This clinician account has been suspended or declined by the Administrator.</p>
           </div>
           <div class="p-6 space-y-4">
             <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-800 space-y-1.5">
-              <p class="font-bold text-sm text-slate-900">Registered Clinician Details (Synced to Database):</p>
-              <p><strong>Name:</strong> ${escapeHTML(c.name)}</p>
+              <p><strong>Clinician:</strong> ${escapeHTML(c.name)} (${escapeHTML(c.role)})</p>
+              <p><strong>Username / Email:</strong> ${escapeHTML(c.username)} • ${escapeHTML(c.email)}</p>
+              <p><strong>Assigned Facility:</strong> ${escapeHTML(c.facility)}</p>
+              <p><strong>Status:</strong> <span class="px-2 py-0.5 rounded bg-slate-900 text-white font-bold uppercase text-[10px]">${escapeHTML(c.approvalStatus)}</span></p>
+            </div>
+            <p class="text-xs text-slate-600">
+              Please contact the Administrator to reactivate your ₱199/month subscription and restore access to your workspace.
+            </p>
+            <div class="flex gap-2.5 pt-2">
+              <button onclick="checkPendingDoctorStatus()" class="flex-1 py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition cursor-pointer">
+                Check Account Status
+              </button>
+              <button onclick="handleSignOut()" class="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer">
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    // 2. Check if Subscription is Due / Expired
+    if (
+      appState.activeClinician &&
+      appState.activeClinician.approvalStatus === 'approved' &&
+      isClinicianSubscriptionExpired(appState.activeClinician)
+    ) {
+      const c = appState.activeClinician;
+      main.innerHTML = `
+        <div class="max-w-xl mx-auto my-8 bg-white rounded-2xl border-2 border-slate-300 shadow-lg overflow-hidden">
+          <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-teal-900 p-6 text-white">
+            <span class="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest bg-white/15 mb-2">₱199 / Month Subscription Due</span>
+            <h2 class="text-xl font-extrabold">Subscription Expired — Workspace Locked</h2>
+            <p class="text-xs text-teal-100 mt-1">Your monthly subscription period has ended. Please renew to continue using the app.</p>
+          </div>
+          <div class="p-6 space-y-4">
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-800 space-y-1.5">
+              <p><strong>Clinician:</strong> ${escapeHTML(c.name)} (${escapeHTML(c.role)})</p>
+              <p><strong>Assigned Facility:</strong> ${escapeHTML(c.facility)}</p>
+              <p><strong>Subscription Plan:</strong> ₱199.00 PHP / Month</p>
+              <p><strong>Start Date:</strong> ${escapeHTML(c.subscriptionStartDate || 'N/A')}</p>
+              <p><strong>Due / End Date:</strong> <span class="font-extrabold text-slate-900">${escapeHTML(c.subscriptionEndDate || 'Expired')}</span></p>
+              <p><strong>Status:</strong> <span class="px-2 py-0.5 rounded bg-slate-900 text-white font-bold uppercase text-[10px]">Subscription Due / Locked</span></p>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-2.5 pt-2">
+              <button onclick="checkPendingDoctorStatus()" class="flex-1 py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition cursor-pointer">
+                Check Renewal Status
+              </button>
+              <button onclick="handleSignOut()" class="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer">
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    // 3. Check if logged in as a Pending Enrollment Clinician
+    if (appState.activeClinician && appState.activeClinician.approvalStatus === 'pending') {
+      const c = appState.activeClinician;
+      const isTrainee = c.role === 'Medical Clerk' || c.role === 'Medical Intern';
+      main.innerHTML = `
+        <div class="max-w-xl mx-auto my-8 bg-white rounded-2xl border border-slate-200 shadow-lg overflow-hidden">
+          <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 p-6 text-white">
+            <span class="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest bg-white/15 mb-2">Subscription Enrollment (₱199 / Month)</span>
+            <h2 class="text-xl font-extrabold">Account Pending Admin Enrollment Approval</h2>
+            <p class="text-xs text-teal-100 mt-1">Your registration has been submitted. The Administrator will verify your credentials and set your subscription start and end dates.</p>
+          </div>
+          <div class="p-6 space-y-4">
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-800 space-y-1.5">
+              <p class="font-bold text-sm text-slate-900">Submitted Clinician Credentials:</p>
+              <p><strong>Name &amp; Role:</strong> ${escapeHTML(c.name)} (${escapeHTML(c.role)})</p>
               <p><strong>Username / Email:</strong> ${escapeHTML(c.username)} • ${escapeHTML(c.email)}</p>
               <p><strong>Phone Number:</strong> ${escapeHTML(c.phone)}</p>
-              <p><strong>Assigned Facility:</strong> ${escapeHTML(c.facility)}</p>
-              <p><strong>Facility Address:</strong> ${escapeHTML(c.address)}</p>
-              <p><strong>PRC / PTR / S2:</strong> PRC #${escapeHTML(c.prc || 'Pending')} | PTR #${escapeHTML(c.ptr || 'N/A')} | S2 #${escapeHTML(c.s2 || 'N/A')}</p>
+              <p><strong>Assigned Facility:</strong> ${escapeHTML(c.facility)} (${escapeHTML(c.address)})</p>
+              ${
+                isTrainee
+                  ? `<p><strong>School &amp; Supervising MD:</strong> ${escapeHTML(c.school || 'N/A')} • Supv: ${escapeHTML(c.supervisingDoctor || 'N/A')}</p>`
+                  : `<p><strong>PRC / PTR / S2:</strong> PRC #${escapeHTML(c.prc || 'Pending')} | PTR #${escapeHTML(c.ptr || 'N/A')} | S2 #${escapeHTML(c.s2 || 'N/A')}</p>`
+              }
+              <p><strong>Subscription Rate:</strong> ₱199.00 PHP / month</p>
               <p><strong>Enrollment Status:</strong> <span class="px-2 py-0.5 rounded bg-teal-50 text-teal-800 border border-teal-200 font-bold uppercase text-[10px]">Pending Admin Approval</span></p>
             </div>
-            <p class="text-xs text-slate-600 leading-relaxed">
-              Your account record (<code class="bg-slate-100 px-1.5 py-0.5 rounded font-semibold">${escapeHTML(c.id)}</code>) has been saved to the cloud database for the separate Admin Portal to review and approve your subscription.
-            </p>
             <div class="flex flex-col sm:flex-row gap-2.5 pt-2">
-              <button onclick="checkPendingDoctorStatus()" class="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition cursor-pointer">
-                Check Approval Status
-              </button>
-              <button onclick="enterPreviewModeForPendingDoctor()" class="flex-1 py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition cursor-pointer">
-                Test Workspace Now (Preview Mode)
+              <button onclick="checkPendingDoctorStatus()" class="flex-1 py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition cursor-pointer">
+                Check Approval &amp; Subscription Status
               </button>
               <button onclick="handleSignOut()" class="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer">
                 Sign Out
@@ -574,7 +659,7 @@ export function initMedFlowEngine(): void {
             <form onsubmit="handleClinicianSignIn(event)" class="space-y-4">
               <div>
                 <label class="block text-xs font-bold text-slate-700 mb-1">Email Address or Username <span class="text-teal-700">*</span></label>
-                <input id="signin-identifier" type="text" required placeholder="e.g., dr.santos or maria.santos@medflow.ph"
+                <input id="signin-identifier" type="text" required placeholder="Enter your registered email or username"
                   class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none">
               </div>
               <div>
@@ -587,27 +672,8 @@ export function initMedFlowEngine(): void {
               </button>
               <p class="text-[11px] text-slate-500 text-center pt-1">
                 New Doctor, Medical Clerk, or Intern?
-                <button type="button" onclick="setAuthMode('signup')" class="text-teal-700 font-bold hover:underline cursor-pointer">Sign Up →</button>
+                <button type="button" onclick="setAuthMode('signup')" class="text-teal-700 font-bold hover:underline cursor-pointer">Sign Up (₱199/month) →</button>
               </p>
-
-              <!-- Quick Demo Login Switcher -->
-              <div class="pt-5 mt-5 border-t border-slate-200">
-                <p class="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2.5">Quick Demo Sign-In (1-Click Test):</p>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <button type="button" onclick="quickDemoLogin('dr.santos')" class="text-left p-2.5 rounded-xl bg-slate-50 hover:bg-teal-50 border border-slate-200 hover:border-teal-300 transition text-xs cursor-pointer">
-                    <span class="font-bold text-slate-900 block truncate">Dr. Maria Clara Santos</span>
-                    <span class="text-[10px] text-teal-700 font-semibold">Doctor • PGH OPD</span>
-                  </button>
-                  <button type="button" onclick="quickDemoLogin('clerk.juan')" class="text-left p-2.5 rounded-xl bg-slate-50 hover:bg-teal-50 border border-slate-200 hover:border-teal-300 transition text-xs cursor-pointer">
-                    <span class="font-bold text-slate-900 block truncate">Juan Miguel Reyes</span>
-                    <span class="text-[10px] text-teal-700 font-semibold">Clerk • UPCM / PGH</span>
-                  </button>
-                  <button type="button" onclick="quickDemoLogin('intern.bea')" class="text-left p-2.5 rounded-xl bg-slate-50 hover:bg-teal-50 border border-slate-200 hover:border-teal-300 transition text-xs cursor-pointer">
-                    <span class="font-bold text-slate-900 block truncate">Beatriz Mendoza</span>
-                    <span class="text-[10px] text-teal-700 font-semibold">Intern • UST / OsMak</span>
-                  </button>
-                </div>
-              </div>
             </form>
           ` : `
             <form onsubmit="handleClinicianSignUp(event)" class="space-y-4">
@@ -692,7 +758,6 @@ export function initMedFlowEngine(): void {
                         class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white font-semibold">
                     </div>
                   </div>
-                  <p class="text-[10px] text-slate-600">Note: You can also edit your Assigned Facility and Supervising Doctor anytime inside Clinician Settings.</p>
                 </div>
               ` : `
                 <!-- Conditional License Fields for Doctor -->
@@ -715,14 +780,15 @@ export function initMedFlowEngine(): void {
                         class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white">
                     </div>
                   </div>
-                  <p class="text-[11px] text-teal-900 bg-teal-50 border border-teal-200 px-2.5 py-1.5 rounded-lg font-medium">
-                    <strong>Admin Subscription Notice:</strong> Registered doctors require approval by the Administrator (via the separate Admin Portal).
-                  </p>
                 </div>
               `}
 
+              <p class="text-[11px] text-teal-900 bg-teal-50 border border-teal-200 px-3 py-2 rounded-xl font-medium">
+                <strong>Subscription Plan (₱199.00 PHP / month):</strong> Submitted sign-ups are reviewed by the Administrator to set your subscription start and end dates.
+              </p>
+
               <button type="submit" class="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm transition cursor-pointer">
-                Complete ${escapeHTML(role)} Registration
+                Submit ${escapeHTML(role)} Sign Up (₱199/month)
               </button>
             </form>
           `}
@@ -741,25 +807,25 @@ export function initMedFlowEngine(): void {
     renderAuthScreen();
   };
 
-  window.quickDemoLogin = (username: string) => {
-    const acc = appState.clinicianAccounts.find((a: ClinicianAccount) => a.username.toLowerCase() === username.toLowerCase());
-    if (!acc) return;
-    appState.activeClinician = acc;
-    appState.bypassPendingInPreview = false;
-    localStorage.setItem(SESSION_STORAGE_KEY, acc.id);
-    syncDoctorFromClinician(acc);
-    loadClinicianWorkspace(acc.id);
-    updateHeaderDoctorName();
-    const bottomNav = document.getElementById('bottom-nav');
-    if (bottomNav) bottomNav.style.display = '';
-    switchView('home');
-    showToast(`Signed in as ${acc.name} (${acc.facility})`);
-  };
-
-  window.handleClinicianSignIn = (e: Event) => {
+  window.handleClinicianSignIn = async (e: Event) => {
     e.preventDefault();
     const identifier = ((document.getElementById('signin-identifier') as HTMLInputElement)?.value || '').trim().toLowerCase();
     const password = ((document.getElementById('signin-password') as HTMLInputElement)?.value || '').trim();
+
+    if (navigator.onLine) {
+      const remoteList = await fetchAllCliniciansFromFirestore();
+      if (remoteList && remoteList.length > 0) {
+        const mergedMap = new Map<string, ClinicianAccount>();
+        appState.clinicianAccounts.forEach((acc: ClinicianAccount) => {
+          if (!LEGACY_DUMMY_ACCOUNT_IDS.has(acc.id)) mergedMap.set(acc.id, acc);
+        });
+        remoteList.forEach((rem: ClinicianAccount) => {
+          if (rem && !LEGACY_DUMMY_ACCOUNT_IDS.has(rem.id)) mergedMap.set(rem.id, rem);
+        });
+        appState.clinicianAccounts = Array.from(mergedMap.values());
+        saveClinicianAccounts();
+      }
+    }
 
     const found = appState.clinicianAccounts.find(
       (a: ClinicianAccount) =>
@@ -772,33 +838,42 @@ export function initMedFlowEngine(): void {
       return;
     }
 
+    if (found.approvalStatus === 'banned') {
+      showToast('This account has been banned or suspended by the Administrator.', 'warning');
+      return;
+    }
+
     if (found.approvalStatus === 'rejected') {
-      showToast('Your account enrollment was declined or removed by the Administrator.', 'warning');
+      showToast('Your account enrollment was declined by the Administrator.', 'warning');
       return;
     }
 
     appState.activeClinician = found;
-    const hasOfflineOrPreviewAccess =
-      !navigator.onLine || localStorage.getItem(`medflow_ph_doctor_access_${found.id}`) === 'true';
-    appState.bypassPendingInPreview = hasOfflineOrPreviewAccess;
     localStorage.setItem(SESSION_STORAGE_KEY, found.id);
     syncDoctorFromClinician(found);
     loadClinicianWorkspace(found.id);
     updateHeaderDoctorName();
 
-    if (found.role === 'Doctor' && found.approvalStatus === 'pending' && !appState.bypassPendingInPreview) {
+    if (found.approvalStatus === 'pending') {
       renderAuthScreen();
-      showToast('Signed in — Doctor account is awaiting Admin subscription approval.', 'warning');
+      showToast('Your account is awaiting Admin enrollment approval.', 'warning');
+      return;
+    }
+
+    if (isClinicianSubscriptionExpired(found)) {
+      renderAuthScreen();
+      showToast(`Subscription expired on ${found.subscriptionEndDate}. Please renew (₱199/month).`, 'warning');
       return;
     }
 
     const bottomNav = document.getElementById('bottom-nav');
     if (bottomNav) bottomNav.style.display = '';
     switchView('home');
+    const daysLeft = getSubscriptionDaysRemaining(found);
     showToast(
-      navigator.onLine
-        ? `Welcome back, ${found.name}!`
-        : `Signed in offline as ${found.name}`
+      daysLeft !== null
+        ? `Welcome back, ${found.name}! (${daysLeft} day${daysLeft === 1 ? '' : 's'} remaining on subscription)`
+        : `Welcome back, ${found.name}!`
     );
   };
 
@@ -848,7 +923,8 @@ export function initMedFlowEngine(): void {
       prc: role === 'Doctor' ? prc : `${role.toUpperCase().replace(/\s+/g, '-')}-ID`,
       ptr: role === 'Doctor' ? ptr : 'N/A',
       s2: role === 'Doctor' ? s2 : 'N/A',
-      approvalStatus: role === 'Doctor' ? 'pending' : 'approved',
+      approvalStatus: 'pending',
+      subscriptionAmountPhp: 199,
       createdAt: new Date().toISOString()
     };
 
@@ -861,65 +937,54 @@ export function initMedFlowEngine(): void {
     syncWorkspaceToFirestore(newAccount.id, []);
 
     appState.activeClinician = newAccount;
-    appState.bypassPendingInPreview = !navigator.onLine;
     localStorage.setItem(SESSION_STORAGE_KEY, newAccount.id);
     syncDoctorFromClinician(newAccount);
     loadClinicianWorkspace(newAccount.id);
     updateHeaderDoctorName();
 
-    if (role === 'Doctor' && navigator.onLine) {
-      renderAuthScreen();
-      showToast('Doctor Registration submitted! Pending Admin approval.', 'success');
-    } else {
-      if (role === 'Doctor') {
-        localStorage.setItem(`medflow_ph_doctor_access_${newAccount.id}`, 'true');
-      }
-      const bottomNav = document.getElementById('bottom-nav');
-      if (bottomNav) bottomNav.style.display = '';
-      switchView('home');
-      showToast(
-        navigator.onLine
-          ? `Registered & signed in as ${newAccount.name}!`
-          : `Registered offline & signed in as ${newAccount.name}!`
-      );
-    }
+    renderAuthScreen();
+    showToast('Sign Up submitted! Awaiting Admin approval & subscription activation (₱199/month).', 'success');
   };
 
   window.checkPendingDoctorStatus = async () => {
-    if (!navigator.onLine) {
-      showToast('Currently offline — Click "Test Workspace Now" to use all features offline.', 'warning');
-      return;
-    }
-    showToast('Checking Admin approval status from cloud database...');
-    const remoteList = await fetchAllCliniciansFromFirestore();
-    if (remoteList && appState.activeClinician) {
-      const match = remoteList.find((r) => r.id === appState.activeClinician.id);
-      if (match) {
-        appState.activeClinician = match;
-        const idx = appState.clinicianAccounts.findIndex((x: ClinicianAccount) => x.id === match.id);
-        if (idx >= 0) appState.clinicianAccounts[idx] = match;
-        saveClinicianAccounts();
-        if (match.approvalStatus === 'approved') {
-          const bottomNav = document.getElementById('bottom-nav');
-          if (bottomNav) bottomNav.style.display = '';
-          switchView('home');
-          showToast('Your Doctor account has been approved by Admin!');
-          return;
+    showToast('Checking Admin approval & subscription status...');
+    if (navigator.onLine) {
+      const remoteList = await fetchAllCliniciansFromFirestore();
+      if (remoteList && appState.activeClinician) {
+        const match = remoteList.find((r) => r.id === appState.activeClinician.id);
+        if (match) {
+          appState.activeClinician = match;
+          const idx = appState.clinicianAccounts.findIndex((x: ClinicianAccount) => x.id === match.id);
+          if (idx >= 0) appState.clinicianAccounts[idx] = match;
+          saveClinicianAccounts();
         }
       }
+    } else if (appState.activeClinician) {
+      const localMatch = appState.clinicianAccounts.find(
+        (x: ClinicianAccount) => x.id === appState.activeClinician.id
+      );
+      if (localMatch) appState.activeClinician = localMatch;
     }
-    showToast('Still awaiting Admin approval in the external Admin Portal.', 'warning');
-  };
 
-  window.enterPreviewModeForPendingDoctor = () => {
-    appState.bypassPendingInPreview = true;
-    if (appState.activeClinician) {
-      localStorage.setItem(`medflow_ph_doctor_access_${appState.activeClinician.id}`, 'true');
+    if (canClinicianAccessApp(appState.activeClinician)) {
+      const bottomNav = document.getElementById('bottom-nav');
+      if (bottomNav) bottomNav.style.display = '';
+      switchView('home');
+      showToast('Your subscription is active! Welcome to your workspace.');
+      return;
     }
-    const bottomNav = document.getElementById('bottom-nav');
-    if (bottomNav) bottomNav.style.display = '';
-    switchView('home');
-    showToast('Opened workspace with your registered Doctor & Facility credentials.');
+
+    renderAuthScreen();
+    if (appState.activeClinician?.approvalStatus === 'banned') {
+      showToast('Account is suspended/banned by Administrator.', 'warning');
+    } else if (
+      appState.activeClinician?.approvalStatus === 'approved' &&
+      isClinicianSubscriptionExpired(appState.activeClinician)
+    ) {
+      showToast('Subscription is still expired/due. Please contact Admin.', 'warning');
+    } else {
+      showToast('Still awaiting Admin enrollment approval.', 'warning');
+    }
   };
 
   window.handleSignOut = () => {
@@ -934,19 +999,6 @@ export function initMedFlowEngine(): void {
         ? 'Signed out of clinician account.'
         : 'Signed out offline. You can sign back in anytime without internet.'
     );
-  };
-
-  window.loadSamplePatientsForCurrentClinician = () => {
-    if (!appState.activeClinician) return;
-    const cloned = JSON.parse(JSON.stringify(DEFAULT_SAMPLE_PATIENTS)).map((pt: any, idx: number) => ({
-      ...pt,
-      id: `PT-${Date.now().toString().slice(-4)}-${idx + 1}`
-    }));
-    appState.patients = cloned;
-    appState.activePatientId = cloned[0]?.id || null;
-    saveState();
-    switchView(appState.currentView);
-    showToast('Loaded sample patients into your clinician workspace.');
   };
 
   // ============================================================================
@@ -1309,17 +1361,18 @@ export function initMedFlowEngine(): void {
   // VIEW ROUTING
   // ============================================================================
   function switchView(viewName: string): void {
-    if (!appState.activeClinician) {
-      renderAuthScreen();
+    if (isHiddenAdminPortalRoute()) {
+      renderHiddenAdminPortal();
       return;
     }
-    if (appState.activeClinician.role === 'Doctor' && appState.activeClinician.approvalStatus === 'pending' && !appState.bypassPendingInPreview) {
+    if (!canClinicianAccessApp(appState.activeClinician)) {
       renderAuthScreen();
       return;
     }
 
     const bottomNav = document.getElementById('bottom-nav');
     if (bottomNav) bottomNav.style.display = '';
+    updateHeaderDoctorName();
 
     appState.currentView = viewName;
     updateBottomNavHighlight();
@@ -1656,9 +1709,6 @@ export function initMedFlowEngine(): void {
             ← Back to Home
           </button>
         </div>
-
-        <!-- Active Patient Card Below Banner (Full Width on Desktop) -->
-        ${renderPatientSelectorBannerHTML(appState, getActivePatient())}
 
         <div class="w-full">
         <form onsubmit="handleSaveRegistration(event)" class="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 sm:p-8 space-y-6">
@@ -3043,7 +3093,7 @@ export function initMedFlowEngine(): void {
   }
 
   // ============================================================================
-  // INITIALIZE SESSION OR SHOW SIGN-IN / SIGN-UP
+  // INITIALIZE SESSION OR SHOW SIGN-IN / SIGN-UP / HIDDEN ADMIN PORTAL
   // ============================================================================
   loadClinicianAccounts();
   const savedSessionId = localStorage.getItem(SESSION_STORAGE_KEY);
@@ -3051,20 +3101,35 @@ export function initMedFlowEngine(): void {
     const found = appState.clinicianAccounts.find((a: ClinicianAccount) => a.id === savedSessionId);
     if (found) {
       appState.activeClinician = found;
-      appState.bypassPendingInPreview =
-        !navigator.onLine || localStorage.getItem(`medflow_ph_doctor_access_${found.id}`) === 'true';
       syncDoctorFromClinician(found);
       loadClinicianWorkspace(found.id);
     }
   }
 
+  window.addEventListener('hashchange', () => {
+    if (isHiddenAdminPortalRoute()) {
+      renderHiddenAdminPortal();
+    } else if (canClinicianAccessApp(appState.activeClinician)) {
+      switchView(appState.currentView || 'home');
+    } else {
+      renderAuthScreen();
+    }
+  });
+
+  window.addEventListener('popstate', () => {
+    if (isHiddenAdminPortalRoute()) {
+      renderHiddenAdminPortal();
+    } else if (canClinicianAccessApp(appState.activeClinician)) {
+      switchView(appState.currentView || 'home');
+    } else {
+      renderAuthScreen();
+    }
+  });
+
   updateHeaderDoctorName();
-  if (
-    appState.activeClinician &&
-    (appState.activeClinician.role !== 'Doctor' ||
-      appState.activeClinician.approvalStatus === 'approved' ||
-      appState.bypassPendingInPreview)
-  ) {
+  if (isHiddenAdminPortalRoute()) {
+    renderHiddenAdminPortal();
+  } else if (canClinicianAccessApp(appState.activeClinician)) {
     switchView('home');
   } else {
     renderAuthScreen();

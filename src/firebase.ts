@@ -1,9 +1,85 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  getDocFromServer,
+  setDoc,
+  deleteDoc,
+  collection,
+  getDocs
+} from 'firebase/firestore';
+import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const auth = getAuth(app);
+export const storage = getStorage(app);
+export { firebaseConfig };
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write'
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+export function handleFirestoreError(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null
+): void {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo:
+        auth.currentUser?.providerData.map((provider) => ({
+          providerId: provider.providerId,
+          email: provider.email
+        })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+}
+
+async function testConnection(): Promise<void> {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error('Please check your Firebase configuration.');
+    }
+  }
+}
+testConnection();
 
 export interface ClinicianAccount {
   id: string;
@@ -21,7 +97,10 @@ export interface ClinicianAccount {
   prc: string;
   ptr: string;
   s2: string;
-  approvalStatus: 'pending' | 'approved' | 'rejected';
+  approvalStatus: 'pending' | 'approved' | 'rejected' | 'banned';
+  subscriptionStartDate?: string;
+  subscriptionEndDate?: string;
+  subscriptionAmountPhp?: number;
   createdAt: string;
 }
 
@@ -71,8 +150,8 @@ export async function flushOfflineSyncQueue(): Promise<void> {
       }
       localStorage.removeItem(PENDING_CLINICIANS_SYNC_KEY);
     }
-  } catch {
-    // Keep in queue for next online event
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, 'clinicians');
   }
 
   try {
@@ -85,8 +164,8 @@ export async function flushOfflineSyncQueue(): Promise<void> {
       }
       localStorage.removeItem(PENDING_WORKSPACES_SYNC_KEY);
     }
-  } catch {
-    // Keep in queue for next online event
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, 'workspaces');
   }
 }
 
@@ -103,8 +182,18 @@ export async function syncClinicianToFirestore(account: ClinicianAccount): Promi
   }
   try {
     await setDoc(doc(db, 'clinicians', account.id), account, { merge: true });
-  } catch {
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `clinicians/${account.id}`);
     queuePendingClinicianSync(account);
+  }
+}
+
+export async function deleteClinicianFromFirestore(clinicianId: string): Promise<void> {
+  if (!isBrowserOnline()) return;
+  try {
+    await deleteDoc(doc(db, 'clinicians', clinicianId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `clinicians/${clinicianId}`);
   }
 }
 
@@ -120,7 +209,8 @@ export async function fetchAllCliniciansFromFirestore(): Promise<ClinicianAccoun
       list.push(d.data() as ClinicianAccount);
     });
     return list;
-  } catch {
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, 'clinicians');
     return [];
   }
 }
@@ -148,7 +238,8 @@ export async function syncWorkspaceToFirestore(clinicianId: string, patients: un
       },
       { merge: true }
     );
-  } catch {
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `workspaces/${clinicianId}`);
     queuePendingWorkspaceSync(clinicianId, patients, updatedAt);
   }
 }
@@ -172,7 +263,32 @@ export async function fetchWorkspaceFromFirestore(
       }
     }
     return null;
-  } catch {
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, `workspaces/${clinicianId}`);
     return null;
+  }
+}
+
+/**
+ * Uploads a patient attachment or generated PDF data URL to Firebase Cloud Storage
+ * when online, returning the cloud download URL (or falling back to local dataUrl offline).
+ */
+export async function uploadAttachmentToFirebaseStorage(
+  clinicianId: string,
+  fileName: string,
+  dataUrl: string
+): Promise<{ storagePath: string; downloadUrl: string }> {
+  const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const storagePath = `clinicians/${clinicianId}/attachments/${Date.now()}_${safeName}`;
+  if (!isBrowserOnline()) {
+    return { storagePath, downloadUrl: dataUrl };
+  }
+  try {
+    const fileRef = ref(storage, storagePath);
+    await uploadString(fileRef, dataUrl, 'data_url');
+    const downloadUrl = await getDownloadURL(fileRef);
+    return { storagePath, downloadUrl };
+  } catch {
+    return { storagePath, downloadUrl: dataUrl };
   }
 }

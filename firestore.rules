@@ -9,13 +9,13 @@ service cloud.firestore {
         && data.name is string && data.name.size() >= 2 && data.name.size() < 150
         && data.role in ['Doctor', 'Medical Clerk', 'Medical Intern']
         && data.facility is string && data.facility.size() < 300
-        && data.approvalStatus in ['pending', 'approved', 'rejected'];
+        && data.approvalStatus in ['pending', 'approved', 'rejected', 'banned'];
     }
 
     match /clinicians/{clinicianId} {
       allow read: if true;
       allow create, update: if isValidClinician(request.resource.data);
-      allow delete: if false;
+      allow delete: if true;
     }
 
     match /workspaces/{clinicianId} {

@@ -20,7 +20,10 @@
         "prc": { "type": "string", "description": "PRC License Number" },
         "ptr": { "type": "string", "description": "PTR Number" },
         "s2": { "type": "string", "description": "S2 License Number" },
-        "approvalStatus": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "Admin subscription approval status" },
+        "approvalStatus": { "type": "string", "enum": ["pending", "approved", "rejected", "banned"], "description": "Admin subscription approval status" },
+        "subscriptionStartDate": { "type": "string", "description": "YYYY-MM-DD start date of the 199 PHP/month subscription" },
+        "subscriptionEndDate": { "type": "string", "description": "YYYY-MM-DD due/expiration date of the 199 PHP/month subscription" },
+        "subscriptionAmountPhp": { "type": "number", "description": "Monthly subscription rate in PHP (199)" },
         "createdAt": { "type": "string", "description": "ISO timestamp of registration" }
       },
       "required": ["id", "username", "email", "name", "role", "facility", "approvalStatus", "createdAt"]

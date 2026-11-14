@@ -23,7 +23,10 @@
         "approvalStatus": { "type": "string", "enum": ["pending", "approved", "rejected", "banned"], "description": "Admin subscription approval status" },
         "subscriptionStartDate": { "type": "string", "description": "YYYY-MM-DD start date of the 199 PHP/month subscription" },
         "subscriptionEndDate": { "type": "string", "description": "YYYY-MM-DD due/expiration date of the 199 PHP/month subscription" },
-        "subscriptionAmountPhp": { "type": "number", "description": "Monthly subscription rate in PHP (199)" },
+        "subscriptionMonths": { "type": "number", "description": "Number of months availed at 199 PHP/month" },
+        "subscriptionAmountPhp": { "type": "number", "description": "Total subscription payment in PHP (199 * months)" },
+        "gcashReference": { "type": "string", "description": "GCash reference number or payment details submitted before enrollment" },
+        "gcashReceiptDataUrl": { "type": "string", "description": "Compressed base64 data URL of the uploaded GCash payment receipt screenshot" },
         "createdAt": { "type": "string", "description": "ISO timestamp of registration" }
       },
       "required": ["id", "username", "email", "name", "role", "facility", "approvalStatus", "createdAt"]

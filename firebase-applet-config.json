@@ -1,12 +1,12 @@
 {
-  "projectId": "inductive-heading-cz0s9",
-  "appId": "1:618806380743:web:22f30cd063fdd3a53616e2",
-  "apiKey": "AIzaSyAaIey9GO2VJdN2QyCmyCc0FUR_9zTzodk",
-  "authDomain": "inductive-heading-cz0s9.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-f83bfd30-eca4-43c7-b615-3a8215eb3f49",
-  "storageBucket": "inductive-heading-cz0s9.firebasestorage.app",
-  "messagingSenderId": "618806380743",
-  "measurementId": "",
-  "oAuthClientId": "618806380743-k7sv2jjp9mh54hdkr6jn3ej337sdj4v9.apps.googleusercontent.com",
+  "projectId": "medflow-ph",
+  "appId": "1:1081840967847:web:1865c29e30c02d649cbb82",
+  "apiKey": "AIzaSyC_Pdfbw2_5geSFrY5wJaAu6vkuVjkHFW8",
+  "authDomain": "medflow-ph.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "medflow-ph.firebasestorage.app",
+  "messagingSenderId": "1081840967847",
+  "measurementId": "G-SSZX39FBBN",
+  "oAuthClientId": "",
   "recaptchaSiteKey": ""
 }

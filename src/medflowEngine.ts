@@ -11,6 +11,7 @@ import {
   escapeHTML,
   resolveAncTrimesterBundle,
   getPatientPrenatalVisits,
+  buildAntenatalMedsFromDropdowns,
   buildRekordNiNanayHalfBondHTML,
   buildA4SoapRecordSheetHTML,
   buildSingleA6RxPadHTML,
@@ -21,7 +22,9 @@ import {
   buildPatientRecordsHTML,
   isClinicianSubscriptionExpired,
   getSubscriptionDaysRemaining,
-  buildHiddenAdminPortalHTML
+  buildHiddenAdminPortalHTML,
+  renderClearFormIconButtonHTML,
+  buildA4IndividualTreatmentRecordHTML
 } from './medflowViews';
 import {
   ClinicianAccount,
@@ -45,8 +48,9 @@ const LEGACY_DUMMY_ACCOUNT_IDS = new Set([
   'intern-bea-003'
 ]);
 
-const ACCOUNTS_STORAGE_KEY = 'medflow_ph_clinician_accounts_v3';
-const SESSION_STORAGE_KEY = 'medflow_ph_active_clinician_id_v3';
+const ACCOUNTS_STORAGE_KEY = 'medflow_ph_clinician_accounts_v4';
+const SESSION_STORAGE_KEY = 'medflow_ph_active_clinician_id_v4';
+const ADMIN_PASSKEY_STORAGE_KEY = 'medflow_ph_admin_passkey_v1';
 const AI_SOAP_STORAGE_KEY = 'medflow_ph_ai_soap_enabled_v1';
 
 function getWorkspaceStorageKey(clinicianId: string): string {
@@ -57,14 +61,50 @@ function getWorkspaceTimestampKey(clinicianId: string): string {
   return `medflow_ph_workspace_ts_${clinicianId}`;
 }
 
+function addMonthsToDateStr(dateStr: string, monthsToAdd: number): string {
+  const parts = (dateStr || '').split('-').map(Number);
+  const y = parts[0] || new Date().getFullYear();
+  const m = parts[1] || new Date().getMonth() + 1;
+  const d = parts[2] || new Date().getDate();
+  const dt = new Date(y, m - 1 + monthsToAdd, d);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+
+function formatReadableMonthDate(dateStr: string): string {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr || 'N/A';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  if (isNaN(dt.getTime())) return dateStr;
+  return dt.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+function calculateMonthsBetweenDates(startStr: string, endStr: string): number {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startStr) || !/^\d{4}-\d{2}-\d{2}$/.test(endStr)) return 1;
+  const [sy, sm, sd] = startStr.split('-').map(Number);
+  const [ey, em, ed] = endStr.split('-').map(Number);
+  const startUtc = Date.UTC(sy, sm - 1, sd);
+  const endUtc = Date.UTC(ey, em - 1, ed);
+  const diffDays = Math.max(1, Math.round((endUtc - startUtc) / 86400000));
+  return Math.max(1, Math.ceil(diffDays / 30));
+}
+
 export function initMedFlowEngine(): void {
-  // Purge legacy dummy storage keys so the app starts completely clean
-  localStorage.removeItem('medflow_ph_clinician_accounts_v2');
-  localStorage.removeItem('medflow_ph_active_clinician_id_v2');
+  // Purge all legacy/dummy storage keys so the login screen starts completely clean
+  [
+    'medflow_ph_clinician_accounts_v1',
+    'medflow_ph_clinician_accounts_v2',
+    'medflow_ph_clinician_accounts_v3',
+    'medflow_ph_active_clinician_id_v1',
+    'medflow_ph_active_clinician_id_v2',
+    'medflow_ph_active_clinician_id_v3'
+  ].forEach((k) => localStorage.removeItem(k));
   LEGACY_DUMMY_ACCOUNT_IDS.forEach((dummyId) => {
     localStorage.removeItem(getWorkspaceStorageKey(dummyId));
     localStorage.removeItem(getWorkspaceTimestampKey(dummyId));
   });
+
+  const todayInitStr = new Date().toISOString().split('T')[0];
+  const defaultOneMonthEndStr = addMonthsToDateStr(todayInitStr, 1);
 
   const savedAiPref = localStorage.getItem(AI_SOAP_STORAGE_KEY);
   const appState: any = {
@@ -76,6 +116,12 @@ export function initMedFlowEngine(): void {
     soapSelectedCpgId: '',
     authMode: 'signin', // 'signin' | 'signup'
     signupRole: 'Doctor', // 'Doctor' | 'Medical Clerk' | 'Medical Intern'
+    signupSubStartDate: todayInitStr,
+    signupSubEndDate: defaultOneMonthEndStr,
+    signupSubMonths: 1,
+    signupGcashReceiptDataUrl: '',
+    signupGcashReceiptName: '',
+    registrationDefaultType: 'regular',
     clinicianAccounts: [] as ClinicianAccount[],
     doctor: {
       id: '',
@@ -282,6 +328,26 @@ export function initMedFlowEngine(): void {
     return appState.patients.find((p: any) => p.id === appState.activePatientId) || appState.patients[0] || null;
   }
 
+  function getActiveAncPatient(): any {
+    const current = appState.patients.find((p: any) => p.id === appState.activePatientId);
+    if (current && current.patientType === 'antenatal') return current;
+    const firstAnc = appState.patients.find((p: any) => p.patientType === 'antenatal') || null;
+    if (firstAnc) {
+      appState.activePatientId = firstAnc.id;
+    }
+    return firstAnc;
+  }
+
+  function getActiveOpdPatient(): any {
+    const current = appState.patients.find((p: any) => p.id === appState.activePatientId);
+    if (current && current.patientType !== 'antenatal') return current;
+    const firstOpd = appState.patients.find((p: any) => p.patientType !== 'antenatal') || null;
+    if (firstOpd) {
+      appState.activePatientId = firstOpd.id;
+    }
+    return firstOpd;
+  }
+
   function showToast(message: string, type = 'success'): void {
     const container = document.getElementById('toast-container');
     if (!container) return;
@@ -307,9 +373,7 @@ export function initMedFlowEngine(): void {
 
   function extractDoctorSurname(fullName: string): string {
     if (!fullName) return 'Doctor';
-    // Strip everything after the first comma (e.g., ", Clinical Clerk", ", MD, FPCP")
     const beforeComma = fullName.split(',')[0].trim();
-    // Remove parenthetical suffixes and leading titles
     const cleaned = beforeComma
       .replace(/\(.*?\)/g, '')
       .replace(/^(Dr\.?|Dra\.?|MD|Mr\.?|Ms\.?|Mrs\.?)\s+/i, '')
@@ -362,14 +426,55 @@ export function initMedFlowEngine(): void {
   window.handleAdminPortalLogin = (e: Event) => {
     e.preventDefault();
     const passInput = ((document.getElementById('admin-portal-passkey') as HTMLInputElement)?.value || '').trim();
-    if (passInput === 'admin199' || passInput.toLowerCase() === 'artjanny303@gmail.com') {
+    const customPasskey = localStorage.getItem(ADMIN_PASSKEY_STORAGE_KEY) || 'admin199';
+    if (passInput === customPasskey || passInput.toLowerCase() === 'artjanny303@gmail.com') {
       appState.adminPortalUnlocked = true;
       sessionStorage.setItem('medflow_ph_admin_unlocked', 'true');
       renderHiddenAdminPortal();
       showToast('Admin Portal unlocked.');
     } else {
-      showToast('Invalid Admin Passkey.', 'warning');
+      showToast('Invalid Admin Password.', 'warning');
     }
+  };
+
+  window.handleAdminPasswordChange = (e: Event) => {
+    e.preventDefault();
+    const newPass = ((document.getElementById('admin-new-portal-passkey') as HTMLInputElement)?.value || '').trim();
+    const confirmPass = ((document.getElementById('admin-confirm-portal-passkey') as HTMLInputElement)?.value || '').trim();
+    if (!newPass || newPass.length < 4) {
+      showToast('New Admin password must be at least 4 characters.', 'warning');
+      return;
+    }
+    if (newPass !== confirmPass) {
+      showToast('New Admin password and confirmation do not match.', 'warning');
+      return;
+    }
+    localStorage.setItem(ADMIN_PASSKEY_STORAGE_KEY, newPass);
+    renderHiddenAdminPortal();
+    showToast('Admin Portal password updated successfully.');
+  };
+
+  window.adminChangeClinicianPassword = (clinicianId: string) => {
+    const idx = appState.clinicianAccounts.findIndex((a: ClinicianAccount) => a.id === clinicianId);
+    if (idx < 0) return;
+    const passInput = document.getElementById(`admin-user-pass-${clinicianId}`) as HTMLInputElement | null;
+    const newPassword = (passInput?.value || '').trim();
+    if (!newPassword || newPassword.length < 4) {
+      showToast('Please enter a new password (at least 4 characters).', 'warning');
+      return;
+    }
+    const updated: ClinicianAccount = {
+      ...appState.clinicianAccounts[idx],
+      passwordHash: newPassword
+    };
+    appState.clinicianAccounts[idx] = updated;
+    if (appState.activeClinician?.id === clinicianId) {
+      appState.activeClinician = updated;
+    }
+    saveClinicianAccounts();
+    syncClinicianToFirestore(updated);
+    renderHiddenAdminPortal();
+    showToast(`Updated password for ${updated.name}.`);
   };
 
   window.setAdminFilterTab = (tab: string) => {
@@ -393,9 +498,7 @@ export function initMedFlowEngine(): void {
     const todayStr = new Date().toISOString().split('T')[0];
     const startVal = startInput?.value && /^\d{4}-\d{2}-\d{2}$/.test(startInput.value) ? startInput.value : todayStr;
     if (startInput) startInput.value = startVal;
-    const [y, m, d] = startVal.split('-').map(Number);
-    const dt = new Date(y, m - 1 + months, d);
-    const endStr = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    const endStr = addMonthsToDateStr(startVal, months);
     if (endInput) endInput.value = endStr;
   };
 
@@ -414,12 +517,14 @@ export function initMedFlowEngine(): void {
       return;
     }
 
+    const monthsCount = calculateMonthsBetweenDates(startDate, endDate);
     const updated: ClinicianAccount = {
       ...appState.clinicianAccounts[idx],
       approvalStatus: 'approved',
       subscriptionStartDate: startDate,
       subscriptionEndDate: endDate,
-      subscriptionAmountPhp: 199
+      subscriptionMonths: monthsCount,
+      subscriptionAmountPhp: monthsCount * 199
     };
 
     appState.clinicianAccounts[idx] = updated;
@@ -429,7 +534,7 @@ export function initMedFlowEngine(): void {
     saveClinicianAccounts();
     syncClinicianToFirestore(updated);
     renderHiddenAdminPortal();
-    showToast(`Approved ${updated.name} (₱199/mo: ${startDate} to ${endDate})`);
+    showToast(`Approved ${updated.name} (${monthsCount} mo • ₱${monthsCount * 199}: ${startDate} to ${endDate})`);
   };
 
   window.adminBanClinicianAccount = (clinicianId: string) => {
@@ -490,6 +595,27 @@ export function initMedFlowEngine(): void {
       });
     } else {
       showToast(`Admin Portal Link: ${adminUrl}`);
+    }
+  };
+
+  window.copyFreePlanFirestoreRules = () => {
+    const rulesText = `rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /clinicians/{clinicianId} {
+      allow read, create, update, delete: if true;
+    }
+    match /workspaces/{clinicianId} {
+      allow read, create, update: if true;
+    }
+  }
+}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(rulesText).then(() => {
+        showToast('Copied Free-Plan Firestore Database Rules to clipboard!');
+      });
+    } else {
+      showToast('Firestore Rules ready in firestore.rules file.');
     }
   };
 
@@ -567,7 +693,7 @@ export function initMedFlowEngine(): void {
           <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-teal-900 p-6 text-white">
             <span class="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest bg-white/15 mb-2">₱199 / Month Subscription Due</span>
             <h2 class="text-xl font-extrabold">Subscription Expired — Workspace Locked</h2>
-            <p class="text-xs text-teal-100 mt-1">Your monthly subscription period has ended. Please renew to continue using the app.</p>
+            <p class="text-xs text-teal-100 mt-1">Your monthly subscription period has ended. Please renew via GCash (₱199/month) to continue using the app.</p>
           </div>
           <div class="p-6 space-y-4">
             <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-800 space-y-1.5">
@@ -596,16 +722,18 @@ export function initMedFlowEngine(): void {
     if (appState.activeClinician && appState.activeClinician.approvalStatus === 'pending') {
       const c = appState.activeClinician;
       const isTrainee = c.role === 'Medical Clerk' || c.role === 'Medical Intern';
+      const monthsAvailed = c.subscriptionMonths || 1;
+      const totalPaymentPhp = c.subscriptionAmountPhp || monthsAvailed * 199;
       main.innerHTML = `
         <div class="max-w-xl mx-auto my-8 bg-white rounded-2xl border border-slate-200 shadow-lg overflow-hidden">
           <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 p-6 text-white">
-            <span class="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest bg-white/15 mb-2">Subscription Enrollment (₱199 / Month)</span>
+            <span class="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest bg-white/15 mb-2">Subscription Enrollment (₱199 / Month via GCash)</span>
             <h2 class="text-xl font-extrabold">Account Pending Admin Enrollment Approval</h2>
-            <p class="text-xs text-teal-100 mt-1">Your registration has been submitted. The Administrator will verify your credentials and set your subscription start and end dates.</p>
+            <p class="text-xs text-teal-100 mt-1">Your registration has been submitted. Please ensure your GCash subscription payment (₱${Number(totalPaymentPhp).toLocaleString()}.00 PHP) is settled before Admin enrollment activation.</p>
           </div>
           <div class="p-6 space-y-4">
             <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-800 space-y-1.5">
-              <p class="font-bold text-sm text-slate-900">Submitted Clinician Credentials:</p>
+              <p class="font-bold text-sm text-slate-900">Submitted Clinician &amp; Subscription Details:</p>
               <p><strong>Name &amp; Role:</strong> ${escapeHTML(c.name)} (${escapeHTML(c.role)})</p>
               <p><strong>Username / Email:</strong> ${escapeHTML(c.username)} • ${escapeHTML(c.email)}</p>
               <p><strong>Phone Number:</strong> ${escapeHTML(c.phone)}</p>
@@ -615,7 +743,11 @@ export function initMedFlowEngine(): void {
                   ? `<p><strong>School &amp; Supervising MD:</strong> ${escapeHTML(c.school || 'N/A')} • Supv: ${escapeHTML(c.supervisingDoctor || 'N/A')}</p>`
                   : `<p><strong>PRC / PTR / S2:</strong> PRC #${escapeHTML(c.prc || 'Pending')} | PTR #${escapeHTML(c.ptr || 'N/A')} | S2 #${escapeHTML(c.s2 || 'N/A')}</p>`
               }
-              <p><strong>Subscription Rate:</strong> ₱199.00 PHP / month</p>
+              <p><strong>Starting Date &amp; Month:</strong> ${escapeHTML(formatReadableMonthDate(c.subscriptionStartDate || ''))} (${escapeHTML(c.subscriptionStartDate || 'N/A')})</p>
+              <p><strong>End Date &amp; Month:</strong> ${escapeHTML(formatReadableMonthDate(c.subscriptionEndDate || ''))} (${escapeHTML(c.subscriptionEndDate || 'N/A')})</p>
+              <p><strong>Months Availed:</strong> ${monthsAvailed} Month${monthsAvailed > 1 ? 's' : ''} (₱199.00 / month)</p>
+              <p><strong>Total Payment Due via GCash Before Enrollment:</strong> <span class="font-extrabold text-teal-800">₱${Number(totalPaymentPhp).toLocaleString()}.00 PHP</span></p>
+              ${c.gcashReference ? `<p><strong>GCash Reference / Details:</strong> ${escapeHTML(c.gcashReference)}</p>` : ''}
               <p><strong>Enrollment Status:</strong> <span class="px-2 py-0.5 rounded bg-teal-50 text-teal-800 border border-teal-200 font-bold uppercase text-[10px]">Pending Admin Approval</span></p>
             </div>
             <div class="flex flex-col sm:flex-row gap-2.5 pt-2">
@@ -635,6 +767,10 @@ export function initMedFlowEngine(): void {
     const mode = appState.authMode || 'signin';
     const role = appState.signupRole || 'Doctor';
     const isTrainee = role === 'Medical Clerk' || role === 'Medical Intern';
+    const subStart = appState.signupSubStartDate || todayInitStr;
+    const subEnd = appState.signupSubEndDate || defaultOneMonthEndStr;
+    const subMonths = Number(appState.signupSubMonths) || calculateMonthsBetweenDates(subStart, subEnd);
+    const totalPaymentPhp = subMonths * 199;
 
     main.innerHTML = `
       <div class="max-w-2xl mx-auto my-6 bg-white rounded-2xl border border-slate-200 shadow-lg overflow-hidden">
@@ -657,6 +793,10 @@ export function initMedFlowEngine(): void {
 
           ${mode === 'signin' ? `
             <form onsubmit="handleClinicianSignIn(event)" class="space-y-4">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-extrabold uppercase tracking-wider text-slate-700">Clinician Sign In</span>
+                ${renderClearFormIconButtonHTML('clearSignInForm()', 'Clear Sign In Form')}
+              </div>
               <div>
                 <label class="block text-xs font-bold text-slate-700 mb-1">Email Address or Username <span class="text-teal-700">*</span></label>
                 <input id="signin-identifier" type="text" required placeholder="Enter your registered email or username"
@@ -677,10 +817,12 @@ export function initMedFlowEngine(): void {
             </form>
           ` : `
             <form onsubmit="handleClinicianSignUp(event)" class="space-y-4">
-
-              <!-- Role Selector -->
+              <!-- Role Selector + Clear Form Icon -->
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1.5">Select Clinical Role <span class="text-teal-700">*</span></label>
+                <div class="flex items-center justify-between mb-1.5">
+                  <label class="block text-xs font-bold text-slate-700">Select Clinical Role <span class="text-teal-700">*</span></label>
+                  ${renderClearFormIconButtonHTML('clearSignUpForm()', 'Clear Registration Form')}
+                </div>
                 <div class="grid grid-cols-3 gap-2">
                   ${['Doctor', 'Medical Clerk', 'Medical Intern'].map(r => `
                     <button type="button" onclick="setSignupRole('${r}')"
@@ -694,23 +836,23 @@ export function initMedFlowEngine(): void {
               <!-- Account Login Credentials -->
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label class="block text-xs font-bold text-slate-700 mb-1">Full Name & Title <span class="text-teal-700">*</span></label>
-                  <input id="signup-name" type="text" required placeholder="${isTrainee ? 'e.g., Juan Dela Cruz, Clinical Clerk' : 'e.g., Dr. Juan Dela Cruz, MD'}"
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Full Name &amp; Title <span class="text-teal-700">*</span></label>
+                  <input id="signup-name" type="text" required placeholder="${isTrainee ? `Enter full name (${role})` : 'Enter full name & MD title'}"
                     class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
                 </div>
                 <div>
                   <label class="block text-xs font-bold text-slate-700 mb-1">Username <span class="text-teal-700">*</span></label>
-                  <input id="signup-username" type="text" required placeholder="e.g., dr.juandelacruz"
+                  <input id="signup-username" type="text" required placeholder="Enter preferred username"
                     class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
                 </div>
                 <div>
                   <label class="block text-xs font-bold text-slate-700 mb-1">Email Address <span class="text-teal-700">*</span></label>
-                  <input id="signup-email" type="email" required placeholder="clinician@hospital.ph"
+                  <input id="signup-email" type="email" required placeholder="Enter active email address"
                     class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
                 </div>
                 <div>
                   <label class="block text-xs font-bold text-slate-700 mb-1">Phone / Mobile Number <span class="text-teal-700">*</span></label>
-                  <input id="signup-phone" type="text" required placeholder="e.g., 0917-555-0199"
+                  <input id="signup-phone" type="text" required placeholder="09XX-XXX-XXXX"
                     class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
                 </div>
                 <div>
@@ -720,23 +862,23 @@ export function initMedFlowEngine(): void {
                 </div>
                 <div>
                   <label class="block text-xs font-bold text-slate-700 mb-1">Specialty / Department Rotation</label>
-                  <input id="signup-specialty" type="text" placeholder="${isTrainee ? 'e.g., Internal Medicine Rotation' : 'e.g., Internal Medicine / Family Medicine'}"
+                  <input id="signup-specialty" type="text" placeholder="${isTrainee ? 'e.g., Internal Medicine / OB-GYN Rotation' : 'e.g., Primary Care / Internal Medicine'}"
                     class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
                 </div>
               </div>
 
               <!-- Assigned Facility & Address (For Doctor, Clerk, and Intern) -->
               <div class="p-3.5 rounded-xl bg-teal-50/60 border border-teal-200 space-y-2.5">
-                <p class="text-[11px] font-extrabold uppercase tracking-wider text-teal-900">Assigned Facility & Document Header Information</p>
+                <p class="text-[11px] font-extrabold uppercase tracking-wider text-teal-900">Assigned Facility &amp; Document Header Information</p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">Assigned Facility / Hospital / Clinic <span class="text-teal-700">*</span></label>
-                    <input id="signup-facility" type="text" required placeholder="e.g., Philippine General Hospital / RHU"
+                    <input id="signup-facility" type="text" required placeholder="Enter assigned hospital, RHU, or clinic"
                       class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white font-semibold">
                   </div>
                   <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">Facility / Clinic Address <span class="text-teal-700">*</span></label>
-                    <input id="signup-address" type="text" required placeholder="e.g., Taft Ave., Ermita, Manila"
+                    <input id="signup-address" type="text" required placeholder="Enter complete facility address"
                       class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white">
                   </div>
                 </div>
@@ -745,16 +887,16 @@ export function initMedFlowEngine(): void {
               <!-- Conditional Fields for Medical Clerk / Medical Intern -->
               ${isTrainee ? `
                 <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
-                  <p class="text-[11px] font-extrabold uppercase tracking-wider text-slate-800">${escapeHTML(role)} Affiliation & Supervision</p>
+                  <p class="text-[11px] font-extrabold uppercase tracking-wider text-slate-800">${escapeHTML(role)} Affiliation &amp; Supervision</p>
                   <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <div>
                       <label class="block text-xs font-bold text-slate-700 mb-1">Current Affiliation School <span class="text-teal-700">*</span></label>
-                      <input id="signup-school" type="text" required placeholder="e.g., UP College of Medicine / UST FMS"
+                      <input id="signup-school" type="text" required placeholder="Enter medical school name"
                         class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white font-semibold">
                     </div>
                     <div>
                       <label class="block text-xs font-bold text-slate-700 mb-1">Supervising Doctor (Type or Edit) <span class="text-teal-700">*</span></label>
-                      <input id="signup-supervising" type="text" required placeholder="e.g., Dr. Roberto Reyes, MD (PRC #0114892)"
+                      <input id="signup-supervising" type="text" required placeholder="Enter supervising physician name & PRC No."
                         class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white font-semibold">
                     </div>
                   </div>
@@ -762,33 +904,125 @@ export function initMedFlowEngine(): void {
               ` : `
                 <!-- Conditional License Fields for Doctor -->
                 <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
-                  <p class="text-[11px] font-extrabold uppercase tracking-wider text-slate-800">Physician License Credentials (Appears on SOAP, Rx & Lab Forms)</p>
+                  <p class="text-[11px] font-extrabold uppercase tracking-wider text-slate-800">Physician License Credentials (Appears on SOAP, Rx &amp; Lab Forms)</p>
                   <div class="grid grid-cols-3 gap-2">
                     <div>
                       <label class="block text-[11px] font-bold text-slate-700 mb-1">PRC License No. <span class="text-teal-700">*</span></label>
-                      <input id="signup-prc" type="text" required placeholder="0128492"
+                      <input id="signup-prc" type="text" required placeholder="PRC License No."
                         class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white">
                     </div>
                     <div>
                       <label class="block text-[11px] font-bold text-slate-700 mb-1">PTR No.</label>
-                      <input id="signup-ptr" type="text" placeholder="8492011"
+                      <input id="signup-ptr" type="text" placeholder="PTR No."
                         class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white">
                     </div>
                     <div>
                       <label class="block text-[11px] font-bold text-slate-700 mb-1">S2 License No.</label>
-                      <input id="signup-s2" type="text" placeholder="S2-094812"
+                      <input id="signup-s2" type="text" placeholder="S2 License No."
                         class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white">
                     </div>
                   </div>
                 </div>
               `}
 
-              <p class="text-[11px] text-teal-900 bg-teal-50 border border-teal-200 px-3 py-2 rounded-xl font-medium">
-                <strong>Subscription Plan (₱199.00 PHP / month):</strong> Submitted sign-ups are reviewed by the Administrator to set your subscription start and end dates.
-              </p>
+              <!-- CHOOSE YOUR SUBSCRIPTION -->
+              <div class="p-4 rounded-2xl bg-teal-50/80 border-2 border-teal-300 space-y-3">
+                <div class="flex items-center justify-between border-b border-teal-200 pb-2">
+                  <h4 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-slate-900">
+                    CHOOSE YOUR SUBSCRIPTION
+                  </h4>
+                  <span class="px-2.5 py-1 rounded-full bg-teal-700 text-white text-[10px] font-extrabold uppercase">
+                    ₱199 / Month
+                  </span>
+                </div>
 
-              <button type="submit" class="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm transition cursor-pointer">
-                Submit ${escapeHTML(role)} Sign Up (₱199/month)
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label class="block text-[11px] font-bold text-slate-700 mb-1">Starting Date <span class="text-teal-700">*</span></label>
+                    <input
+                      id="signup-sub-start"
+                      type="date"
+                      required
+                      value="${escapeHTML(subStart)}"
+                      onchange="handleSignupSubDateChange('start', this.value)"
+                      class="w-full px-3 py-2 rounded-xl border border-teal-300 bg-white text-xs font-bold text-slate-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label class="block text-[11px] font-bold text-slate-700 mb-1">Months <span class="text-teal-700">*</span></label>
+                    <select
+                      id="signup-sub-months"
+                      onchange="handleSignupSubMonthsChange(this.value)"
+                      class="w-full px-3 py-2 rounded-xl border border-teal-300 bg-white text-xs font-bold text-slate-900"
+                    >
+                      ${[1, 2, 3, 4, 5, 6, 9, 12].map((m) => `
+                        <option value="${m}" ${subMonths === m ? 'selected' : ''}>
+                          ${m} Month${m > 1 ? 's' : ''} — ₱${(m * 199).toLocaleString()}.00
+                        </option>
+                      `).join('')}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="block text-[11px] font-bold text-slate-700 mb-1">End Date <span class="text-teal-700">*</span></label>
+                    <input
+                      id="signup-sub-end"
+                      type="date"
+                      required
+                      value="${escapeHTML(subEnd)}"
+                      onchange="handleSignupSubDateChange('end', this.value)"
+                      class="w-full px-3 py-2 rounded-xl border border-teal-300 bg-white text-xs font-bold text-slate-900"
+                    />
+                  </div>
+                </div>
+
+                <!-- Concise Total Amount Box & GCash Details -->
+                <div class="p-3.5 rounded-xl bg-white border border-teal-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div class="space-y-1">
+                    <p class="text-xs font-bold text-slate-800">
+                      Please pay total amount via GCash before enrollment.
+                    </p>
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                      <span class="font-bold text-teal-900">GCash: <span class="font-extrabold">09524400577</span></span>
+                      <span class="font-bold text-slate-800">Account Name: <span class="font-extrabold">Jan Art Serna</span></span>
+                    </div>
+                  </div>
+                  <div class="text-left sm:text-right shrink-0 bg-teal-900 text-white px-4 py-2.5 rounded-xl">
+                    <span class="text-[9px] font-bold uppercase tracking-wider text-teal-200 block">Total Amount</span>
+                    <span id="signup-sub-total-amount" class="text-lg font-extrabold">₱${totalPaymentPhp.toLocaleString()}.00 PHP</span>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-[11px] font-bold text-slate-700 mb-1">GCash Reference No. (Optional)</label>
+                    <input
+                      id="signup-gcash-ref"
+                      type="text"
+                      placeholder="Enter GCash Reference No."
+                      class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-[11px] font-bold text-slate-700 mb-1">Upload GCash Receipt Screenshot</label>
+                    <input
+                      id="signup-gcash-receipt"
+                      type="file"
+                      accept="image/*"
+                      onchange="handleGcashReceiptUpload(event)"
+                      class="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white text-xs file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:bg-teal-600 file:text-white file:text-[11px] file:font-bold cursor-pointer"
+                    />
+                    <div id="signup-gcash-receipt-preview" class="mt-1.5 ${appState.signupGcashReceiptDataUrl ? 'flex' : 'hidden'} items-center gap-2">
+                      <img id="signup-gcash-receipt-img" src="${appState.signupGcashReceiptDataUrl || ''}" alt="GCash Receipt Preview" class="w-9 h-9 object-cover rounded-lg border border-teal-300" />
+                      <span id="signup-gcash-receipt-name" class="text-[10px] font-bold text-teal-800 truncate">${escapeHTML(appState.signupGcashReceiptName || 'Receipt attached')}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <button id="signup-submit-btn" type="submit" class="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm transition cursor-pointer">
+                Submit Registration
               </button>
             </form>
           `}
@@ -796,6 +1030,53 @@ export function initMedFlowEngine(): void {
       </div>
     `;
   }
+
+  function updateSignupSubscriptionDomSummary(): void {
+    const startVal = appState.signupSubStartDate || todayInitStr;
+    const endVal = appState.signupSubEndDate || defaultOneMonthEndStr;
+    const months = Number(appState.signupSubMonths) || 1;
+    const totalPhp = months * 199;
+
+    const startInput = document.getElementById('signup-sub-start') as HTMLInputElement | null;
+    if (startInput && startInput.value !== startVal) startInput.value = startVal;
+    const endInput = document.getElementById('signup-sub-end') as HTMLInputElement | null;
+    if (endInput && endInput.value !== endVal) endInput.value = endVal;
+    const monthsSelect = document.getElementById('signup-sub-months') as HTMLSelectElement | null;
+    if (monthsSelect && String(monthsSelect.value) !== String(months)) {
+      monthsSelect.value = String(months);
+    }
+
+    const totalEl = document.getElementById('signup-sub-total-amount');
+    if (totalEl) totalEl.textContent = `₱${totalPhp.toLocaleString()}.00 PHP`;
+    const submitBtn = document.getElementById('signup-submit-btn');
+    if (submitBtn) {
+      submitBtn.textContent = 'Submit Registration';
+    }
+  }
+
+  window.handleSignupSubMonthsChange = (monthsStr: string) => {
+    const months = Math.max(1, parseInt(monthsStr, 10) || 1);
+    appState.signupSubMonths = months;
+    const startVal = (document.getElementById('signup-sub-start') as HTMLInputElement)?.value || appState.signupSubStartDate || todayInitStr;
+    appState.signupSubStartDate = startVal;
+    appState.signupSubEndDate = addMonthsToDateStr(startVal, months);
+    updateSignupSubscriptionDomSummary();
+  };
+
+  window.handleSignupSubDateChange = (which: 'start' | 'end', val: string) => {
+    if (!val) return;
+    if (which === 'start') {
+      appState.signupSubStartDate = val;
+      const months = Number(appState.signupSubMonths) || 1;
+      appState.signupSubEndDate = addMonthsToDateStr(val, months);
+    } else {
+      appState.signupSubEndDate = val;
+      const startVal = (document.getElementById('signup-sub-start') as HTMLInputElement)?.value || appState.signupSubStartDate || todayInitStr;
+      appState.signupSubStartDate = startVal;
+      appState.signupSubMonths = calculateMonthsBetweenDates(startVal, val);
+    }
+    updateSignupSubscriptionDomSummary();
+  };
 
   window.setAuthMode = (mode: string) => {
     appState.authMode = mode;
@@ -805,6 +1086,50 @@ export function initMedFlowEngine(): void {
   window.setSignupRole = (role: string) => {
     appState.signupRole = role;
     renderAuthScreen();
+  };
+
+  window.handleGcashReceiptUpload = (e: Event) => {
+    const input = e.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 700;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (ctx) ctx.drawImage(img, 0, 0, w, h);
+        const compressedUrl = canvas.toDataURL('image/jpeg', 0.78);
+        appState.signupGcashReceiptDataUrl = compressedUrl;
+        appState.signupGcashReceiptName = file.name;
+        const previewWrap = document.getElementById('signup-gcash-receipt-preview');
+        const previewImg = document.getElementById('signup-gcash-receipt-img') as HTMLImageElement | null;
+        const previewName = document.getElementById('signup-gcash-receipt-name');
+        if (previewWrap) {
+          previewWrap.classList.remove('hidden');
+          previewWrap.classList.add('flex');
+        }
+        if (previewImg) previewImg.src = compressedUrl;
+        if (previewName) previewName.textContent = file.name;
+        showToast('GCash receipt screenshot attached.');
+      };
+      img.src = String(reader.result || '');
+    };
+    reader.readAsDataURL(file);
   };
 
   window.handleClinicianSignIn = async (e: Event) => {
@@ -893,9 +1218,19 @@ export function initMedFlowEngine(): void {
     const prc = ((document.getElementById('signup-prc') as HTMLInputElement)?.value || '').trim();
     const ptr = ((document.getElementById('signup-ptr') as HTMLInputElement)?.value || '').trim();
     const s2 = ((document.getElementById('signup-s2') as HTMLInputElement)?.value || '').trim();
+    const subStartDate = ((document.getElementById('signup-sub-start') as HTMLInputElement)?.value || appState.signupSubStartDate || todayInitStr).trim();
+    const subEndDate = ((document.getElementById('signup-sub-end') as HTMLInputElement)?.value || appState.signupSubEndDate || defaultOneMonthEndStr).trim();
+    const subMonths = Math.max(1, Number(appState.signupSubMonths) || calculateMonthsBetweenDates(subStartDate, subEndDate));
+    const totalPaymentPhp = subMonths * 199;
+    const gcashRef = ((document.getElementById('signup-gcash-ref') as HTMLInputElement)?.value || '').trim();
 
     if (!name || !username || !email || !phone || !password || !facility) {
       showToast('Please complete all required registration fields.', 'warning');
+      return;
+    }
+
+    if (subEndDate < subStartDate) {
+      showToast('Subscription End Date cannot be earlier than Starting Date.', 'warning');
       return;
     }
 
@@ -924,10 +1259,17 @@ export function initMedFlowEngine(): void {
       ptr: role === 'Doctor' ? ptr : 'N/A',
       s2: role === 'Doctor' ? s2 : 'N/A',
       approvalStatus: 'pending',
-      subscriptionAmountPhp: 199,
+      subscriptionStartDate: subStartDate,
+      subscriptionEndDate: subEndDate,
+      subscriptionMonths: subMonths,
+      subscriptionAmountPhp: totalPaymentPhp,
+      gcashReference: gcashRef,
+      gcashReceiptDataUrl: appState.signupGcashReceiptDataUrl || '',
       createdAt: new Date().toISOString()
     };
 
+    appState.signupGcashReceiptDataUrl = '';
+    appState.signupGcashReceiptName = '';
     appState.clinicianAccounts.push(newAccount);
     saveClinicianAccounts();
     syncClinicianToFirestore(newAccount);
@@ -943,7 +1285,7 @@ export function initMedFlowEngine(): void {
     updateHeaderDoctorName();
 
     renderAuthScreen();
-    showToast('Sign Up submitted! Awaiting Admin approval & subscription activation (₱199/month).', 'success');
+    showToast(`Registration submitted! Total payment due via GCash: ₱${totalPaymentPhp.toLocaleString()}.00 (${subMonths} mo).`, 'success');
   };
 
   window.checkPendingDoctorStatus = async () => {
@@ -1002,16 +1344,46 @@ export function initMedFlowEngine(): void {
   };
 
   // ============================================================================
-  // CLINICAL SOAP LOGIC (PRESERVED FROM USER CODE)
+  // CLINICAL AI SOAP NARRATIVE ENGINE (SYNCS DOCTOR-ENCODED SYMPTOMS & DATA)
   // ============================================================================
   function generateLiveAISoapFromPatient(p: any): any {
-    const cc = (p.chiefComplaint || '').toLowerCase();
-    const hpi = (p.hpi || '').toLowerCase();
-    const combined = `${cc} ${hpi}`;
+    const ccRaw = (p.chiefComplaint || '').trim();
+    const hpiRaw = (p.hpi || '').trim();
+    const peRaw = (p.peFindings || '').trim();
+    const labRaw = (p.labResults || '').trim();
+    const comorbRaw = (p.comorbidities || '').trim();
+    const combined = `${ccRaw} ${hpiRaw} ${peRaw} ${comorbRaw} ${labRaw}`.toLowerCase();
     const v = p.vitals || {};
     const anc = p.anc || {};
 
-    if (p.patientType === 'antenatal' || combined.includes('prenatal') || combined.includes('antenatal') || combined.includes('pregnant') || combined.includes('aog')) {
+    const ageStr = p.age ? `${p.age}-year-old` : 'Adult';
+    const sexStr = (p.sex || 'patient').toLowerCase();
+    const civilStr = p.civilStatus ? `${p.civilStatus.toLowerCase()} ` : '';
+    const visitNature = p.natureOfVisit || 'New Consultation';
+    const pmhNarrative =
+      comorbRaw && comorbRaw.toLowerCase() !== 'none reported'
+        ? `Past medical history is significant for ${comorbRaw}.`
+        : 'No known chronic medical comorbidities reported.';
+    const allergyNarrative = p.allergies ? `Allergies: ${p.allergies}.` : 'Allergies: No Known Drug Allergies (NKDA).';
+    const famSocialParts: string[] = [];
+    if (p.familyHistory && p.familyHistory !== 'None') famSocialParts.push(`Family History: ${p.familyHistory}`);
+    if (p.smokingStatus) famSocialParts.push(`Smoking: ${p.smokingStatus}`);
+    if (p.alcoholIntake) famSocialParts.push(`Alcohol: ${p.alcoholIntake}`);
+    const famSocialNarrative = famSocialParts.length > 0 ? ` ${famSocialParts.join(' | ')}.` : '';
+
+    const vitalsNarrative =
+      `Vital Signs: Blood pressure ${v.bp || '120/80'} mmHg, heart rate ${v.hr || '78'} bpm, respiratory rate ${v.rr || '18'} cpm, temperature ${v.temp || '36.7'}°C, SpO2 ${v.spo2 || '98'}%. ` +
+      `Anthropometrics: Weight ${v.weight || '-'} kg, Height ${v.height || '-'} cm, BMI ${v.bmi || '-'} kg/m² (${v.bmiCategory || 'Normal'})${v.waistCircumference ? `, Waist Circumference ${v.waistCircumference} cm` : ''}.`;
+    const peNarrative = peRaw || 'Conscious, coherent, ambulatory, not in cardiorespiratory distress. Anicteric sclerae, pink palpebral conjunctivae, clear breath sounds, regular cardiac rhythm, soft non-tender abdomen.';
+    const labNarrative = labRaw ? ` Pertinent Laboratory/Diagnostic Results: ${labRaw}.` : '';
+
+    if (
+      p.patientType === 'antenatal' ||
+      combined.includes('prenatal') ||
+      combined.includes('antenatal') ||
+      combined.includes('pregnant') ||
+      combined.includes('aog')
+    ) {
       const g = anc.gravida || 1;
       const para = anc.para || 0;
       const t = anc.term || 0;
@@ -1020,12 +1392,20 @@ export function initMedFlowEngine(): void {
       const l = anc.living || 0;
       const aog = anc.aogWeeks || '2nd Trimester';
       const edc = anc.edc || 'To be determined by Ultrasound';
-      const dangerList = anc.dangerSigns && anc.dangerSigns.length > 0 ? anc.dangerSigns.join(', ') : 'No maternal danger signs reported';
+      const dangerList =
+        anc.dangerSigns && anc.dangerSigns.length > 0
+          ? anc.dangerSigns.join(', ')
+          : 'No maternal danger signs reported (no vaginal bleeding, severe headache, visual blurring, or epigastric pain)';
 
       return {
-        confidence: '98% DOH/POGS Maternal CPG Match',
-        subjectiveSummary: `${p.age}-year-old G${g}P${para} (${t}-${pr}-${ab}-${l}) at ${aog} AOG (EDC: ${edc}) presenting for ${p.chiefComplaint}. ${p.hpi || ''} Danger Signs Screening: ${dangerList}.`,
-        objectiveSummary: `BP: ${v.bp || '-'} mmHg | HR: ${v.hr || '-'} bpm | Wt: ${v.weight || '-'} kg | BMI: ${v.bmi || '-'}. OB Exam: FH ${anc.fundicHeight || '-'} cm, FHT ${anc.fht || '-'} bpm, Presentation: ${anc.presentation || 'Cephalic'}, Fetal Movement: ${anc.fetalMovement || 'Active'}, Edema: ${anc.edema || 'None'}.`,
+        confidence: '98% DOH/POGS Maternal CPG Narrative Match',
+        subjectiveSummary:
+          `Patient is a ${ageStr} ${civilStr}female, G${g}P${para} (${t}-${pr}-${ab}-${l}), currently at ${aog} Age of Gestation (EDC: ${edc}), presenting for ${visitNature.toLowerCase()} due to ${ccRaw || 'routine antenatal check-up'}. ` +
+          `${hpiRaw ? `Clinical History: ${hpiRaw} ` : ''}` +
+          `Maternal Danger Signs Screening: ${dangerList}. ${pmhNarrative} ${allergyNarrative}`,
+        objectiveSummary:
+          `${vitalsNarrative} ` +
+          `Obstetric Physical Examination: Fundic height ${anc.fundicHeight || 'appropriate for gestational age'}, fetal heart tone ${anc.fht || '140–150 bpm'}, fetal presentation ${anc.presentation || 'Cephalic'}, fetal movement ${anc.fetalMovement || 'Present / Active'}, maternal edema ${anc.edema || 'None'}. ${peNarrative}${labNarrative}`,
         primaryImpression: `Pregnancy Uterine, ${aog} AOG by LMP, ${anc.presentation || 'Cephalic'}, Live Singleton; G${g}P${para} (${t}-${pr}-${ab}-${l}), ${anc.dangerSigns?.length ? 'High-Risk Pregnancy (With Danger Signs)' : 'Low-Risk Antenatal Care'} (ICD-10: Z34.8)`,
         differentials: [
           'Routine Antenatal Supervision (DOH Safe Motherhood / POGS CPG)',
@@ -1033,10 +1413,10 @@ export function initMedFlowEngine(): void {
           'Monitor for Gestational Hypertension / Preeclampsia'
         ],
         suggestedPlan:
-          `1. Continue Daily Maternal Micronutrients: ${anc.ironFolate || 'Ferrous Sulfate 60mg Elemental Iron + Folic Acid 400mcg OD'} and ${anc.calcium || 'Calcium Carbonate 500mg TID'}.\n` +
-          `2. Ensure Tetanus Diphtheria (${anc.tetanusStatus || 'Td'}) immunization and trimester laboratory/ultrasound workup are up to date.\n` +
-          `3. Reinforce DOH Mother-Baby Birth & Emergency Plan (Facility: ${anc.facilityBirthPlan || 'Accredited Birthing Facility'}).\n` +
-          `4. Advise daily fetal kick counting (>=10 movements in 12 hours) and immediate consult if any maternal danger signs occur.`,
+          `1. Continue daily maternal micronutrient supplementation: ${anc.ironFolate || 'Ferrous Sulfate 60mg Elemental Iron + Folic Acid 400mcg 1 tab PO OD'} and ${anc.calcium || 'Calcium Carbonate 500mg 1 tab PO TID'}.\n` +
+          `2. Ensure Tetanus Diphtheria (${anc.tetanusStatus || 'Td'}) immunization and trimester-appropriate laboratory and obstetric ultrasound workup are completed.\n` +
+          `3. Reinforce DOH Mother-Baby Birth & Emergency Plan (Planned Birthing Facility: ${anc.facilityBirthPlan || 'Accredited Birthing Facility'}).\n` +
+          `4. Advise daily fetal kick counting (>=10 movements in 12 hours), maternal nutrition counseling, and immediate return if any maternal danger signs occur.`,
         suggestedMeds: [
           { genericName: 'Ferrous Sulfate + Folic Acid 60mg/400mcg Tablet', brandExample: 'Hemarate FA / Iberet', sig: 'Take 1 tablet orally once daily', quantity: '#30' },
           { genericName: 'Calcium Carbonate 500mg Tablet', brandExample: 'Caltrate / Calvin Plus', sig: 'Take 1 tablet orally three times daily with meals', quantity: '#60' }
@@ -1049,49 +1429,157 @@ export function initMedFlowEngine(): void {
       };
     }
 
-    if (combined.includes('bp') || combined.includes('hypertension') || combined.includes('nape') || combined.includes('dizziness')) {
-      return {
-        confidence: '96% PSH / PhilPEN CPG Match',
-        subjectiveSummary: `${p.age}-year-old ${p.sex} presenting with ${p.chiefComplaint}. ${p.hpi || ''}`,
-        objectiveSummary: `BP: ${v.bp || '-'} mmHg | HR: ${v.hr || '-'} bpm | RR: ${v.rr || '-'} cpm | Temp: ${v.temp || '-'}°C | BMI: ${v.bmi || '-'} (${v.bmiCategory || '-'}). ${p.peFindings || ''}`,
-        primaryImpression: 'Essential Hypertension, Stage 2, Uncontrolled (ICD-10: I10); Screen for Target Organ Damage & Metabolic Syndrome',
-        differentials: [
-          'Primary Essential Hypertension (PSH 2020 CPG)',
-          'Hypertensive Urgency (if BP >180/120 mmHg without acute target organ damage)',
-          'Type 2 Diabetes Mellitus / Dyslipidemia Comorbidity'
-        ],
-        suggestedPlan:
-          '1. Initiate or optimize single-pill combination therapy (ARB + CCB: Losartan 50mg + Amlodipine 5mg 1 tab PO OD).\n' +
-          '2. Order baseline workup: FBS, HbA1c, Lipid Profile, Serum Creatinine with eGFR, Serum Potassium, Routine Urinalysis, and 12-Lead ECG.\n' +
-          '3. Lifestyle modification: Low-sodium DASH diet (<2g sodium/day), weight reduction, 30 mins moderate aerobic exercise 5x/week.\n' +
-          '4. Maintain home BP monitoring log (morning and evening) and follow up in 2 weeks.',
-        suggestedMeds: [
+    // Match doctor-encoded symptoms & clinical data against all 39 Philippine CPGs
+    let bestCpg: any = null;
+    let bestScore = 0;
+    const tokens = combined
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length >= 3);
+
+    for (const cpg of PH_CPG_CATALOG) {
+      let score = 0;
+      const titleLower = (cpg.title || '').toLowerCase();
+      if (combined && titleLower.includes(combined.trim()) && combined.trim().length > 3) {
+        score += 12;
+      }
+      for (const kw of cpg.keywords || []) {
+        const kwLower = kw.toLowerCase();
+        if (combined.includes(kwLower)) {
+          score += kwLower.includes(' ') ? 8 : 5;
+        }
+      }
+      for (const tok of tokens) {
+        if (titleLower.includes(tok)) score += 3;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestCpg = cpg;
+      }
+    }
+
+    const buildSuggestedMedsForCpg = (cpgItem: any): any[] => {
+      const id = (cpgItem?.id || '').toLowerCase();
+      if (id.includes('hypertension')) {
+        return [
           { genericName: 'Losartan Potassium + Amlodipine Besilate 50mg/5mg Tablet', brandExample: 'Exforge / Co-Amlodin', sig: 'Take 1 tablet orally once daily in the morning', quantity: '#30' },
           { genericName: 'Atorvastatin Calcium 20mg Tablet', brandExample: 'Lipitor / Avamax', sig: 'Take 1 tablet orally once daily at bedtime', quantity: '#30' }
+        ];
+      }
+      if (id.includes('diabetes') || id.includes('dm')) {
+        return [
+          { genericName: 'Metformin Hydrochloride 500mg Tablet', brandExample: 'Glucophage', sig: 'Take 1 tablet orally twice daily with meals', quantity: '#60' },
+          { genericName: 'Dapagliflozin 10mg Tablet', brandExample: 'Forxiga', sig: 'Take 1 tablet orally once daily', quantity: '#30' }
+        ];
+      }
+      if (id.includes('cap') || id.includes('pneumonia') || id.includes('ari')) {
+        return [
+          { genericName: 'Amoxicillin + Clavulanic Acid 625mg Tablet', brandExample: 'Augmentin', sig: 'Take 1 tablet orally every 8 hours for 7 days', quantity: '#21' },
+          { genericName: 'Paracetamol 500mg Tablet', brandExample: 'Biogesic', sig: 'Take 1 tablet orally every 6 hours PRN for fever', quantity: '#15' }
+        ];
+      }
+      if (id.includes('dengue')) {
+        return [
+          { genericName: 'Oral Rehydration Salts (ORS 75) Sachet', brandExample: 'Hydrite / Pedialyte', sig: 'Dissolve 1 sachet in 200mL water, take fréquently for hydration', quantity: '#10' },
+          { genericName: 'Paracetamol 500mg Tablet (Avoid NSAIDs/Aspirin)', brandExample: 'Biogesic', sig: 'Take 1 tablet orally every 6 hours PRN for fever', quantity: '#15' }
+        ];
+      }
+      if (id.includes('tb') || id.includes('tuberculosis')) {
+        return [
+          { genericName: 'Fixed-Dose Combination 4-FDC (HRZE: 75/150/400/275mg) Tablet', brandExample: 'DOH NTP Regimen 1', sig: 'Take weight-based daily dose orally once daily on an empty stomach', quantity: '#28' },
+          { genericName: 'Pyridoxine (Vitamin B6) 25mg Tablet', brandExample: 'B-Complex', sig: 'Take 1 tablet orally once daily to prevent peripheral neuropathy', quantity: '#30' }
+        ];
+      }
+      if (id.includes('asthma') || id.includes('copd')) {
+        return [
+          { genericName: 'Budesonide + Formoterol 160mcg/4.5mcg Inhaler', brandExample: 'Symbicort Rapihaler', sig: 'Inhale 1–2 puffs twice daily as maintenance and PRN for symptom relief', quantity: '#1 inhaler' }
+        ];
+      }
+      if (id.includes('uti')) {
+        return [
+          { genericName: 'Nitrofurantoin Macrocrystals 100mg Capsule', brandExample: 'Macrodantin', sig: 'Take 1 capsule orally twice daily for 5 days', quantity: '#10' },
+          { genericName: 'Paracetamol 500mg Tablet', brandExample: 'Biogesic', sig: 'Take 1 tablet orally every 6 hours PRN for dysuria/fever', quantity: '#10' }
+        ];
+      }
+      if (id.includes('gout')) {
+        return [
+          { genericName: 'Colchicine 500mcg Tablet', brandExample: 'Goutnil / Rhea Colchicine', sig: 'Take 2 tablets initially then 1 tablet 1 hour later on Day 1', quantity: '#12' },
+          { genericName: 'Febuxostat 40mg Tablet', brandExample: 'Adenuric / Uloric', sig: 'Take 1 tablet orally once daily after acute flare resolves', quantity: '#30' }
+        ];
+      }
+      if (id.includes('gerd') || id.includes('dyspepsia') || id.includes('peptic')) {
+        return [
+          { genericName: 'Omeprazole 20mg Capsule', brandExample: 'Losec / Omepron', sig: 'Take 1 capsule orally once daily 30 minutes before breakfast for 4–8 weeks', quantity: '#30' },
+          { genericName: 'Sodium Alginate + Sodium Bicarbonate + Calcium Carbonate Suspension', brandExample: 'Gaviscon', sig: 'Take 10mL orally after meals and at bedtime PRN', quantity: '#1 bottle' }
+        ];
+      }
+      if (id.includes('diarrhea') || id.includes('age') || id.includes('cholera')) {
+        return [
+          { genericName: 'Reduced Osmolarity Oral Rehydration Salts (ORS 75)', brandExample: 'Hydrite', sig: 'Give after each loose stool as directed for hydration', quantity: '#10' },
+          { genericName: 'Zinc Sulfate 20mg Dispersible Tablet', brandExample: 'E-Zinc', sig: 'Take 1 tablet orally once daily for 10–14 days', quantity: '#14' }
+        ];
+      }
+      if (id.includes('leptospirosis')) {
+        return [
+          { genericName: 'Doxycycline 100mg Capsule', brandExample: 'Vibramycin', sig: 'Take 1 capsule orally every 12 hours for 7 days after meals', quantity: '#14' },
+          { genericName: 'Paracetamol 500mg Tablet', brandExample: 'Biogesic', sig: 'Take 1 tablet orally every 6 hours PRN for fever/myalgia', quantity: '#15' }
+        ];
+      }
+      return [
+        { genericName: 'Paracetamol 500mg Tablet', brandExample: 'Biogesic', sig: 'Take 1 tablet orally every 6 hours PRN for fever or pain', quantity: '#12' },
+        { genericName: 'Cetirizine Dihydrochloride 10mg Tablet', brandExample: 'Virlix / Alnix', sig: 'Take 1 tablet orally once daily at bedtime PRN', quantity: '#10' }
+      ];
+    };
+
+    const narrativeSubj =
+      `Patient is a ${ageStr} ${civilStr}${sexStr} presenting for a ${visitNature.toLowerCase()} with a chief complaint of ${ccRaw || 'clinical symptoms requiring evaluation'}. ` +
+      `${hpiRaw ? `History of Present Illness: ${hpiRaw} ` : 'Patient reports onset of symptoms prompting today’s outpatient consultation. '}` +
+      `${pmhNarrative} ${allergyNarrative}${famSocialNarrative}`;
+
+    const narrativeObj = `${vitalsNarrative} Physical Examination: ${peNarrative}${labNarrative}`;
+
+    if (bestCpg && bestScore >= 3) {
+      const planLines = (bestCpg.soapPlanSummary || []).map((line: string, i: number) => `${i + 1}. ${line}`);
+      if (p.healthEducation) {
+        planLines.push(`${planLines.length + 1}. Health Education & Counseling: ${p.healthEducation}`);
+      }
+      const redFlagsList =
+        bestCpg.pathway?.stepC?.redFlags || [
+          'Persistent high-grade fever, tachypnea, or SpO2 < 94%',
+          'Worsening symptoms despite initial therapy or inability to tolerate oral intake',
+          'Altered sensorium, severe pain, or hemodynamic instability'
+        ];
+
+      return {
+        confidence: `Synced with ${bestCpg.title} (${bestCpg.source || 'PH CPG'})`,
+        subjectiveSummary: narrativeSubj,
+        objectiveSummary: narrativeObj,
+        primaryImpression: `${bestCpg.title} — Clinical Impression Correlated with Encoded Symptoms (${bestCpg.source || 'Philippine CPG'})`,
+        differentials: [
+          `Primary Guideline Reference: ${bestCpg.title}`,
+          ...((bestCpg.scope?.excluded || []).slice(0, 2).map((ex: any) => `Rule out ${ex.label}: ${ex.action}`))
         ],
-        redFlags: [
-          'BP >= 180/120 mmHg accompanied by chest pain, dyspnea, or neurologic deficit',
-          'Sudden unilateral weakness, facial droop, or slurred speech (Stroke BE-FAST)',
-          'Decreased urine output or bipedal edema'
-        ]
+        suggestedPlan: planLines.join('\n'),
+        suggestedMeds: buildSuggestedMedsForCpg(bestCpg),
+        redFlags: redFlagsList
       };
     }
 
     return {
-      confidence: '94% DOH / PhilHealth Primary Care Match',
-      subjectiveSummary: `${p.age}-year-old ${p.sex} presenting with ${p.chiefComplaint || 'outpatient consultation'}. ${p.hpi || ''}`,
-      objectiveSummary: `BP: ${v.bp || '-'} mmHg | HR: ${v.hr || '-'} bpm | RR: ${v.rr || '-'} cpm | Temp: ${v.temp || '-'}°C | SpO2: ${v.spo2 || '-'}% | BMI: ${v.bmi || '-'} (${v.bmiCategory || '-'}). ${p.peFindings || ''}`,
-      primaryImpression: `Clinical Evaluation for: ${p.chiefComplaint || 'Primary Care Consultation'} (Verify ICD-10 in Philippine CPG Reference)`,
+      confidence: 'Synced Narrative SOAP from Encoded Clinical Data',
+      subjectiveSummary: narrativeSubj,
+      objectiveSummary: narrativeObj,
+      primaryImpression: `Clinical Evaluation for: ${ccRaw || 'Outpatient Consultation'} (Correlate with Philippine CPG & Targeted Workup)`,
       differentials: [
-        'Primary Acute / Chronic Medical Condition per History & PE',
-        'Consider Infectious vs. Metabolic Etiology',
-        'Refer to Philippine CPG Library tab for society-specific staging'
+        'Primary Acute / Chronic Medical Condition per Encoded History & PE',
+        'Consider Infectious, Inflammatory, or Metabolic Etiology',
+        'Refer to Philippine CPG Library for specialty-specific staging'
       ],
       suggestedPlan:
-        '1. Correlate clinical history and physical examination with targeted diagnostic workup (CBC, Urinalysis, Chemistry as indicated).\n' +
-        '2. Provide evidence-based pharmacotherapy per DOH National Formulary / Generics Act (RA 6675).\n' +
-        '3. Advise supportive hydration, nutrition, and clear return-to-clinic precautions.\n' +
-        '4. Schedule follow-up consultation to review laboratory and imaging results.',
+        `1. Correlate clinical narrative (${ccRaw || 'presenting symptoms'}) and physical examination with targeted diagnostic workup (CBC, Urinalysis, Blood Chemistry as indicated).\n` +
+        `2. Initiate evidence-based pharmacotherapy per DOH National Formulary / Generics Act (RA 6675).\n` +
+        `3. Health Education & Counseling: ${p.healthEducation || 'Advise adequate oral hydration, nutrition, medication adherence, and return-to-clinic precautions.'}\n` +
+        `4. Schedule follow-up consultation to review laboratory and imaging results.`,
       suggestedMeds: [
         { genericName: 'Paracetamol 500mg Tablet', brandExample: 'Biogesic', sig: 'Take 1 tablet orally every 6 hours PRN for fever or pain', quantity: '#12' }
       ],
@@ -1104,39 +1592,83 @@ export function initMedFlowEngine(): void {
   }
 
   function buildAiSoapLeftInnerHTML(p: any): string {
-    if (!p.aiSoap) p.aiSoap = generateLiveAISoapFromPatient(p);
+    p.aiSoap = generateLiveAISoapFromPatient(p);
     const ai = p.aiSoap;
 
     return `
-      <div class="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
+      <div class="flex items-center justify-between border-b border-slate-200 pb-3 mb-3">
         <div class="flex items-center gap-2.5">
-          <div class="px-2.5 py-1.5 rounded-lg bg-teal-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">SOAP</div>
+          <div class="px-2.5 py-1.5 rounded-lg bg-teal-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">AI SOAP</div>
           <div>
-            <h3 class="text-sm font-bold text-slate-900">Clinical SOAP Assistant</h3>
+            <h3 class="text-sm font-extrabold text-slate-900">Clinical Narrative SOAP Generator</h3>
+            <p class="text-[11px] text-teal-700 font-semibold">${escapeHTML(ai.confidence || 'Live Narrative Sync Active')}</p>
           </div>
+        </div>
+        ${renderClearFormIconButtonHTML('clearAiSoapForm()', 'Clear AI SOAP & Encoded Symptoms')}
+      </div>
+
+      <!-- Live Doctor Symptom & Clinical Data Encoder (Syncs Directly to Narrative SOAP) -->
+      <div class="p-3.5 rounded-xl bg-teal-50/70 border border-teal-200 space-y-2.5 mb-3.5">
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] font-extrabold uppercase tracking-wider text-teal-900">Encoded Symptoms &amp; Clinical Data (Live Narrative Sync)</span>
+          <button type="button" onclick="syncAiSoapNarrativeNow()" class="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-[11px] font-bold shadow-2xs transition cursor-pointer">
+            ↻ Sync &amp; Generate Narrative
+          </button>
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Chief Complaint / Presenting Symptoms</label>
+          <input
+            id="ai-encoder-cc"
+            type="text"
+            value="${escapeHTML(p.chiefComplaint || '')}"
+            oninput="handleDoctorSymptomSync('chiefComplaint', this.value)"
+            placeholder="e.g., 3-day high-grade fever, retro-orbital pain, myalgia (Dengue) or BP 160/100 dizziness"
+            class="w-full px-2.5 py-1.5 rounded-lg border border-teal-300 bg-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500"
+          />
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Encoded HPI / Symptom Details &amp; Duration</label>
+          <textarea
+            id="ai-encoder-hpi"
+            rows="2"
+            oninput="handleDoctorSymptomSync('hpi', this.value)"
+            placeholder="Encode symptom onset, progression, associated signs, prior meds..."
+            class="w-full px-2.5 py-1.5 rounded-lg border border-teal-300 bg-white text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-teal-500"
+          >${escapeHTML(p.hpi || '')}</textarea>
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Pertinent Physical Exam / Lab Findings</label>
+          <input
+            id="ai-encoder-pe"
+            type="text"
+            value="${escapeHTML(p.peFindings || '')}"
+            oninput="handleDoctorSymptomSync('peFindings', this.value)"
+            placeholder="Encode pertinent physical exam findings..."
+            class="w-full px-2.5 py-1.5 rounded-lg border border-teal-300 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-teal-500"
+          />
         </div>
       </div>
 
-      <div class="space-y-3.5 text-xs">
+      <div class="space-y-3 text-xs">
         <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">S — Synthesized Subjective</span>
-          <p class="text-slate-700 leading-relaxed">${escapeHTML(ai.subjectiveSummary)}</p>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">S — Generated Narrative Subjective</span>
+          <p id="ai-narrative-subj" class="text-slate-800 leading-relaxed">${escapeHTML(ai.subjectiveSummary)}</p>
         </div>
 
         <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">O — Synthesized Objective</span>
-          <p class="text-slate-700 text-[11px] leading-relaxed">${escapeHTML(ai.objectiveSummary)}</p>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">O — Generated Narrative Objective</span>
+          <p id="ai-narrative-obj" class="text-slate-800 text-[11px] leading-relaxed">${escapeHTML(ai.objectiveSummary)}</p>
         </div>
 
         <div class="p-3.5 rounded-xl bg-teal-50/70 border border-teal-200">
           <div class="flex items-center justify-between mb-1">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-teal-800">A — Suggested Clinical Impression</span>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-teal-800">A — Generated Clinical Impression</span>
             <button onclick="adoptAiAssessment()" class="text-[11px] font-bold text-teal-700 hover:text-teal-900 underline cursor-pointer">Use in Note →</button>
           </div>
-          <p class="font-bold text-slate-900 text-xs">${escapeHTML(ai.primaryImpression)}</p>
+          <p id="ai-narrative-assess" class="font-bold text-slate-900 text-xs">${escapeHTML(ai.primaryImpression)}</p>
           <div class="mt-2 pt-2 border-t border-teal-200/60">
             <span class="text-[10px] font-semibold text-teal-800 uppercase">Differentials / Considerations:</span>
-            <ul class="list-disc list-inside text-[11px] text-slate-700 mt-1 space-y-0.5">
+            <ul id="ai-narrative-diffs" class="list-disc list-inside text-[11px] text-slate-700 mt-1 space-y-0.5">
               ${(ai.differentials || []).map((d: string) => `<li>${escapeHTML(d)}</li>`).join('')}
             </ul>
           </div>
@@ -1144,10 +1676,10 @@ export function initMedFlowEngine(): void {
 
         <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
           <div class="flex items-center justify-between mb-1">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-800">P — Suggested Management Plan</span>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-800">P — Generated Narrative Management Plan</span>
             <button onclick="adoptAiPlan()" class="text-[11px] font-bold text-teal-700 hover:text-teal-900 underline cursor-pointer">Append to Plan →</button>
           </div>
-          <p class="text-slate-800 whitespace-pre-line leading-relaxed text-[11px]">${escapeHTML(ai.suggestedPlan)}</p>
+          <p id="ai-narrative-plan" class="text-slate-800 whitespace-pre-line leading-relaxed text-[11px]">${escapeHTML(ai.suggestedPlan)}</p>
         </div>
 
         <div class="p-3.5 rounded-xl bg-white border border-slate-200">
@@ -1168,7 +1700,7 @@ export function initMedFlowEngine(): void {
         </div>
 
         <div class="p-3 rounded-xl bg-slate-100 border border-slate-300">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-800 block mb-1">Clinical Red Flags & Precautions</span>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-800 block mb-1">Clinical Red Flags &amp; Precautions</span>
           <ul class="list-disc list-inside text-[11px] text-slate-700 space-y-0.5">
             ${(ai.redFlags || []).map((rf: string) => `<li>${escapeHTML(rf)}</li>`).join('')}
           </ul>
@@ -1177,9 +1709,87 @@ export function initMedFlowEngine(): void {
     `;
   }
 
+  window.handleDoctorSymptomSync = (field: 'chiefComplaint' | 'hpi' | 'peFindings', val: string) => {
+    const p = getActiveOpdPatient() || getActivePatient();
+    if (!p) return;
+    p[field] = val;
+    p.aiSoap = generateLiveAISoapFromPatient(p);
+    if (appState.aiSoapEnabled !== false) {
+      if (!p.doctorSoap) {
+        p.doctorSoap = { subjective: '', objective: '', assessment: '', plan: '', followUpDate: '', medications: [] };
+      }
+      p.doctorSoap.subjective = p.aiSoap.subjectiveSummary;
+      p.doctorSoap.objective = p.aiSoap.objectiveSummary;
+      p.doctorSoap.assessment = p.aiSoap.primaryImpression;
+      p.doctorSoap.plan = p.aiSoap.suggestedPlan;
+      if (!Array.isArray(p.doctorSoap.medications) || p.doctorSoap.medications.length === 0) {
+        p.doctorSoap.medications = JSON.parse(JSON.stringify(p.aiSoap.suggestedMeds || []));
+      }
+
+      // Live DOM sync without losing cursor focus in the encoder input
+      const subjNarrativeEl = document.getElementById('ai-narrative-subj');
+      if (subjNarrativeEl) subjNarrativeEl.textContent = p.aiSoap.subjectiveSummary;
+      const objNarrativeEl = document.getElementById('ai-narrative-obj');
+      if (objNarrativeEl) objNarrativeEl.textContent = p.aiSoap.objectiveSummary;
+      const assessNarrativeEl = document.getElementById('ai-narrative-assess');
+      if (assessNarrativeEl) assessNarrativeEl.textContent = p.aiSoap.primaryImpression;
+      const planNarrativeEl = document.getElementById('ai-narrative-plan');
+      if (planNarrativeEl) planNarrativeEl.textContent = p.aiSoap.suggestedPlan;
+
+      const rightSubj = document.querySelector('textarea[oninput*="\'subjective\'"]') as HTMLTextAreaElement | null;
+      if (rightSubj) rightSubj.value = p.doctorSoap.subjective;
+      const rightObj = document.querySelector('textarea[oninput*="\'objective\'"]') as HTMLTextAreaElement | null;
+      if (rightObj) rightObj.value = p.doctorSoap.objective;
+      const rightAssess = document.getElementById('doctor-soap-assessment') as HTMLTextAreaElement | null;
+      if (rightAssess) rightAssess.value = p.doctorSoap.assessment;
+      const rightPlan = document.getElementById('doctor-soap-plan') as HTMLTextAreaElement | null;
+      if (rightPlan) rightPlan.value = p.doctorSoap.plan;
+
+      const a4Preview = document.getElementById('soap-printable-a4');
+      if (a4Preview) {
+        a4Preview.innerHTML = buildA4SoapRecordSheetHTML(appState.doctor, p, 'CONS');
+      }
+    }
+    saveState();
+  };
+
+  window.syncAiSoapNarrativeNow = () => {
+    const p = getActiveOpdPatient() || getActivePatient();
+    if (!p) return;
+    p.aiSoap = generateLiveAISoapFromPatient(p);
+    if (!p.doctorSoap) {
+      p.doctorSoap = { subjective: '', objective: '', assessment: '', plan: '', followUpDate: '', medications: [] };
+    }
+    p.doctorSoap.subjective = p.aiSoap.subjectiveSummary;
+    p.doctorSoap.objective = p.aiSoap.objectiveSummary;
+    p.doctorSoap.assessment = p.aiSoap.primaryImpression;
+    p.doctorSoap.plan = p.aiSoap.suggestedPlan;
+    if (!Array.isArray(p.doctorSoap.medications) || p.doctorSoap.medications.length === 0) {
+      p.doctorSoap.medications = JSON.parse(JSON.stringify(p.aiSoap.suggestedMeds || []));
+    }
+    saveState();
+    renderSoapWorkspace();
+    showToast('Synced encoded symptoms & generated Narrative SOAP!');
+  };
+
   window.toggleAiSoapAssistance = () => {
     appState.aiSoapEnabled = !appState.aiSoapEnabled;
     localStorage.setItem(AI_SOAP_STORAGE_KEY, String(appState.aiSoapEnabled));
+    const p = getActiveOpdPatient() || getActivePatient();
+    if (appState.aiSoapEnabled && p) {
+      p.aiSoap = generateLiveAISoapFromPatient(p);
+      if (!p.doctorSoap) {
+        p.doctorSoap = { subjective: '', objective: '', assessment: '', plan: '', followUpDate: '', medications: [] };
+      }
+      p.doctorSoap.subjective = p.aiSoap.subjectiveSummary;
+      p.doctorSoap.objective = p.aiSoap.objectiveSummary;
+      p.doctorSoap.assessment = p.aiSoap.primaryImpression;
+      p.doctorSoap.plan = p.aiSoap.suggestedPlan;
+      if (!Array.isArray(p.doctorSoap.medications) || p.doctorSoap.medications.length === 0) {
+        p.doctorSoap.medications = JSON.parse(JSON.stringify(p.aiSoap.suggestedMeds || []));
+      }
+      saveState();
+    }
     if (appState.currentView === 'soap') {
       renderSoapWorkspace();
     } else if (appState.currentView === 'home') {
@@ -1187,8 +1797,8 @@ export function initMedFlowEngine(): void {
     }
     showToast(
       appState.aiSoapEnabled
-        ? 'AI SOAP Assistance Activated'
-        : 'AI SOAP Assistance Deactivated — Using Offline Philippine CPG Mode'
+        ? 'AI SOAP Activated — Synced encoded symptoms & generated narrative SOAP!'
+        : 'AI SOAP Deactivated — Using Offline Philippine CPG Mode'
     );
   };
 
@@ -1217,19 +1827,58 @@ export function initMedFlowEngine(): void {
     showToast(`Applied "${cpg.title}" as SOAP Assessment`);
   };
 
+  window.handleConsultationDateChange = (newDate: string) => {
+    const p = appState.currentView === 'anc' ? getActiveAncPatient() : getActiveOpdPatient() || getActivePatient();
+    if (!p || !newDate) return;
+    p.consultationDate = newDate;
+    if (!p.doctorSoap) {
+      p.doctorSoap = { subjective: '', objective: '', assessment: '', plan: '', followUpDate: '', medications: [] };
+    }
+    p.doctorSoap.consultationDate = newDate;
+    saveState();
+    const soapPreview = document.getElementById('soap-printable-a4');
+    if (soapPreview) {
+      soapPreview.innerHTML = buildA4SoapRecordSheetHTML(appState.doctor, p, 'CONS');
+    }
+    const ancPreviewEl = document.getElementById('anc-printable-a4');
+    if (ancPreviewEl) {
+      ancPreviewEl.innerHTML = buildA4SoapRecordSheetHTML(appState.doctor, p, 'ANC');
+    }
+    showToast(`Consultation date set to ${newDate}`);
+  };
+
+  window.handleNatureOfVisitChange = (newNature: string) => {
+    const p = appState.currentView === 'anc' ? getActiveAncPatient() : getActiveOpdPatient() || getActivePatient();
+    if (!p || !newNature) return;
+    p.natureOfVisit = newNature;
+    if (!p.doctorSoap) {
+      p.doctorSoap = { subjective: '', objective: '', assessment: '', plan: '', followUpDate: '', medications: [] };
+    }
+    p.doctorSoap.natureOfVisit = newNature;
+    saveState();
+  };
+
   window.savePatientConsultationSnapshot = () => {
     const p = getActivePatient();
     if (!p) return;
     if (!Array.isArray(p.consultationHistory)) p.consultationHistory = [];
     const today = p.consultationDate || new Date().toISOString().split('T')[0];
+    if (p.doctorSoap) {
+      p.doctorSoap.consultationDate = today;
+      p.doctorSoap.natureOfVisit = p.natureOfVisit || 'New Consultation';
+    }
     const snapshotEntry = {
       date: today,
-      type: p.patientType === 'antenatal' ? 'Antenatal Visit' : 'Outpatient Consultation',
+      type: p.natureOfVisit || (p.patientType === 'antenatal' ? 'Antenatal Visit' : 'Outpatient Consultation'),
       chiefComplaint: p.chiefComplaint || 'Consultation',
       vitalsSummary: `BP ${p.vitals?.bp || '-'}, HR ${p.vitals?.hr || '-'}, Temp ${p.vitals?.temp || '-'}°C, Wt ${p.vitals?.weight || '-'}kg`,
       assessment: p.doctorSoap?.assessment || p.chiefComplaint || 'Pending Assessment',
       planSummary: p.doctorSoap?.plan || '',
-      medsSummary: (p.doctorSoap?.medications || []).map((m: any) => `${m.genericName} (${m.sig})`).join('; ') || 'None'
+      medsSummary: (p.doctorSoap?.medications || []).map((m: any) => `${m.genericName} (${m.sig})`).join('; ') || 'None',
+      doctorSoap: JSON.parse(JSON.stringify(p.doctorSoap || {})),
+      diagnostics: JSON.parse(JSON.stringify(p.diagnostics || { labs: [], imaging: [], clinicalImpression: '', notes: '' })),
+      vitals: JSON.parse(JSON.stringify(p.vitals || {})),
+      anc: JSON.parse(JSON.stringify(p.anc || {}))
     };
     const existingIdx = p.consultationHistory.findIndex((h: any) => h.date === today);
     if (existingIdx >= 0) {
@@ -1240,8 +1889,8 @@ export function initMedFlowEngine(): void {
     saveState();
     showToast(
       navigator.onLine
-        ? `Saved ${p.name}'s record to offline storage & cloud`
-        : `Saved ${p.name}'s record offline (will auto-sync when online)`
+        ? `Saved ${p.name}'s record (${today}) to offline storage & cloud`
+        : `Saved ${p.name}'s record (${today}) offline (will auto-sync when online)`
     );
   };
 
@@ -1295,17 +1944,24 @@ export function initMedFlowEngine(): void {
   };
 
   window.handleSoapFieldInput = (field: string, value: string) => {
-    const p = getActivePatient();
+    const p = appState.currentView === 'anc' ? getActiveAncPatient() : getActiveOpdPatient();
     if (!p) return;
+    if (!p.doctorSoap) p.doctorSoap = { subjective: '', objective: '', assessment: '', plan: '', followUpDate: '', medications: [] };
     p.doctorSoap[field] = value;
     saveState();
     const printEl = document.getElementById(`print-soap-${field}`);
     if (printEl) printEl.textContent = value;
+    const ancPreviewEl = document.getElementById('anc-printable-a4');
+    if (ancPreviewEl && appState.currentView === 'anc') {
+      ancPreviewEl.innerHTML = buildA4SoapRecordSheetHTML(appState.doctor, p, 'ANC');
+    }
   };
 
   window.addBlankDoctorMed = () => {
-    const p = getActivePatient();
+    const p = appState.currentView === 'anc' ? getActiveAncPatient() : getActiveOpdPatient();
     if (!p) return;
+    if (!p.doctorSoap) p.doctorSoap = { subjective: '', objective: '', assessment: '', plan: '', followUpDate: '', medications: [] };
+    if (!Array.isArray(p.doctorSoap.medications)) p.doctorSoap.medications = [];
     p.doctorSoap.medications.push({
       genericName: '',
       brandExample: '',
@@ -1313,25 +1969,29 @@ export function initMedFlowEngine(): void {
       quantity: '#30'
     });
     saveState();
-    if (appState.currentView === 'rx') renderPrescriptionWorkspace();
+    if (appState.currentView === 'anc') renderAntenatalCare();
+    else if (appState.currentView === 'rx') renderPrescriptionWorkspace();
     else renderSoapWorkspace();
   };
 
   window.updateDoctorMed = (idx: number, key: string, value: string) => {
-    const p = getActivePatient();
-    if (!p || !p.doctorSoap.medications[idx]) return;
+    const p = appState.currentView === 'anc' ? getActiveAncPatient() : getActiveOpdPatient();
+    if (!p || !p.doctorSoap?.medications?.[idx]) return;
     p.doctorSoap.medications[idx][key] = value;
     saveState();
     const soapPreview = document.getElementById('soap-printable-a4');
     if (soapPreview) {
       soapPreview.innerHTML = buildA4SoapRecordSheetHTML(appState.doctor, p, 'CONS');
     }
-    const rxPreview = document.getElementById('rx-printable-sheet');
-    if (rxPreview) {
-      const meds = p.doctorSoap?.medications || [];
-      const mode = appState.rxPrintMode || 'single-a6';
-      if (mode === 'dual-a6') {
-        rxPreview.innerHTML = `
+    const ancPreviewEl = document.getElementById('anc-printable-a4');
+    if (ancPreviewEl) {
+      ancPreviewEl.innerHTML = buildA4SoapRecordSheetHTML(appState.doctor, p, 'ANC');
+    }
+    const meds = p.doctorSoap?.medications || [];
+    const mode = appState.rxPrintMode || 'single-a6';
+    const rxHtml =
+      mode === 'dual-a6'
+        ? `
           <div class="paper-dual-a6-half paper-dual-a6-divider">
             <div class="text-[8px] font-bold uppercase tracking-widest text-teal-700 mb-1">Patient Copy</div>
             ${buildSingleA6RxPadHTML(appState.doctor, p, meds)}
@@ -1340,19 +2000,22 @@ export function initMedFlowEngine(): void {
             <div class="text-[8px] font-bold uppercase tracking-widest text-slate-700 mb-1">Pharmacy / Clinic Copy</div>
             ${buildSingleA6RxPadHTML(appState.doctor, p, meds)}
           </div>
-        `;
-      } else {
-        rxPreview.innerHTML = buildSingleA6RxPadHTML(appState.doctor, p, meds);
-      }
-    }
+        `
+        : buildSingleA6RxPadHTML(appState.doctor, p, meds);
+
+    const rxPreview = document.getElementById('rx-printable-sheet');
+    if (rxPreview) rxPreview.innerHTML = rxHtml;
+    const ancRxPreview = document.getElementById('anc-rx-printable-sheet');
+    if (ancRxPreview) ancRxPreview.innerHTML = rxHtml;
   };
 
   window.removeDoctorMed = (idx: number) => {
-    const p = getActivePatient();
-    if (!p) return;
+    const p = appState.currentView === 'anc' ? getActiveAncPatient() : getActiveOpdPatient();
+    if (!p || !Array.isArray(p.doctorSoap?.medications)) return;
     p.doctorSoap.medications.splice(idx, 1);
     saveState();
-    if (appState.currentView === 'rx') renderPrescriptionWorkspace();
+    if (appState.currentView === 'anc') renderAntenatalCare();
+    else if (appState.currentView === 'rx') renderPrescriptionWorkspace();
     else renderSoapWorkspace();
     showToast('Removed medication from list');
   };
@@ -1491,7 +2154,7 @@ export function initMedFlowEngine(): void {
         <!-- 5 Primary Workflow Cards (Centered Icons & Titles with Distinct Icon Colors) -->
         <div>
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            <button onclick="startNewPatientRegistration()" class="group text-center bg-white hover:bg-teal-50/40 p-6 rounded-2xl border-2 border-slate-200 hover:border-teal-600 shadow-xs hover:shadow-md transition-all flex flex-col items-center justify-between cursor-pointer">
+            <button onclick="startNewPatientRegistration('regular')" class="group text-center bg-white hover:bg-teal-50/40 p-6 rounded-2xl border-2 border-slate-200 hover:border-teal-600 shadow-xs hover:shadow-md transition-all flex flex-col items-center justify-between cursor-pointer">
               <div class="flex flex-col items-center">
                 <div class="w-12 h-12 rounded-xl bg-teal-600 text-white flex items-center justify-center shadow-sm mb-3 group-hover:scale-105 transition-transform">
                   <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
@@ -1618,10 +2281,10 @@ export function initMedFlowEngine(): void {
                               </span>
                             </td>
                             <td class="py-3.5 px-4 font-bold text-slate-900">${escapeHTML(p.name)} (${escapeHTML(p.age)}/${escapeHTML(p.sex)})</td>
-                            <td class="py-3.5 px-4">${p.patientType === 'antenatal' ? 'Antenatal / OB' : 'Regular'}</td>
+                            <td class="py-3.5 px-4">${p.patientType === 'antenatal' ? 'Antenatal / OB' : 'General OPD'}</td>
                             <td class="py-3.5 px-4 text-slate-700 max-w-xs truncate">${escapeHTML(p.doctorSoap?.assessment || p.chiefComplaint)}</td>
                             <td class="py-3.5 px-5 text-right">
-                              <button onclick="openPatientWorkspace('${escapeHTML(p.id)}', 'soap')" class="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs cursor-pointer">Open Chart</button>
+                              <button onclick="openPatientWorkspace('${escapeHTML(p.id)}', '${p.patientType === 'antenatal' ? 'anc' : 'soap'}')" class="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs cursor-pointer">Open Chart</button>
                             </td>
                           </tr>
                         `;
@@ -1642,8 +2305,9 @@ export function initMedFlowEngine(): void {
     renderHome();
   };
 
-  window.startNewPatientRegistration = () => {
+  window.startNewPatientRegistration = (defaultType?: string) => {
     appState.pendingAttachments = [];
+    appState.registrationDefaultType = defaultType === 'antenatal' ? 'antenatal' : 'regular';
     switchView('registration');
   };
 
@@ -1677,6 +2341,7 @@ export function initMedFlowEngine(): void {
   };
 
   window.toggleRegPatientType = (type: string) => {
+    appState.registrationDefaultType = type;
     const hiddenInput = document.getElementById('reg-patient-type') as HTMLInputElement;
     if (hiddenInput) hiddenInput.value = type;
     const btnReg = document.getElementById('btn-type-regular');
@@ -1693,10 +2358,17 @@ export function initMedFlowEngine(): void {
     }
   };
 
+  window.handleRegSexChange = (sexVal: string) => {
+    const obBlock = document.getElementById('reg-obgyn-history-block');
+    if (obBlock) {
+      obBlock.style.display = sexVal === 'Female' ? 'block' : 'none';
+    }
+  };
+
   function renderRegistration(): void {
     const main = document.getElementById('main-workspace');
     if (!main) return;
-    const today = new Date().toISOString().split('T')[0];
+    const initType = appState.registrationDefaultType === 'antenatal' ? 'antenatal' : 'regular';
 
     main.innerHTML = `
       <div class="space-y-6">
@@ -1712,131 +2384,250 @@ export function initMedFlowEngine(): void {
 
         <div class="w-full">
         <form onsubmit="handleSaveRegistration(event)" class="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 sm:p-8 space-y-6">
+          <!-- Pathway Selector + Clear Form Icon -->
           <div>
-            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">1. Select Consultation Category</label>
-            <input type="hidden" id="reg-patient-type" value="regular">
+            <div class="flex items-center justify-end gap-2 mb-2">
+              ${renderClearFormIconButtonHTML('clearPatientRegistrationForm()', 'Clear Registration Form')}
+            </div>
+            <input type="hidden" id="reg-patient-type" value="${initType}">
             <div class="flex flex-col sm:flex-row gap-3">
-              <button type="button" id="btn-type-regular" onclick="toggleRegPatientType('regular')" class="flex-1 py-3 px-4 rounded-xl border-2 border-teal-600 bg-teal-50/70 text-teal-900 font-bold text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer">
-                <span>General / Outpatient Consultation</span>
+              <button type="button" id="btn-type-regular" onclick="toggleRegPatientType('regular')" class="${initType === 'regular' ? 'flex-1 py-3 px-4 rounded-xl border-2 border-teal-600 bg-teal-50/70 text-teal-900 font-bold text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer' : 'flex-1 py-3 px-4 rounded-xl border border-slate-200 bg-white text-slate-600 font-semibold text-xs flex items-center justify-center gap-2 hover:bg-slate-50 cursor-pointer'}">
+                <span>General Outpatient</span>
               </button>
-              <button type="button" id="btn-type-antenatal" onclick="toggleRegPatientType('antenatal')" class="flex-1 py-3 px-4 rounded-xl border border-slate-200 bg-white text-slate-600 font-semibold text-xs flex items-center justify-center gap-2 hover:bg-slate-50 cursor-pointer">
-                <span>Antenatal / Maternal Care (OB-GYN)</span>
+              <button type="button" id="btn-type-antenatal" onclick="toggleRegPatientType('antenatal')" class="${initType === 'antenatal' ? 'flex-1 py-3 px-4 rounded-xl border-2 border-teal-600 bg-teal-50/70 text-teal-900 font-bold text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer' : 'flex-1 py-3 px-4 rounded-xl border border-slate-200 bg-white text-slate-600 font-semibold text-xs flex items-center justify-center gap-2 hover:bg-slate-50 cursor-pointer'}">
+                <span>Antenatal and Maternal Care</span>
               </button>
             </div>
           </div>
 
-          <div>
-            <h3 class="text-xs font-bold uppercase tracking-wider text-teal-700 pb-2 border-b border-slate-200 mb-4">2. Patient Demographics</h3>
+          <!-- SECTION I: PATIENT DEMOGRAPHICS & IDENTIFICATION -->
+          <div class="space-y-4">
+            <h3 class="text-xs font-extrabold uppercase tracking-wider text-teal-800 pb-2 border-b border-slate-200">
+              Section I. Patient Demographics &amp; Identification (DOH ITR Standard)
+            </h3>
+
+            <!-- Identifiers: Family Serial No., Household No., PhilHealth PIN -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 p-3.5 rounded-xl bg-teal-50/50 border border-teal-200">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Family Serial Number</label>
+                <input id="reg-family-serial" type="text" placeholder="e.g., FSN-2026-00142" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Household Number</label>
+                <input id="reg-household-no" type="text" placeholder="e.g., HH-0482" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">PhilHealth Identification No. (PIN)</label>
+                <input id="reg-philhealth" type="text" placeholder="XX-XXXXXXXXX-X" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold">
+              </div>
+            </div>
+
+            <!-- Personal Details & Mother's Maiden Name -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div class="sm:col-span-2">
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Full Name <span class="text-teal-700">*</span></label>
-                <input id="reg-name" type="text" required placeholder="e.g., Pedro Penduko" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Age <span class="text-teal-700">*</span></label>
-                <input id="reg-age" type="number" required min="0" max="120" placeholder="45" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Sex <span class="text-teal-700">*</span></label>
-                <select id="reg-sex" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500">
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                </select>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Full Name (Last, First, Middle) <span class="text-teal-700">*</span></label>
+                <input id="reg-name" type="text" required placeholder="Enter patient's full name" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Date of Birth</label>
                 <input id="reg-dob" type="date" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
               </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Age <span class="text-teal-700">*</span></label>
+                  <input id="reg-age" type="number" required min="0" max="120" placeholder="Age" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Sex <span class="text-teal-700">*</span></label>
+                  <select id="reg-sex" onchange="handleRegSexChange(this.value)" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-teal-500">
+                    <option value="Male" ${initType === 'regular' ? 'selected' : ''}>Male</option>
+                    <option value="Female" ${initType === 'antenatal' ? 'selected' : ''}>Female</option>
+                  </select>
+                </div>
+              </div>
+
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Civil Status</label>
                 <select id="reg-civil" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs bg-white">
                   <option value="Single">Single</option>
                   <option value="Married">Married</option>
                   <option value="Widowed">Widowed</option>
+                  <option value="Separated">Separated</option>
+                  <option value="Common-Law / Live-In">Common-Law / Live-In</option>
                 </select>
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Mobile / Contact No.</label>
-                <input id="reg-contact" type="text" placeholder="0917-XXX-XXXX" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Occupation</label>
+                <input id="reg-occupation" type="text" placeholder="e.g., Teacher, Farmer, Self-Employed" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Consultation Date</label>
-                <input id="reg-date" type="date" value="${today}" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
-              </div>
-              <div class="sm:col-span-3">
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Complete Address</label>
-                <input id="reg-address" type="text" placeholder="Barangay, City/Municipality, Province" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Educational Attainment</label>
+                <select id="reg-education" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs bg-white">
+                  <option value="College / Postgraduate">College / Postgraduate</option>
+                  <option value="High School / Senior High">High School / Senior High</option>
+                  <option value="Vocational / Technical">Vocational / Technical</option>
+                  <option value="Elementary">Elementary</option>
+                  <option value="No Formal Schooling">No Formal Schooling</option>
+                </select>
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">PhilHealth PIN</label>
-                <input id="reg-philhealth" type="text" placeholder="XX-XXXXXXXXX-X" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Contact / Mobile Number</label>
+                <input id="reg-contact" type="text" placeholder="09XX-XXX-XXXX" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Zone / Purok / Street</label>
+                <input id="reg-zone-purok" type="text" placeholder="e.g., Purok 3, Zone 2" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Barangay</label>
+                <input id="reg-barangay" type="text" placeholder="e.g., Brgy. San Isidro" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">City / Municipality &amp; Province</label>
+                <input id="reg-address" type="text" placeholder="e.g., Quezon City, Metro Manila" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Mother's Maiden Name</label>
+                <input id="reg-mothers-maiden" type="text" placeholder="First, Middle, Maiden Surname" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
               </div>
             </div>
           </div>
 
-          <div>
-            <h3 class="text-xs font-bold uppercase tracking-wider text-teal-700 pb-2 border-b border-slate-200 mb-4">3. Vital Signs & Anthropometrics (Auto-BMI)</h3>
-            <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">BP (mmHg)</label>
-                <input id="reg-bp" type="text" placeholder="120/80" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">HR (bpm)</label>
-                <input id="reg-hr" type="text" placeholder="78" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">RR (cpm)</label>
-                <input id="reg-rr" type="text" placeholder="18" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Temp (°C)</label>
-                <input id="reg-temp" type="text" placeholder="36.8" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">SpO2 (%)</label>
-                <input id="reg-spo2" type="text" placeholder="98" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Weight (kg)</label>
-                <input id="reg-weight" type="number" step="0.1" oninput="updateRegBMI()" placeholder="65" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Height (cm)</label>
-                <input id="reg-height" type="number" step="0.1" oninput="updateRegBMI()" placeholder="162" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
-              </div>
-              <div>
-                <label class="block text-[11px] font-bold text-teal-700 mb-1">BMI (kg/m²)</label>
-                <input id="reg-bmi" type="text" readonly placeholder="Auto" class="w-full px-3 py-2 rounded-xl border border-teal-300 bg-teal-50/60 text-teal-900 font-bold text-xs">
-                <span id="reg-bmi-cat" class="block text-[9px] text-teal-700 font-medium mt-0.5 truncate">Enter Wt & Ht</span>
-              </div>
-            </div>
-          </div>
+          <!-- SECTION II: MEDICAL, FAMILY, SOCIAL & OB-GYN HISTORY -->
+          <div class="space-y-4">
+            <h3 class="text-xs font-extrabold uppercase tracking-wider text-teal-800 pb-2 border-b border-slate-200">
+              Section II. Medical, Family, Social &amp; OB-GYN History
+            </h3>
 
-          <div>
-            <h3 class="text-xs font-bold uppercase tracking-wider text-teal-700 pb-2 border-b border-slate-200 mb-4">4. Clinical Triage & History</h3>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Known Allergies (Drugs / Food)</label>
                 <input id="reg-allergies" type="text" value="No Known Drug Allergies (NKDA)" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Comorbidities / Past Medical History</label>
-                <input id="reg-comorbidities" type="text" placeholder="e.g., Hypertension, Bronchial Asthma" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Chronic Conditions / Comorbidities</label>
+                <input id="reg-comorbidities" type="text" placeholder="e.g., Hypertension, Diabetes, Asthma, TB" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Previous Surgeries</label>
+                <input id="reg-surgeries" type="text" placeholder="e.g., Appendectomy (2019) or None" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Previous Hospitalizations</label>
+                <input id="reg-hospitalizations" type="text" placeholder="e.g., Dengue (2022) or None" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+              </div>
+
+              <div class="sm:col-span-2">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Family History (Hereditary Illnesses)</label>
+                <input id="reg-family-history" type="text" placeholder="e.g., Hypertension, Diabetes Mellitus, Cancer, Goiter" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Smoking Status</label>
+                <select id="reg-smoking" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs bg-white">
+                  <option value="Non-Smoker">Non-Smoker</option>
+                  <option value="Current Smoker">Current Smoker</option>
+                  <option value="Former Smoker">Former Smoker</option>
+                  <option value="Secondhand Smoke Exposure">Secondhand Smoke Exposure</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Alcohol Intake</label>
+                <select id="reg-alcohol" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs bg-white">
+                  <option value="Non-Drinker">Non-Drinker</option>
+                  <option value="Occasional / Social Drinker">Occasional / Social Drinker</option>
+                  <option value="Regular Alcohol Intake">Regular Alcohol Intake</option>
+                </select>
+              </div>
+
+              <div class="sm:col-span-2">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Physical Activity</label>
+                <select id="reg-activity" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs bg-white">
+                  <option value="Adequate (≥150 mins/week moderate activity)">Adequate (≥150 mins/week moderate activity)</option>
+                  <option value="Light / Occasional Physical Activity">Light / Occasional Physical Activity</option>
+                  <option value="Sedentary Lifestyle">Sedentary Lifestyle</option>
+                </select>
+              </div>
+              <div class="sm:col-span-2">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Person with Disability (PWD) Status</label>
+                <select id="reg-pwd" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs bg-white">
+                  <option value="Non-PWD">Non-PWD</option>
+                  <option value="Registered PWD (Physical / Orthopedic)">Registered PWD (Physical / Orthopedic)</option>
+                  <option value="Registered PWD (Visual / Hearing / Speech)">Registered PWD (Visual / Hearing / Speech)</option>
+                  <option value="Registered PWD (Psychosocial / Chronic Illness)">Registered PWD (Psychosocial / Chronic Illness)</option>
+                </select>
               </div>
             </div>
-            <div class="space-y-4">
+
+            <!-- OB-GYN History (For Female Patients) -->
+            <div id="reg-obgyn-history-block" style="display: ${initType === 'antenatal' ? 'block' : 'none'};" class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+              <span class="text-[11px] font-extrabold uppercase tracking-wider text-teal-800 block">OB-GYN History (For Female Patients)</span>
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Gravida / Para (OB Score)</label>
+                  <input id="reg-ob-score" type="text" placeholder="e.g., G2P1 (1-0-0-1)" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Menarche (Age at First Menses)</label>
+                  <input id="reg-menarche" type="text" placeholder="e.g., 12 years old" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Menstrual Cycle Regularity</label>
+                  <select id="reg-menstrual-regularity" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+                    <option value="Regular (28–30 days)">Regular (28–30 days)</option>
+                    <option value="Irregular Cycle">Irregular Cycle</option>
+                    <option value="Amenorrhea / Pregnant">Amenorrhea / Pregnant</option>
+                    <option value="Post-Menopausal">Post-Menopausal</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Family Planning Method Used</label>
+                  <input id="reg-fp-method" type="text" placeholder="e.g., None, OCP, IUD, DMPA, Implant" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- VITAL SIGNS AND ANTHROPOMETRIC -->
+          <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+            <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-800 block">Vital Signs and Anthropometric</span>
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-3">
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Chief Complaint <span class="text-teal-700">*</span></label>
-                <input id="reg-cc" type="text" required placeholder="e.g., Fever and productive cough for 4 days OR Routine Prenatal Check-up" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm">
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">BP (mmHg)</label>
+                <input id="reg-bp" type="text" placeholder="120/80" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">History of Present Illness (HPI)</label>
-                <textarea id="reg-hpi" rows="3" placeholder="Brief narrative of symptom onset, character, severity, and prior medications taken..." class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs"></textarea>
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">HR (bpm)</label>
+                <input id="reg-hr" type="text" placeholder="78" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Pertinent Physical Examination Findings</label>
-                <textarea id="reg-pe" rows="2" placeholder="Conscious, coherent, not in cardiorespiratory distress..." class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">Conscious, coherent, not in cardiorespiratory distress. Anicteric sclerae, pink palpebral conjunctivae. Clear breath sounds, normal cardiac rate and regular rhythm. Abdomen soft, non-tender.</textarea>
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">RR (cpm)</label>
+                <input id="reg-rr" type="text" placeholder="18" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Temp (°C)</label>
+                <input id="reg-temp" type="text" placeholder="36.8" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">SpO2 (%)</label>
+                <input id="reg-spo2" type="text" placeholder="98" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Weight (kg)</label>
+                <input id="reg-weight" type="number" step="0.1" oninput="updateRegBMI()" placeholder="65" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Height (cm)</label>
+                <input id="reg-height" type="number" step="0.1" oninput="updateRegBMI()" placeholder="162" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-teal-700 mb-1">BMI (kg/m²)</label>
+                <input id="reg-bmi" type="text" readonly placeholder="Auto" class="w-full px-2.5 py-2 rounded-xl border border-teal-300 bg-teal-50/60 text-teal-900 font-bold text-xs">
+                <span id="reg-bmi-cat" class="block text-[9px] text-teal-700 font-medium mt-0.5 truncate">Enter Wt &amp; Ht</span>
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Waist (cm)</label>
+                <input id="reg-waist" type="number" step="0.1" placeholder="80" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
               </div>
             </div>
           </div>
@@ -1844,7 +2635,7 @@ export function initMedFlowEngine(): void {
           <div class="pt-4 border-t border-slate-200 flex flex-wrap items-center justify-end gap-3">
             <button type="button" onclick="switchView('home')" class="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer">Cancel</button>
             <button type="submit" class="px-6 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-sm transition cursor-pointer">
-              Save Patient & Proceed →
+              Save Patient &amp; Proceed →
             </button>
           </div>
         </form>
@@ -1858,23 +2649,49 @@ export function initMedFlowEngine(): void {
     const pType = (document.getElementById('reg-patient-type') as HTMLInputElement)?.value || 'regular';
     const w = (document.getElementById('reg-weight') as HTMLInputElement)?.value || '';
     const h = (document.getElementById('reg-height') as HTMLInputElement)?.value || '';
+    const waist = (document.getElementById('reg-waist') as HTMLInputElement)?.value || '';
     const bmiObj = calculateBMIValue(w, h);
     const newId = `PT-2025-${Math.floor(1000 + Math.random() * 9000)}`;
+    const todayDateStr = new Date().toISOString().split('T')[0];
+
+    const zonePurok = ((document.getElementById('reg-zone-purok') as HTMLInputElement)?.value || '').trim();
+    const barangay = ((document.getElementById('reg-barangay') as HTMLInputElement)?.value || '').trim();
+    const cityMunicipality = ((document.getElementById('reg-address') as HTMLInputElement)?.value || '').trim();
+    const fullAddress = [zonePurok, barangay, cityMunicipality].filter(Boolean).join(', ');
 
     const newPatient: any = {
       id: newId,
       patientType: pType,
+      familySerialNo: ((document.getElementById('reg-family-serial') as HTMLInputElement)?.value || '').trim(),
+      householdNo: ((document.getElementById('reg-household-no') as HTMLInputElement)?.value || '').trim(),
+      philhealth: ((document.getElementById('reg-philhealth') as HTMLInputElement)?.value || '').trim(),
       name: (document.getElementById('reg-name') as HTMLInputElement).value.trim(),
       age: (document.getElementById('reg-age') as HTMLInputElement).value.trim(),
       sex: (document.getElementById('reg-sex') as HTMLSelectElement).value,
       dob: (document.getElementById('reg-dob') as HTMLInputElement).value,
       civilStatus: (document.getElementById('reg-civil') as HTMLSelectElement).value,
+      occupation: ((document.getElementById('reg-occupation') as HTMLInputElement)?.value || '').trim(),
+      educationalAttainment: ((document.getElementById('reg-education') as HTMLSelectElement)?.value || '').trim(),
       contact: (document.getElementById('reg-contact') as HTMLInputElement).value.trim(),
-      consultationDate: (document.getElementById('reg-date') as HTMLInputElement).value,
-      address: (document.getElementById('reg-address') as HTMLInputElement).value.trim(),
-      philhealth: (document.getElementById('reg-philhealth') as HTMLInputElement).value.trim(),
+      zonePurok,
+      barangay,
+      address: fullAddress || cityMunicipality,
+      mothersMaidenName: ((document.getElementById('reg-mothers-maiden') as HTMLInputElement)?.value || '').trim(),
+      consultationDate: todayDateStr,
+      natureOfVisit: 'New Consultation',
       allergies: (document.getElementById('reg-allergies') as HTMLInputElement).value.trim() || 'No Known Drug Allergies (NKDA)',
       comorbidities: (document.getElementById('reg-comorbidities') as HTMLInputElement).value.trim() || 'None reported',
+      previousSurgeries: ((document.getElementById('reg-surgeries') as HTMLInputElement)?.value || '').trim() || 'None',
+      previousHospitalizations: ((document.getElementById('reg-hospitalizations') as HTMLInputElement)?.value || '').trim() || 'None',
+      familyHistory: ((document.getElementById('reg-family-history') as HTMLInputElement)?.value || '').trim() || 'None reported',
+      smokingStatus: ((document.getElementById('reg-smoking') as HTMLSelectElement)?.value || 'Non-Smoker').trim(),
+      alcoholIntake: ((document.getElementById('reg-alcohol') as HTMLSelectElement)?.value || 'Non-Drinker').trim(),
+      physicalActivity: ((document.getElementById('reg-activity') as HTMLSelectElement)?.value || 'Adequate').trim(),
+      pwdStatus: ((document.getElementById('reg-pwd') as HTMLSelectElement)?.value || 'Non-PWD').trim(),
+      obScore: ((document.getElementById('reg-ob-score') as HTMLInputElement)?.value || '').trim(),
+      menarche: ((document.getElementById('reg-menarche') as HTMLInputElement)?.value || '').trim(),
+      menstrualRegularity: ((document.getElementById('reg-menstrual-regularity') as HTMLSelectElement)?.value || '').trim(),
+      familyPlanningMethod: ((document.getElementById('reg-fp-method') as HTMLInputElement)?.value || '').trim(),
       vitals: {
         bp: (document.getElementById('reg-bp') as HTMLInputElement).value.trim() || '120/80',
         hr: (document.getElementById('reg-hr') as HTMLInputElement).value.trim() || '78',
@@ -1884,11 +2701,15 @@ export function initMedFlowEngine(): void {
         weight: w,
         height: h,
         bmi: bmiObj.bmi,
-        bmiCategory: bmiObj.category
+        bmiCategory: bmiObj.category,
+        waistCircumference: waist
       },
-      chiefComplaint: (document.getElementById('reg-cc') as HTMLInputElement).value.trim(),
-      hpi: (document.getElementById('reg-hpi') as HTMLTextAreaElement).value.trim(),
-      peFindings: (document.getElementById('reg-pe') as HTMLTextAreaElement).value.trim(),
+      chiefComplaint: pType === 'antenatal' ? 'Prenatal Consultation' : '',
+      hpi: '',
+      peFindings: 'Conscious, coherent, not in cardiorespiratory distress. Anicteric sclerae, pink palpebral conjunctivae. Clear breath sounds, normal cardiac rate and regular rhythm. Abdomen soft, non-tender.',
+      labResults: '',
+      healthEducation: '',
+      referralNotes: '',
       anc:
         pType === 'antenatal'
           ? {
@@ -1899,12 +2720,15 @@ export function initMedFlowEngine(): void {
               ironFolate: 'Ferrous Sulfate 60mg Elemental Iron + Folic Acid 400mcg 1 tab OD',
               calcium: 'Calcium Carbonate 500mg 1 tab TID',
               tetanusStatus: 'TT1 / Td1', deworming: 'Not Yet Given',
+              otherVaccine: 'None',
               facilityBirthPlan: '', philhealthStatus: 'Active Member',
               emergencyTransport: '', bloodDonorName: '', companionName: '', obNotes: ''
             }
           : {},
       aiSoap: null,
       doctorSoap: {
+        consultationDate: todayDateStr,
+        natureOfVisit: 'New Consultation',
         subjective: '',
         objective: '',
         assessment: '',
@@ -1926,7 +2750,12 @@ export function initMedFlowEngine(): void {
     newPatient.doctorSoap.subjective = newPatient.aiSoap.subjectiveSummary;
     newPatient.doctorSoap.objective = newPatient.aiSoap.objectiveSummary;
 
-    if (appState.aiSoapEnabled !== false) {
+    if (pType === 'antenatal') {
+      newPatient.doctorSoap.assessment = newPatient.aiSoap.primaryImpression;
+      newPatient.doctorSoap.plan = newPatient.aiSoap.suggestedPlan;
+      newPatient.doctorSoap.medications = buildAntenatalMedsFromDropdowns(newPatient.anc);
+      newPatient.diagnostics.clinicalImpression = newPatient.aiSoap.primaryImpression;
+    } else if (appState.aiSoapEnabled !== false) {
       newPatient.doctorSoap.assessment = newPatient.aiSoap.primaryImpression;
       newPatient.doctorSoap.plan = newPatient.aiSoap.suggestedPlan;
       newPatient.doctorSoap.medications = JSON.parse(JSON.stringify(newPatient.aiSoap.suggestedMeds));
@@ -1940,14 +2769,18 @@ export function initMedFlowEngine(): void {
 
     newPatient.consultationHistory = [
       {
-        date: newPatient.consultationDate || new Date().toISOString().split('T')[0],
-        type: pType === 'antenatal' ? 'Antenatal Visit' : 'Outpatient Consultation',
+        date: newPatient.consultationDate || todayDateStr,
+        type: newPatient.natureOfVisit || (pType === 'antenatal' ? 'Antenatal Visit' : 'New Consultation'),
         chiefComplaint: newPatient.chiefComplaint || 'Consultation',
         vitalsSummary: `BP ${newPatient.vitals.bp}, HR ${newPatient.vitals.hr}, Temp ${newPatient.vitals.temp}°C, Wt ${newPatient.vitals.weight || '-'}kg`,
         assessment: newPatient.doctorSoap.assessment || 'Clinical Evaluation in Progress',
         planSummary: newPatient.doctorSoap.plan || '',
         medsSummary:
-          (newPatient.doctorSoap.medications || []).map((m: any) => `${m.genericName} (${m.sig})`).join('; ') || 'None'
+          (newPatient.doctorSoap.medications || []).map((m: any) => `${m.genericName} (${m.sig})`).join('; ') || 'None',
+        doctorSoap: JSON.parse(JSON.stringify(newPatient.doctorSoap)),
+        diagnostics: JSON.parse(JSON.stringify(newPatient.diagnostics)),
+        vitals: JSON.parse(JSON.stringify(newPatient.vitals)),
+        anc: JSON.parse(JSON.stringify(newPatient.anc || {}))
       }
     ];
 
@@ -1956,25 +2789,22 @@ export function initMedFlowEngine(): void {
     saveState();
 
     if (pType === 'antenatal') {
-      showToast(`Registered ${newPatient.name} (Saved Offline & Cloud) — Opening Antenatal Care`);
+      appState.ancActiveTab = 'ob-dating';
+      showToast(`Registered ${newPatient.name} — Opening Antenatal Care`);
       switchView('anc');
     } else {
-      showToast(
-        appState.aiSoapEnabled !== false
-          ? `Registered ${newPatient.name} — AI SOAP Generated`
-          : `Registered ${newPatient.name} — Ready for Manual / Offline CPG Judgment`
-      );
+      showToast(`Registered ${newPatient.name} — Proceeding to SOAP Consultation`);
       switchView('soap');
     }
   };
 
   // ============================================================================
-  // ANTENATAL CARE, SOAP, RX, DIAGNOSTICS, RECORDS HANDLERS
+  // ANTENATAL CARE (5-STEP ALL-IN-ONE PATHWAY) & GENERAL OPD HANDLERS
   // ============================================================================
   function renderAntenatalCare(): void {
     const main = document.getElementById('main-workspace');
     if (!main) return;
-    main.innerHTML = buildAntenatalCareHTML(appState, getActivePatient());
+    main.innerHTML = buildAntenatalCareHTML(appState, getActiveAncPatient());
   }
 
   window.setAncActiveTab = (tabId: string) => {
@@ -1996,6 +2826,9 @@ export function initMedFlowEngine(): void {
     p.doctorSoap.objective = p.aiSoap.objectiveSummary;
     p.doctorSoap.assessment = p.aiSoap.primaryImpression;
     p.doctorSoap.plan = p.aiSoap.suggestedPlan;
+    if (!Array.isArray(p.doctorSoap.medications) || p.doctorSoap.medications.length === 0) {
+      p.doctorSoap.medications = buildAntenatalMedsFromDropdowns(p.anc);
+    }
     const ancPreviewEl = document.getElementById('anc-printable-a4');
     if (ancPreviewEl) {
       ancPreviewEl.innerHTML = buildA4SoapRecordSheetHTML(appState.doctor, p, 'ANC');
@@ -2007,7 +2840,7 @@ export function initMedFlowEngine(): void {
   }
 
   window.updateAncField = (key: string, value: any) => {
-    const p = getActivePatient();
+    const p = getActiveAncPatient();
     if (!p) return;
     if (!p.anc) p.anc = {};
     p.anc[key] = value;
@@ -2015,8 +2848,85 @@ export function initMedFlowEngine(): void {
     saveState();
   };
 
+  // Step 3 Dropdown: Choosing a Trimester Screening Package directly populates and generates the Lab & Imaging Request Sheet inside Step 3
+  window.selectAncTrimesterPackage = (trimesterCode: string) => {
+    const p = getActiveAncPatient();
+    if (!p) return;
+    if (!p.anc) p.anc = {};
+    p.anc.trimester = trimesterCode;
+    appState.ancScreeningFilter = trimesterCode;
+
+    const bundle = resolveAncTrimesterBundle(trimesterCode);
+    if (!p.diagnostics) p.diagnostics = { labs: [], imaging: [], clinicalImpression: '', priority: 'Routine', notes: '' };
+    p.diagnostics.labs = [...(bundle.labs || [])];
+    p.diagnostics.imaging = [...(bundle.imaging || [])];
+    if (!p.diagnostics.clinicalImpression) {
+      p.diagnostics.clinicalImpression = p.doctorSoap?.assessment || `Pregnancy Uterine (${trimesterCode} Trimester Screening)`;
+    }
+
+    syncAncPatientOwnSoap(p);
+    saveState();
+    renderAntenatalCare();
+    showToast(`Generated ${bundle.key} Lab & Imaging Request directly for ${p.name}`);
+  };
+
+  // Step 4 Dropdown: Choosing a Medication / Vaccine option in the dropdown directly generates the Maternal Prescription (Rx) inside Step 4
+  window.updateAncMedicationDropdown = (field: string, value: string) => {
+    const p = getActiveAncPatient();
+    if (!p) return;
+    if (!p.anc) p.anc = {};
+    p.anc[field] = value;
+    if (!p.doctorSoap) {
+      p.doctorSoap = { subjective: '', objective: '', assessment: '', plan: '', followUpDate: '', medications: [] };
+    }
+    p.doctorSoap.medications = buildAntenatalMedsFromDropdowns(p.anc);
+    syncAncPatientOwnSoap(p);
+    saveState();
+    renderAntenatalCare();
+    showToast('Updated Maternal Prescription (Rx Pad) from selected regimen');
+  };
+
+  // Step 5 Final Action: Save Antenatal Patient's Record and complete the Antenatal consultation
+  window.completeAndSaveAntenatalRecord = () => {
+    const p = getActiveAncPatient();
+    if (!p) return;
+    syncAncPatientOwnSoap(p);
+    window.savePatientConsultationSnapshot();
+    appState.recordsActiveTab = 'antenatal';
+    appState.registryOpenFolderPatientId = p.id;
+    switchView('records');
+    showToast(`Saved ${p.name}'s complete Antenatal Record (SOAP, Lab Request, Rx & Rekord ni Nanay) to Patient Records Registry!`);
+  };
+
+  // General OPD Sequential Progression Handlers
+  window.saveSoapAndProceedToRx = () => {
+    const p = getActiveOpdPatient();
+    if (!p) return;
+    window.savePatientConsultationSnapshot();
+    switchView('rx');
+    showToast(`SOAP saved — Proceeding to Step 3: Medical Prescription (Rx)`);
+  };
+
+  window.saveRxAndProceedToDiagnostics = () => {
+    const p = getActiveOpdPatient();
+    if (!p) return;
+    window.savePatientConsultationSnapshot();
+    switchView('diagnostics');
+    showToast(`Prescription saved — Proceeding to Step 4: Laboratory & Imaging`);
+  };
+
+  window.completeAndSaveOpdRecord = () => {
+    const p = getActiveOpdPatient();
+    if (!p) return;
+    window.savePatientConsultationSnapshot();
+    appState.recordsActiveTab = 'regular';
+    appState.registryOpenFolderPatientId = p.id;
+    switchView('records');
+    showToast(`Saved ${p.name}'s complete General OPD Record (SOAP, Prescription & Lab/Imaging Request) to Patient Records Registry!`);
+  };
+
   window.addAncPrenatalVisit = () => {
-    const p = getActivePatient();
+    const p = getActiveAncPatient();
     if (!p) return;
     if (!p.anc) p.anc = {};
     const currentVisits = [...getPatientPrenatalVisits(p)];
@@ -2040,7 +2950,7 @@ export function initMedFlowEngine(): void {
   };
 
   window.updateAncPrenatalVisit = (idx: number, field: string, value: string) => {
-    const p = getActivePatient();
+    const p = getActiveAncPatient();
     if (!p) return;
     if (!p.anc) p.anc = {};
     if (!Array.isArray(p.anc.prenatalVisits) || p.anc.prenatalVisits.length === 0) {
@@ -2053,7 +2963,7 @@ export function initMedFlowEngine(): void {
   };
 
   window.removeAncPrenatalVisit = (idx: number) => {
-    const p = getActivePatient();
+    const p = getActiveAncPatient();
     if (!p) return;
     if (!p.anc) p.anc = {};
     const currentVisits = [...getPatientPrenatalVisits(p)];
@@ -2101,7 +3011,6 @@ export function initMedFlowEngine(): void {
     syncAncPatientOwnSoap(p);
     saveState();
 
-    // Update DOM inputs in-place so typing or selecting never loses focus
     const aogEl = document.getElementById('anc-aog-input') as HTMLInputElement | null;
     if (aogEl) aogEl.value = p.anc.aogWeeks || '';
     const edcEl = document.getElementById('anc-edc-input') as HTMLInputElement | null;
@@ -2111,7 +3020,7 @@ export function initMedFlowEngine(): void {
   }
 
   window.handleAncLmpDropdownChange = () => {
-    const p = getActivePatient();
+    const p = getActiveAncPatient();
     if (!p) return;
     const mEl = document.getElementById('anc-lmp-month') as HTMLSelectElement | null;
     const dEl = document.getElementById('anc-lmp-day') as HTMLSelectElement | null;
@@ -2131,7 +3040,7 @@ export function initMedFlowEngine(): void {
   };
 
   window.handleAncLmpDirectInput = (lmpStr: string) => {
-    const p = getActivePatient();
+    const p = getActiveAncPatient();
     if (!p) return;
     if (lmpStr && /^\d{4}-\d{2}-\d{2}$/.test(lmpStr)) {
       const [y, m, d] = lmpStr.split('-');
@@ -2150,7 +3059,7 @@ export function initMedFlowEngine(): void {
   };
 
   window.handleAncTrimesterChange = (trimVal: string) => {
-    const p = getActivePatient();
+    const p = getActiveAncPatient();
     if (!p) return;
     if (!p.anc) p.anc = {};
     p.anc.trimester = trimVal;
@@ -2161,7 +3070,7 @@ export function initMedFlowEngine(): void {
   };
 
   window.toggleAncDangerSign = (sign: string) => {
-    const p = getActivePatient();
+    const p = getActiveAncPatient();
     if (!p) return;
     if (!p.anc) p.anc = {};
     if (!Array.isArray(p.anc.dangerSigns)) p.anc.dangerSigns = [];
@@ -2174,7 +3083,7 @@ export function initMedFlowEngine(): void {
   };
 
   window.orderAllTrimesterTests = (targetTrimester?: string) => {
-    const p = getActivePatient();
+    const p = getActiveAncPatient();
     if (!p) return;
     const tKey = targetTrimester || p.anc?.trimester || '1st';
     const bundle = resolveAncTrimesterBundle(tKey);
@@ -2191,29 +3100,19 @@ export function initMedFlowEngine(): void {
   };
 
   window.syncAncToSoapAndProceed = () => {
-    const p = getActivePatient();
+    const p = getActiveAncPatient();
     if (!p) return;
-    p.patientType = 'antenatal';
-    p.aiSoap = generateLiveAISoapFromPatient(p);
-    p.doctorSoap.subjective = p.aiSoap.subjectiveSummary;
-    p.doctorSoap.objective = p.aiSoap.objectiveSummary;
-    if (appState.aiSoapEnabled !== false) {
-      p.doctorSoap.assessment = p.aiSoap.primaryImpression;
-      p.doctorSoap.plan = p.aiSoap.suggestedPlan;
-    }
+    syncAncPatientOwnSoap(p);
     saveState();
-    switchView('soap');
-    showToast(
-      appState.aiSoapEnabled !== false
-        ? 'Synced Antenatal data into Official SOAP Note'
-        : 'Synced Antenatal Subjective & Objective — Use Offline CPG Panel for Assessment & Plan'
-    );
+    appState.ancActiveTab = 'ob-pe';
+    renderAntenatalCare();
+    showToast('Synced Antenatal data into Maternal SOAP Note (Step 2)');
   };
 
   function renderSoapWorkspace(): void {
     const main = document.getElementById('main-workspace');
     if (!main) return;
-    const p = getActivePatient();
+    const p = getActiveOpdPatient();
     const aiHTML = p ? buildAiSoapLeftInnerHTML(p) : '';
     main.innerHTML = buildSoapWorkspaceHTML(appState, p, aiHTML);
   }
@@ -2221,18 +3120,19 @@ export function initMedFlowEngine(): void {
   function renderPrescriptionWorkspace(): void {
     const main = document.getElementById('main-workspace');
     if (!main) return;
-    main.innerHTML = buildPrescriptionWorkspaceHTML(appState, getActivePatient());
+    main.innerHTML = buildPrescriptionWorkspaceHTML(appState, getActiveOpdPatient());
   }
 
   window.setRxPrintMode = (mode: string) => {
     appState.rxPrintMode = mode;
-    renderPrescriptionWorkspace();
+    if (appState.currentView === 'anc') renderAntenatalCare();
+    else renderPrescriptionWorkspace();
   };
 
   function renderDiagnosticsWorkspace(): void {
     const main = document.getElementById('main-workspace');
     if (!main) return;
-    main.innerHTML = buildDiagnosticsWorkspaceHTML(appState, getActivePatient());
+    main.innerHTML = buildDiagnosticsWorkspaceHTML(appState, getActiveOpdPatient());
   }
 
   window.setDiagActiveTab = (tab: string) => {
@@ -2241,7 +3141,7 @@ export function initMedFlowEngine(): void {
   };
 
   window.toggleDiagnosticTest = (category: 'labs' | 'imaging', item: string) => {
-    const p = getActivePatient();
+    const p = appState.currentView === 'anc' ? getActiveAncPatient() : getActiveOpdPatient();
     if (!p) return;
     if (!p.diagnostics) p.diagnostics = { labs: [], imaging: [], clinicalImpression: '', notes: '' };
     const list = p.diagnostics[category];
@@ -2254,7 +3154,7 @@ export function initMedFlowEngine(): void {
   };
 
   window.updateDiagField = (field: string, val: string) => {
-    const p = getActivePatient();
+    const p = appState.currentView === 'anc' ? getActiveAncPatient() : getActiveOpdPatient();
     if (!p) return;
     if (!p.diagnostics) p.diagnostics = { labs: [], imaging: [], clinicalImpression: '', notes: '' };
     p.diagnostics[field] = val;
@@ -2319,24 +3219,55 @@ export function initMedFlowEngine(): void {
       if (appState.registryPreviewPatientId === patientId) {
         appState.registryPreviewPatientId = '';
         appState.registryPreviewDocType = '';
+        appState.registryPreviewVisitDate = '';
       }
     } else {
       appState.registryOpenFolderPatientId = patientId;
+      const p = appState.patients.find((x: any) => x.id === patientId);
+      const firstDate = p?.consultationHistory?.[0]?.date || p?.consultationDate || new Date().toISOString().split('T')[0];
+      appState.registryOpenVisitFolderKey = `${patientId}__${firstDate}`;
     }
     renderPatientRecords();
   };
 
-  window.openRegistryPatientPdf = (patientId: string, docType: string) => {
+  window.toggleRegistryVisitSubfolder = (patientId: string, visitDate: string) => {
+    const key = `${patientId}__${visitDate}`;
+    if (appState.registryOpenVisitFolderKey === key) {
+      appState.registryOpenVisitFolderKey = '__CLOSED__';
+    } else {
+      appState.registryOpenVisitFolderKey = key;
+    }
+    renderPatientRecords();
+  };
+
+  window.startNewConsultationVisitForPatient = (patientId: string) => {
+    const p = appState.patients.find((x: any) => x.id === patientId);
+    if (!p) return;
+    appState.activePatientId = p.id;
+    p.natureOfVisit = 'Follow-Up';
+    saveState();
+    switchView(p.patientType === 'antenatal' ? 'anc' : 'soap');
+    showToast(`Opened ${p.name} for a new consultation visit — set the Consultation Date in SOAP to create a new visit folder.`);
+  };
+
+  window.openRegistryPatientPdf = (patientId: string, docType: string, visitDate?: string) => {
     appState.registryOpenFolderPatientId = patientId;
+    const p = appState.patients.find((x: any) => x.id === patientId);
+    const resolvedDate = visitDate || p?.consultationDate || new Date().toISOString().split('T')[0];
+    appState.registryOpenVisitFolderKey = `${patientId}__${resolvedDate}`;
+
     if (
       appState.registryPreviewPatientId === patientId &&
-      appState.registryPreviewDocType === docType
+      appState.registryPreviewDocType === docType &&
+      appState.registryPreviewVisitDate === resolvedDate
     ) {
       appState.registryPreviewPatientId = '';
       appState.registryPreviewDocType = '';
+      appState.registryPreviewVisitDate = '';
     } else {
       appState.registryPreviewPatientId = patientId;
       appState.registryPreviewDocType = docType;
+      appState.registryPreviewVisitDate = resolvedDate;
     }
     renderPatientRecords();
   };
@@ -2344,6 +3275,7 @@ export function initMedFlowEngine(): void {
   window.closeRegistryPatientPdf = () => {
     appState.registryPreviewPatientId = '';
     appState.registryPreviewDocType = '';
+    appState.registryPreviewVisitDate = '';
     renderPatientRecords();
   };
 
@@ -3091,6 +4023,168 @@ export function initMedFlowEngine(): void {
       </div>
     `;
   }
+
+  // ============================================================================
+  // ICON-ONLY CLEAR FORM HANDLERS FOR ALL FORMS
+  // ============================================================================
+  window.clearSignInForm = () => {
+    const idEl = document.getElementById('signin-identifier') as HTMLInputElement | null;
+    const pwEl = document.getElementById('signin-password') as HTMLInputElement | null;
+    if (idEl) idEl.value = '';
+    if (pwEl) pwEl.value = '';
+    showToast('Cleared Sign-In form.');
+  };
+
+  window.clearSignUpForm = () => {
+    appState.signupGcashReceiptDataUrl = '';
+    appState.signupGcashReceiptName = '';
+    appState.signupSubStartDate = todayInitStr;
+    appState.signupSubEndDate = defaultOneMonthEndStr;
+    appState.signupSubMonths = 1;
+    renderAuthScreen();
+    showToast('Cleared Registration form.');
+  };
+
+  window.clearPatientRegistrationForm = () => {
+    renderRegistration();
+    showToast('Cleared Patient Registration & ITR form.');
+  };
+
+  window.clearAncStep1Form = () => {
+    const p = getActiveAncPatient();
+    if (!p) return;
+    p.anc = {
+      ...(p.anc || {}),
+      gravida: 0,
+      para: 0,
+      term: 0,
+      preterm: 0,
+      abortion: 0,
+      living: 0,
+      bloodType: '',
+      philhealthStatus: '',
+      lmp: '',
+      aogWeeks: '',
+      edc: '',
+      trimester: '1st',
+      dangerSigns: []
+    };
+    syncAncPatientOwnSoap(p);
+    saveState();
+    renderAntenatalCare();
+    showToast('Cleared Antenatal Step 1 form.');
+  };
+
+  window.clearAncStep2Form = () => {
+    const p = getActiveAncPatient();
+    if (!p) return;
+    p.anc = {
+      ...(p.anc || {}),
+      fht: '',
+      fundicHeight: '',
+      presentation: 'Cephalic',
+      fetalMovement: 'Present / Active (>=10 kicks/12h)',
+      edema: 'None'
+    };
+    if (p.doctorSoap) {
+      p.doctorSoap.subjective = '';
+      p.doctorSoap.objective = '';
+      p.doctorSoap.assessment = '';
+      p.doctorSoap.plan = '';
+    }
+    saveState();
+    renderAntenatalCare();
+    showToast('Cleared Antenatal Step 2 form.');
+  };
+
+  window.clearAncStep3Form = () => {
+    const p = getActiveAncPatient();
+    if (!p) return;
+    if (!p.diagnostics) p.diagnostics = { labs: [], imaging: [], clinicalImpression: '', priority: 'Routine', notes: '' };
+    p.diagnostics.labs = [];
+    p.diagnostics.imaging = [];
+    saveState();
+    renderAntenatalCare();
+    showToast('Cleared Antenatal Step 3 Lab & Imaging selection.');
+  };
+
+  window.clearAncStep4Form = () => {
+    const p = getActiveAncPatient();
+    if (!p) return;
+    if (!p.anc) p.anc = {};
+    p.anc.ironFolate = 'None';
+    p.anc.calcium = 'None';
+    p.anc.tetanusStatus = 'Not Yet Given';
+    p.anc.deworming = 'Not Yet Given';
+    p.anc.otherVaccine = 'None';
+    if (p.doctorSoap) p.doctorSoap.medications = [];
+    saveState();
+    renderAntenatalCare();
+    showToast('Cleared Antenatal Step 4 Prescription form.');
+  };
+
+  window.clearAncStep5Form = () => {
+    const p = getActiveAncPatient();
+    if (!p) return;
+    if (!p.anc) p.anc = {};
+    p.anc.facilityBirthPlan = '';
+    p.anc.emergencyTransport = '';
+    p.anc.bloodDonorName = '';
+    p.anc.companionName = '';
+    p.anc.obNotes = '';
+    saveState();
+    renderAntenatalCare();
+    showToast('Cleared Antenatal Step 5 Birth Plan form.');
+  };
+
+  window.clearAiSoapForm = () => {
+    const p = getActiveOpdPatient() || getActivePatient();
+    if (!p) return;
+    p.chiefComplaint = '';
+    p.hpi = '';
+    p.peFindings = '';
+    p.aiSoap = generateLiveAISoapFromPatient(p);
+    saveState();
+    renderSoapWorkspace();
+    showToast('Cleared AI SOAP encoded symptoms.');
+  };
+
+  window.clearOfficialSoapForm = () => {
+    const p = getActiveOpdPatient() || getActivePatient();
+    if (!p) return;
+    p.doctorSoap = {
+      subjective: '',
+      objective: '',
+      assessment: '',
+      plan: '',
+      followUpDate: '',
+      medications: []
+    };
+    saveState();
+    renderSoapWorkspace();
+    showToast('Cleared Official SOAP form.');
+  };
+
+  window.clearPrescriptionForm = () => {
+    const p = getActiveOpdPatient() || getActivePatient();
+    if (!p) return;
+    if (!p.doctorSoap) {
+      p.doctorSoap = { subjective: '', objective: '', assessment: '', plan: '', followUpDate: '', medications: [] };
+    }
+    p.doctorSoap.medications = [];
+    saveState();
+    renderPrescriptionWorkspace();
+    showToast('Cleared Medical Prescription form.');
+  };
+
+  window.clearDiagnosticsForm = () => {
+    const p = getActiveOpdPatient() || getActivePatient();
+    if (!p) return;
+    p.diagnostics = { labs: [], imaging: [], clinicalImpression: '', priority: 'Routine', notes: '' };
+    saveState();
+    renderDiagnosticsWorkspace();
+    showToast('Cleared Laboratory & Imaging Request form.');
+  };
 
   // ============================================================================
   // INITIALIZE SESSION OR SHOW SIGN-IN / SIGN-UP / HIDDEN ADMIN PORTAL

@@ -197,6 +197,267 @@ export function buildA4SoapRecordSheetHTML(doc: any, p: any, recordPrefix = 'CON
   `;
 }
 
+export function renderClearFormIconButtonHTML(onclickJs: string, titleText = 'Clear Form'): string {
+  return `
+    <button
+      type="button"
+      onclick="${onclickJs}"
+      title="${escapeHTML(titleText)}"
+      aria-label="${escapeHTML(titleText)}"
+      class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 hover:border-rose-300 flex items-center justify-center transition shadow-2xs shrink-0 cursor-pointer no-print"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+      </svg>
+    </button>
+  `;
+}
+
+export function extractPatientLastName(fullName: string): string {
+  const raw = (fullName || '').trim();
+  if (!raw) return 'Patient';
+  if (raw.includes(',')) {
+    return raw.split(',')[0].trim() || 'Patient';
+  }
+  const parts = raw.split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return parts[0] || 'Patient';
+  const secondLast = (parts[parts.length - 2] || '').toLowerCase();
+  if (['dela', 'de', 'del', 'delos', 'san', 'sta.', 'sta'].includes(secondLast)) {
+    return `${parts[parts.length - 2]} ${parts[parts.length - 1]}`;
+  }
+  return parts[parts.length - 1];
+}
+
+export function buildA4IndividualTreatmentRecordHTML(doc: any, p: any): string {
+  const ds = p.doctorSoap || { subjective: '', objective: '', assessment: '', plan: '', followUpDate: '', medications: [] };
+  const meds = ds.medications || [];
+  const v = p.vitals || {};
+  const anc = p.anc || {};
+  const selectedLabs: string[] = p.diagnostics?.labs || [];
+  const selectedImaging: string[] = p.diagnostics?.imaging || [];
+  const allDiagnosticsWithCategory = [
+    ...selectedLabs.map(findDiagnosticCategoryLabel),
+    ...selectedImaging.map(findDiagnosticCategoryLabel)
+  ];
+
+  const isTrainee = doc.role === 'Medical Clerk' || doc.role === 'Medical Intern';
+  const recNum = String(p.id || '001').replace(/[^0-9]/g, '').slice(-4) || '1001';
+  const itrIdDisplay = `ITR-${recNum}`;
+  const visitDate = ds.consultationDate || p.consultationDate || new Date().toISOString().split('T')[0];
+  const isFemale = (p.sex || '').toLowerCase() === 'female' || p.patientType === 'antenatal';
+
+  const completeAddress = [p.zonePurok, p.barangay, p.address].filter(Boolean).join(', ') || p.address || 'N/A';
+  const obScoreText =
+    p.obScore ||
+    (anc.gravida !== undefined
+      ? `G${anc.gravida ?? 1}P${anc.para ?? 0} (${anc.term ?? 0}-${anc.preterm ?? 0}-${anc.abortion ?? 0}-${anc.living ?? 0})`
+      : 'G0P0');
+
+  return `
+    <div class="flex flex-col justify-between min-h-[262mm] text-slate-900 text-[10.5px] leading-snug">
+      <div class="space-y-3">
+        <!-- Top DOH / Konsulta / LGU Facility Header -->
+        <div class="border-b-2 border-slate-900 pb-2.5 flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+          <div>
+            <span class="text-[9px] font-extrabold uppercase tracking-widest text-teal-800 block">Department of Health (DOH) • PhilHealth Konsulta / iClinicSys Standard</span>
+            <h2 class="text-base font-extrabold text-slate-900 uppercase tracking-tight">${escapeHTML(doc.facility || doc.clinic || 'RURAL HEALTH UNIT / MEDICAL CLINIC')}</h2>
+            ${doc.address ? `<p class="text-[10px] text-slate-600">${escapeHTML(doc.address)}</p>` : ''}
+            <p class="text-[10px] text-slate-600">
+              ${doc.phone ? `Contact: ${escapeHTML(doc.phone)}` : ''}
+              ${isTrainee && doc.school ? `${doc.phone ? ' | ' : ''}Affiliation: ${escapeHTML(doc.school)}` : ''}
+            </p>
+          </div>
+          <div class="text-left sm:text-right shrink-0">
+            <span class="inline-block bg-slate-900 text-white text-[10px] font-extrabold uppercase tracking-wider px-3 py-1 rounded">INDIVIDUAL TREATMENT RECORD (ITR)</span>
+            <p class="text-[9.5px] text-slate-600 mt-1 font-semibold">ITR No.: ${escapeHTML(itrIdDisplay)} • Patient ID: ${escapeHTML(p.id)}</p>
+            <p class="text-[9.5px] text-slate-500">Date of Visit: ${escapeHTML(visitDate)}</p>
+          </div>
+        </div>
+
+        <!-- SECTION 1: PATIENT DEMOGRAPHICS & IDENTIFICATION -->
+        <div class="border border-slate-300 rounded-lg overflow-hidden bg-white">
+          <div class="bg-slate-900 text-white px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider flex items-center justify-between">
+            <span>I. Patient Demographics &amp; Identification</span>
+            <span>Pathway: ${p.patientType === 'antenatal' ? 'Maternal / Antenatal' : 'General Outpatient (OPD)'}</span>
+          </div>
+          <div class="p-2.5 space-y-2">
+            <!-- Identifiers Row -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pb-2 border-b border-slate-200 bg-slate-50/80 p-2 rounded">
+              <div>
+                <span class="text-[9px] font-extrabold uppercase text-slate-500 block">Family Serial Number</span>
+                <span class="font-extrabold text-slate-900">${escapeHTML(p.familySerialNo || 'N/A')}</span>
+              </div>
+              <div>
+                <span class="text-[9px] font-extrabold uppercase text-slate-500 block">Household Number</span>
+                <span class="font-extrabold text-slate-900">${escapeHTML(p.householdNo || 'N/A')}</span>
+              </div>
+              <div>
+                <span class="text-[9px] font-extrabold uppercase text-slate-500 block">PhilHealth ID Number (PIN)</span>
+                <span class="font-extrabold text-teal-900">${escapeHTML(p.philhealth || 'N/A')}</span>
+              </div>
+            </div>
+
+            <!-- Personal Details Grid -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div class="sm:col-span-2">
+                <span class="text-[9px] font-bold uppercase text-slate-500 block">Full Name</span>
+                <span class="font-extrabold text-slate-900 text-xs">${escapeHTML(p.name)}</span>
+              </div>
+              <div>
+                <span class="text-[9px] font-bold uppercase text-slate-500 block">Date of Birth</span>
+                <span class="font-bold text-slate-800">${escapeHTML(p.dob || 'N/A')}</span>
+              </div>
+              <div>
+                <span class="text-[9px] font-bold uppercase text-slate-500 block">Age / Sex / Civil Status</span>
+                <span class="font-bold text-slate-800">${escapeHTML(p.age)} y/o • ${escapeHTML(p.sex)} • ${escapeHTML(p.civilStatus || 'Single')}</span>
+              </div>
+              <div>
+                <span class="text-[9px] font-bold uppercase text-slate-500 block">Occupation</span>
+                <span class="font-semibold text-slate-800">${escapeHTML(p.occupation || 'N/A')}</span>
+              </div>
+              <div>
+                <span class="text-[9px] font-bold uppercase text-slate-500 block">Educational Attainment</span>
+                <span class="font-semibold text-slate-800">${escapeHTML(p.educationalAttainment || 'N/A')}</span>
+              </div>
+              <div>
+                <span class="text-[9px] font-bold uppercase text-slate-500 block">Contact Number</span>
+                <span class="font-semibold text-slate-800">${escapeHTML(p.contact || 'N/A')}</span>
+              </div>
+              <div>
+                <span class="text-[9px] font-bold uppercase text-slate-500 block">Mother's Maiden Name</span>
+                <span class="font-semibold text-slate-800">${escapeHTML(p.mothersMaidenName || 'N/A')}</span>
+              </div>
+              <div class="col-span-2 sm:col-span-4 pt-1 border-t border-slate-100">
+                <span class="text-[9px] font-bold uppercase text-slate-500">Complete Address (Zone/Purok, Barangay, Municipality/Province):</span>
+                <span class="font-semibold text-slate-900 ml-1">${escapeHTML(completeAddress)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 2: MEDICAL, FAMILY & SOCIAL HISTORY -->
+        <div class="border border-slate-300 rounded-lg overflow-hidden bg-white">
+          <div class="bg-slate-900 text-white px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider">
+            II. Medical, Family, Personal/Social &amp; OB-GYN History
+          </div>
+          <div class="p-2.5 space-y-2">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div class="p-2 rounded bg-slate-50 border border-slate-200 space-y-1">
+                <span class="text-[9px] font-extrabold uppercase text-teal-900 block">Past Medical History (PMH)</span>
+                <p><strong>Known Allergies:</strong> <span class="text-rose-700 font-bold">${escapeHTML(p.allergies || 'No Known Drug Allergies (NKDA)')}</span></p>
+                <p><strong>Chronic Conditions:</strong> ${escapeHTML(p.comorbidities || 'None reported')}</p>
+                <p><strong>Previous Surgeries:</strong> ${escapeHTML(p.previousSurgeries || 'None')}</p>
+                <p><strong>Previous Hospitalizations:</strong> ${escapeHTML(p.previousHospitalizations || 'None')}</p>
+              </div>
+              <div class="p-2 rounded bg-slate-50 border border-slate-200 space-y-1">
+                <span class="text-[9px] font-extrabold uppercase text-teal-900 block">Family &amp; Personal / Social History</span>
+                <p><strong>Family History (Hereditary):</strong> ${escapeHTML(p.familyHistory || 'No known hereditary illness reported')}</p>
+                <p><strong>Smoking Status:</strong> ${escapeHTML(p.smokingStatus || 'Non-Smoker')} • <strong>Alcohol Intake:</strong> ${escapeHTML(p.alcoholIntake || 'Non-Drinker')}</p>
+                <p><strong>Physical Activity:</strong> ${escapeHTML(p.physicalActivity || 'Moderate')} • <strong>PWD Status:</strong> ${escapeHTML(p.pwdStatus || 'Non-PWD')}</p>
+              </div>
+            </div>
+
+            ${isFemale ? `
+              <div class="p-2 rounded bg-teal-50/50 border border-teal-200 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div>
+                  <span class="text-[9px] font-extrabold uppercase text-teal-900 block">OB Score (Gravida/Para)</span>
+                  <span class="font-bold text-slate-900">${escapeHTML(obScoreText)}</span>
+                </div>
+                <div>
+                  <span class="text-[9px] font-extrabold uppercase text-teal-900 block">Menarche</span>
+                  <span class="font-semibold text-slate-800">${escapeHTML(p.menarche || 'N/A')}</span>
+                </div>
+                <div>
+                  <span class="text-[9px] font-extrabold uppercase text-teal-900 block">Menstrual Cycle Regularity</span>
+                  <span class="font-semibold text-slate-800">${escapeHTML(p.menstrualRegularity || 'Regular')}</span>
+                </div>
+                <div>
+                  <span class="text-[9px] font-extrabold uppercase text-teal-900 block">Family Planning Method</span>
+                  <span class="font-semibold text-slate-800">${escapeHTML(p.familyPlanningMethod || 'None')}</span>
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+
+        <!-- SECTION 3: CONSULTATION & CLINICAL ENCOUNTER LOG (SOAP FORMAT FROM SOAP TAB) -->
+        <div class="border border-slate-300 rounded-lg overflow-hidden bg-white">
+          <div class="bg-slate-900 text-white px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider flex items-center justify-between">
+            <span>III. Consultation &amp; Clinical Encounter Log (SOAP Format)</span>
+            <span>Nature of Visit: ${escapeHTML(ds.natureOfVisit || p.natureOfVisit || 'New Consultation')} • Date: ${escapeHTML(visitDate)}</span>
+          </div>
+          <div class="p-2.5 space-y-2">
+            <!-- S: Subjective (From SOAP Tab) -->
+            <div class="border border-slate-200 rounded p-2 bg-slate-50/50">
+              <div class="text-[9.5px] font-extrabold uppercase text-teal-900 mb-0.5">S — Subjective (Chief Complaint &amp; History of Present Illness)</div>
+              <p class="whitespace-pre-line text-slate-800">${escapeHTML(ds.subjective || p.chiefComplaint || 'Routine consultation')}</p>
+            </div>
+
+            <!-- O: Objective (Vitals, Anthropometrics, PE from SOAP Tab) -->
+            <div class="border border-slate-200 rounded p-2 bg-white space-y-1.5">
+              <div class="text-[9.5px] font-extrabold uppercase text-teal-900">O — Objective (Vital Signs, Anthropometrics &amp; Physical Exam)</div>
+              <div class="grid grid-cols-3 sm:grid-cols-9 gap-1.5 bg-slate-50 p-1.5 rounded border border-slate-200 text-[9.5px]">
+                <div><span class="text-slate-500 block">BP</span><strong>${escapeHTML(v.bp || '-')} mmHg</strong></div>
+                <div><span class="text-slate-500 block">HR</span><strong>${escapeHTML(v.hr || '-')} bpm</strong></div>
+                <div><span class="text-slate-500 block">RR</span><strong>${escapeHTML(v.rr || '-')} cpm</strong></div>
+                <div><span class="text-slate-500 block">Temp</span><strong>${escapeHTML(v.temp || '-')} °C</strong></div>
+                <div><span class="text-slate-500 block">SpO₂</span><strong>${escapeHTML(v.spo2 || '-')} %</strong></div>
+                <div><span class="text-slate-500 block">Height</span><strong>${escapeHTML(v.height || '-')} cm</strong></div>
+                <div><span class="text-slate-500 block">Weight</span><strong>${escapeHTML(v.weight || '-')} kg</strong></div>
+                <div><span class="text-slate-500 block">BMI</span><strong>${escapeHTML(v.bmi || '-')} kg/m²</strong></div>
+                <div><span class="text-slate-500 block">Waist</span><strong>${escapeHTML(v.waistCircumference || p.waistCircumference || '-')} cm</strong></div>
+              </div>
+              <p class="whitespace-pre-line text-slate-800"><strong>Objective / Physical Exam Findings:</strong> ${escapeHTML(ds.objective || p.peFindings || 'Conscious, coherent, not in cardiorespiratory distress.')}</p>
+            </div>
+
+            <!-- A: Assessment (From SOAP Tab) -->
+            <div class="border border-slate-200 rounded p-2 bg-slate-50/50">
+              <div class="text-[9.5px] font-extrabold uppercase text-teal-900 mb-0.5">A — Assessment / Clinical Impression</div>
+              <p class="font-extrabold text-slate-900 whitespace-pre-line">${escapeHTML(ds.assessment || p.chiefComplaint || 'Pending Clinical Impression')}</p>
+            </div>
+
+            <!-- P: Plan (From SOAP Tab) -->
+            <div class="border border-slate-200 rounded p-2 bg-white space-y-1.5">
+              <div class="text-[9.5px] font-extrabold uppercase text-teal-900">P — Plan (Medications, Diagnostics &amp; Follow-Up)</div>
+              <p class="whitespace-pre-line text-slate-800">${escapeHTML(ds.plan || '')}</p>
+              ${meds.length > 0 ? `
+                <div class="pt-1 border-t border-slate-100">
+                  <span class="font-bold text-slate-900">Medications Prescribed (Generic, Dosage &amp; Duration):</span>
+                  <ol class="list-decimal list-inside space-y-0.5 mt-0.5">
+                    ${meds.map((m: any) => `<li><strong>${escapeHTML(m.genericName)}</strong>${m.brandExample ? ` (${escapeHTML(m.brandExample)})` : ''} ${escapeHTML(m.quantity || '')} — Sig: ${escapeHTML(m.sig || '')}</li>`).join('')}
+                  </ol>
+                </div>
+              ` : ''}
+              ${allDiagnosticsWithCategory.length > 0 ? `
+                <p class="pt-1 border-t border-slate-100"><strong>Laboratory &amp; Imaging Requests:</strong> ${escapeHTML(allDiagnosticsWithCategory.join(', '))}</p>
+              ` : ''}
+              <div class="pt-1 border-t border-slate-100 text-[9.5px]">
+                <strong>Follow-Up Schedule:</strong> ${escapeHTML(ds.followUpDate || 'As advised / PRN')}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Signature Footer -->
+      <div class="pt-4 mt-4 border-t border-slate-300 flex flex-col sm:flex-row sm:items-end justify-between gap-4 text-[10px]">
+        <div class="text-slate-500 space-y-0.5">
+          <p class="font-bold text-slate-700">Standard DOH-Aligned Individual Treatment Record (ITR) • MedFlow PH</p>
+          <p>Confidential Medical Record • Generated on ${escapeHTML(visitDate)}</p>
+        </div>
+        <div class="text-left sm:text-right min-w-[230px] border-t-[1.5px] border-slate-900 pt-1">
+          <p class="font-extrabold text-xs text-slate-900">${escapeHTML(doc.name)}</p>
+          <p class="text-[10px] text-slate-600">
+            ${isTrainee ? `${escapeHTML(doc.role)}${doc.school ? ` (${escapeHTML(doc.school)})` : ''}` : `Licensed Physician${doc.specialty ? ` (${escapeHTML(doc.specialty)})` : ''}`}
+          </p>
+          <p class="text-[10px] text-slate-700">PRC Lic. No.: <strong>${escapeHTML(doc.prc || 'N/A')}</strong> • PTR No.: <strong>${escapeHTML(doc.ptr || 'N/A')}</strong></p>
+          ${isTrainee && doc.supervisingDoctor ? `<p class="text-[10px] text-slate-800">Supervising MD: <strong>${escapeHTML(doc.supervisingDoctor)}</strong></p>` : ''}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export function buildDualLabImagingRequestSheetHTML(doc: any, p: any): string {
   const diag = p.diagnostics || { labs: [], imaging: [], clinicalImpression: '', priority: 'Routine', notes: '' };
   const selectedLabs: string[] = diag.labs || [];
@@ -339,8 +600,26 @@ export function buildDualLabImagingRequestSheetHTML(doc: any, p: any): string {
   `;
 }
 
-export function renderPatientSelectorBannerHTML(appState: any, activePatient: any): string {
-  const patients = appState.patients || [];
+export function renderPatientSelectorBannerHTML(
+  appState: any,
+  activePatient: any,
+  pathwayFilter?: 'antenatal' | 'opd'
+): string {
+  const allPatients = appState.patients || [];
+  const patients =
+    pathwayFilter === 'antenatal'
+      ? allPatients.filter((pt: any) => pt.patientType === 'antenatal')
+      : pathwayFilter === 'opd'
+      ? allPatients.filter((pt: any) => pt.patientType !== 'antenatal')
+      : allPatients;
+  const regTypeArg = pathwayFilter === 'antenatal' ? "'antenatal'" : "'regular'";
+  const pathwayLabel =
+    pathwayFilter === 'antenatal'
+      ? 'Active Antenatal / Maternal Patient'
+      : pathwayFilter === 'opd'
+      ? 'Active General / OPD Patient'
+      : 'Active Patient Record';
+
   return `
     <div class="w-full bg-white rounded-2xl border border-slate-200 shadow-xs p-4 sm:p-5 mb-6 no-print">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-100">
@@ -349,24 +628,24 @@ export function renderPatientSelectorBannerHTML(appState: any, activePatient: an
             ${activePatient ? escapeHTML(activePatient.name.charAt(0).toUpperCase()) : '?'}
           </div>
           <div class="min-w-0">
-            <span class="text-[10px] font-bold uppercase tracking-widest text-teal-700 block">Active Patient Record</span>
+            <span class="text-[10px] font-bold uppercase tracking-widest text-teal-700 block">${escapeHTML(pathwayLabel)}</span>
             ${
               activePatient
                 ? `<h3 class="text-sm sm:text-base font-extrabold text-slate-900 truncate">${escapeHTML(activePatient.name)}</h3>`
-                : `<h3 class="text-sm font-bold text-slate-600">No Patient Selected</h3>`
+                : `<h3 class="text-sm font-bold text-slate-600">No ${pathwayFilter === 'antenatal' ? 'Antenatal' : 'General OPD'} Patient Selected</h3>`
             }
           </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <select onchange="selectActivePatient(this.value)" class="text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500">
-            ${patients.length === 0 ? `<option value="">-- No Patients Yet --</option>` : ''}
+            ${patients.length === 0 ? `<option value="">-- No ${pathwayFilter === 'antenatal' ? 'Antenatal' : 'General OPD'} Patients Yet --</option>` : ''}
             ${patients.map((pt: any) => `
               <option value="${escapeHTML(pt.id)}" ${activePatient && activePatient.id === pt.id ? 'selected' : ''}>
                 ${escapeHTML(pt.name)} (${escapeHTML(pt.age)}/${escapeHTML(pt.sex)})
               </option>
             `).join('')}
           </select>
-          <button onclick="startNewPatientRegistration()" class="px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition shadow-2xs shrink-0 cursor-pointer">
+          <button onclick="startNewPatientRegistration(${regTypeArg})" class="px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition shadow-2xs shrink-0 cursor-pointer">
             + New
           </button>
         </div>
@@ -381,7 +660,7 @@ export function renderPatientSelectorBannerHTML(appState: any, activePatient: an
             <span class="font-bold text-slate-900 mt-0.5 block">${escapeHTML(activePatient.age)} yrs / ${escapeHTML(activePatient.sex)}</span>
           </div>
           <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Category</span>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Pathway</span>
             <span class="font-bold text-teal-800 mt-0.5 block">${activePatient.patientType === 'antenatal' ? 'Antenatal / OB' : 'General / OPD'}</span>
           </div>
           <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
@@ -481,6 +760,145 @@ const DOH_OTHER_MATERNAL_VACCINES = [
   'Both Influenza + Hepatitis B Vaccines Administered',
   'Calcium + Iodine Capsule (Potassium Iodate 200mcg for Endemic Iodine Deficiency Area)'
 ];
+
+export function buildAntenatalMedsFromDropdowns(anc: any): any[] {
+  const meds: any[] = [];
+  const iron = anc?.ironFolate || DOH_IRON_FOLATE_OPTIONS[0];
+  if (iron && !iron.startsWith('Deferred')) {
+    if (iron.includes('BID')) {
+      meds.push({
+        genericName: 'Ferrous Sulfate 60mg Elemental Iron + Folic Acid 400mcg Tablet',
+        brandExample: 'Hemarate FA / Iberet',
+        sig: 'Take 1 tablet orally twice daily (BID) for maternal anemia',
+        quantity: '#60'
+      });
+    } else if (iron.startsWith('Folic Acid 4mg')) {
+      meds.push({
+        genericName: 'Folic Acid 5mg (4mg High-Risk Regimen) Tablet',
+        brandExample: 'Folart',
+        sig: 'Take 1 tablet orally once daily',
+        quantity: '#30'
+      });
+    } else if (iron.startsWith('Folic Acid 400mcg')) {
+      meds.push({
+        genericName: 'Folic Acid 400mcg Tablet',
+        brandExample: 'Folart',
+        sig: 'Take 1 tablet orally once daily',
+        quantity: '#30'
+      });
+    } else if (iron.includes('Iron Polymaltose')) {
+      meds.push({
+        genericName: 'Iron Polymaltose Complex + Folic Acid Tablet',
+        brandExample: 'Maltofer Fol',
+        sig: 'Take 1 tablet orally once daily with meals',
+        quantity: '#30'
+      });
+    } else {
+      meds.push({
+        genericName: 'Ferrous Sulfate 60mg Elemental Iron + Folic Acid 400mcg Tablet',
+        brandExample: 'Hemarate FA / Iberet',
+        sig: 'Take 1 tablet orally once daily (Standard DOH Prophylaxis)',
+        quantity: '#30'
+      });
+    }
+  }
+
+  const cal = anc?.calcium || DOH_CALCIUM_OPTIONS[0];
+  if (cal && !cal.startsWith('Not Yet') && !cal.startsWith('Deferred')) {
+    if (cal.includes('Vitamin D3')) {
+      meds.push({
+        genericName: 'Calcium Carbonate 600mg + Cholecalciferol (Vit D3) 400 IU Tablet',
+        brandExample: 'Caltrate Plus',
+        sig: 'Take 1 tablet orally twice daily with meals',
+        quantity: '#60'
+      });
+    } else if (cal.includes('BID')) {
+      meds.push({
+        genericName: 'Calcium Carbonate 500mg Elemental Calcium Tablet',
+        brandExample: 'Caltrate / Calvin Plus',
+        sig: 'Take 1 tablet orally twice daily with meals',
+        quantity: '#60'
+      });
+    } else {
+      meds.push({
+        genericName: 'Calcium Carbonate 500mg Elemental Calcium Tablet',
+        brandExample: 'Caltrate / Calvin Plus',
+        sig: 'Take 1 tablet orally three times daily (TID) with meals',
+        quantity: '#90'
+      });
+    }
+  }
+
+  const deworm = anc?.deworming || '';
+  if (deworm.startsWith('Albendazole 400mg')) {
+    meds.push({
+      genericName: 'Albendazole 400mg Chewable Tablet',
+      brandExample: 'Zentel',
+      sig: 'Chew and swallow 1 tablet as a single oral dose (2nd/3rd Trimester)',
+      quantity: '#1'
+    });
+  } else if (deworm.startsWith('Mebendazole 500mg')) {
+    meds.push({
+      genericName: 'Mebendazole 500mg Tablet',
+      brandExample: 'Antiox',
+      sig: 'Take 1 tablet orally as a single dose (2nd/3rd Trimester)',
+      quantity: '#1'
+    });
+  }
+
+  const td = anc?.tetanusStatus || '';
+  if (td && !td.startsWith('Pending')) {
+    if (td.startsWith('Tdap')) {
+      meds.push({
+        genericName: 'Tdap Vaccine (Tetanus, Diphtheria, Acellular Pertussis) 0.5 mL Suspension',
+        brandExample: 'Boostrix / Adacel',
+        sig: 'Administer 0.5 mL intramuscularly (IM) in deltoid at 27–36 weeks AOG',
+        quantity: '#1 Dose'
+      });
+    } else {
+      const doseLabel = td.split('—')[0].trim() || 'Td';
+      meds.push({
+        genericName: `Tetanus Diphtheria Toxoid (${doseLabel}) 0.5 mL IM Injection`,
+        brandExample: 'DOH Maternal Immunization',
+        sig: `Administer 0.5 mL intramuscularly (IM) per DOH schedule (${doseLabel})`,
+        quantity: '#1 Dose'
+      });
+    }
+  }
+
+  const other = anc?.otherVaccine || '';
+  if (other.includes('Influenza') && other.includes('Hepatitis B')) {
+    meds.push({
+      genericName: 'Inactivated Influenza Vaccine 0.5 mL IM + Hepatitis B Vaccine 1 mL IM',
+      brandExample: 'VaxigripTetra / Engerix-B',
+      sig: 'Administer 0.5 mL IM (Influenza) and 1 mL IM (Hep B) per schedule',
+      quantity: '#1 Set'
+    });
+  } else if (other.includes('Influenza')) {
+    meds.push({
+      genericName: 'Inactivated Influenza Vaccine 0.5 mL IM Suspension',
+      brandExample: 'VaxigripTetra',
+      sig: 'Administer 0.5 mL intramuscularly (IM) single dose',
+      quantity: '#1 Dose'
+    });
+  } else if (other.includes('Hepatitis B')) {
+    meds.push({
+      genericName: 'Hepatitis B Recombinant Vaccine 20mcg/mL IM Suspension',
+      brandExample: 'Engerix-B',
+      sig: 'Administer 1 mL intramuscularly (IM) on 0, 1, 6 months schedule',
+      quantity: '#1 Dose'
+    });
+  } else if (other.includes('Iodine')) {
+    meds.push({
+      genericName: 'Potassium Iodate (Iodine) 200mcg Capsule',
+      brandExample: 'DOH Micronutrient',
+      sig: 'Take 1 capsule orally as directed',
+      quantity: '#30'
+    });
+  }
+
+  return meds;
+}
 
 export function getPatientPrenatalVisits(p: any): any[] {
   const anc = p?.anc || {};
@@ -656,16 +1074,16 @@ export function buildRekordNiNanayHalfBondHTML(doc: any, p: any): string {
 }
 
 export function buildAntenatalCareHTML(appState: any, p: any): string {
-  if (!p) {
+  if (!p || p.patientType !== 'antenatal') {
     return `
       <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md mb-6 no-print">
         <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Maternal &amp; Antenatal Care</h2>
       </div>
-      ${renderPatientSelectorBannerHTML(appState, null)}
+      ${renderPatientSelectorBannerHTML(appState, null, 'antenatal')}
       <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center">
-        <p class="text-base font-bold text-slate-800">No Active Patient Selected</p>
-        <p class="text-xs text-slate-500 mt-1 mb-4">Register a new maternal patient or select an existing patient to open the Antenatal Care Module.</p>
-        <button onclick="startNewPatientRegistration()" class="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold cursor-pointer">+ Register Maternal Patient</button>
+        <p class="text-base font-bold text-slate-800">No Active Antenatal Patient Selected</p>
+        <p class="text-xs text-slate-500 mt-1 mb-4">Register a new Antenatal / Maternal patient or select an existing maternal patient above to manage her complete 5-Step Antenatal Consultation (SOAP, Trimester Lab/Imaging Request, Maternal Prescription Rx, and Rekord ni Nanay) inside this tab.</p>
+        <button onclick="startNewPatientRegistration('antenatal')" class="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold cursor-pointer">+ Register Antenatal Patient</button>
       </div>
     `;
   }
@@ -685,11 +1103,16 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
     emergencyTransport: '', bloodDonorName: '', companionName: '', obNotes: ''
   };
 
-  const activeAncTab = appState.ancActiveTab || 'ob-dating';
+  let activeAncTab = appState.ancActiveTab || 'ob-dating';
+  if (activeAncTab === 'danger') activeAncTab = 'ob-dating';
+
   const selectedLabs: string[] = p.diagnostics?.labs || [];
   const selectedImaging: string[] = p.diagnostics?.imaging || [];
   const currentTrimesterKey = anc.trimester || '1st';
   const visitDate = p.consultationDate || new Date().toISOString().split('T')[0];
+  const ds = p.doctorSoap || { subjective: '', objective: '', assessment: '', plan: '', followUpDate: '', medications: [] };
+  const meds = Array.isArray(ds.medications) && ds.medications.length > 0 ? ds.medications : buildAntenatalMedsFromDropdowns(anc);
+  const rxMode = appState.rxPrintMode || 'single-a6';
 
   // Parse LMP year, month, day for full Month/Day/Year dropdowns + date picker
   const lmpParts = (anc.lmp || '').split('-');
@@ -726,29 +1149,29 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
   const currentYear = new Date().getFullYear();
   const yearOptions = Array.from({ length: 12 }, (_, i) => String(currentYear + 1 - i));
 
+  // Antenatal Tabs (No Step Numbering)
   const ancTabs = [
-    { id: 'ob-dating', label: 'Obstetric Score & Dating' },
-    { id: 'pe', label: 'Obstetric Physical Exam' },
-    { id: 'danger', label: 'Maternal Danger Signs' },
-    { id: 'screening', label: 'Screening Workup' },
-    { id: 'immunization', label: 'Micronutrients & Immunization' },
-    { id: 'birth-plan', label: 'Birth & Emergency Plan' }
+    { id: 'ob-dating', label: 'OB Score, Dating & Danger Signs' },
+    { id: 'pe', label: 'Obstetric PE & Maternal SOAP' },
+    { id: 'screening', label: 'Trimester Lab & Imaging Request' },
+    { id: 'immunization', label: 'Micronutrients & Prescription (Rx)' },
+    { id: 'birth-plan', label: 'Birth Plan, Rekord ni Nanay & Save' }
   ];
 
   const trimesterWorkupCatalog = [
     {
       code: '1st',
-      title: '1st Trimester (< 14 Weeks AOG)',
+      title: '1st Trimester Package (< 14 Weeks AOG)',
       bundle: resolveAncTrimesterBundle('1st')
     },
     {
       code: '2nd',
-      title: '2nd Trimester (14 – 27 Weeks AOG)',
+      title: '2nd Trimester Package (14 – 27 Weeks AOG)',
       bundle: resolveAncTrimesterBundle('2nd')
     },
     {
       code: '3rd',
-      title: '3rd Trimester (28 – 40+ Weeks AOG)',
+      title: '3rd Trimester Package (28 – 40+ Weeks AOG)',
       bundle: resolveAncTrimesterBundle('3rd')
     }
   ];
@@ -763,335 +1186,573 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
   };
 
   return `
-    <div class="space-y-6 no-print">
+    <div class="space-y-6">
       <!-- Uniform Green Banner Title -->
-      <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md">
+      <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md no-print">
         <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Maternal &amp; Antenatal Care</h2>
       </div>
 
-      <!-- Active Patient Card Below Banner (Left-Side Half Screen) -->
-      ${renderPatientSelectorBannerHTML(appState, p)}
+      <!-- Active Antenatal Patient Card Below Banner -->
+      ${renderPatientSelectorBannerHTML(appState, p, 'antenatal')}
 
-      <!-- 6 Unnumbered Component Tabs -->
-      <div class="bg-white rounded-2xl border border-slate-200 p-2 shadow-xs">
+      <!-- Antenatal Workflow Navigation -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-2 shadow-xs no-print">
         <div class="flex flex-wrap gap-1.5">
           ${ancTabs.map(t => `
             <button type="button" onclick="setAncActiveTab('${t.id}')"
-              class="flex-1 min-w-[140px] py-2.5 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${activeAncTab === t.id ? 'bg-teal-600 text-white shadow-xs' : 'bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900'}">
+              class="flex-1 min-w-[155px] py-2.5 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${activeAncTab === t.id ? 'bg-teal-600 text-white shadow-xs' : 'bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900'}">
               ${escapeHTML(t.label)}
             </button>
           `).join('')}
         </div>
       </div>
 
-      <!-- TAB 1: OBSTETRIC SCORE & DATING -->
+      <!-- OBSTETRIC SCORE, DATING & MATERNAL DANGER SIGNS -->
       ${activeAncTab === 'ob-dating' ? `
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
-            <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">
-              Obstetric Score (G-P / T-P-A-L)
-            </h3>
-            <div class="grid grid-cols-3 sm:grid-cols-6 gap-2.5">
-              ${[
-                { key: 'gravida', label: 'Gravida (G)' },
-                { key: 'para', label: 'Para (P)' },
-                { key: 'term', label: 'Term (T)' },
-                { key: 'preterm', label: 'Preterm (P)' },
-                { key: 'abortion', label: 'Abortion (A)' },
-                { key: 'living', label: 'Living (L)' }
-              ].map(item => `
+        <div class="space-y-6 no-print">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
+              <div class="flex items-center justify-between gap-2 mb-3">
+                <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                  Obstetric Score (G-P / T-P-A-L)
+                </h3>
+                ${renderClearFormIconButtonHTML('clearAncStep1Form()', 'Clear Form')}
+              </div>
+              <div class="grid grid-cols-3 sm:grid-cols-6 gap-2.5">
+                ${[
+                  { key: 'gravida', label: 'Gravida (G)' },
+                  { key: 'para', label: 'Para (P)' },
+                  { key: 'term', label: 'Term (T)' },
+                  { key: 'preterm', label: 'Preterm (P)' },
+                  { key: 'abortion', label: 'Abortion (A)' },
+                  { key: 'living', label: 'Living (L)' }
+                ].map(item => `
+                  <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">${item.label}</label>
+                    <input type="number" min="0" max="20" value="${escapeHTML(anc[item.key] ?? 0)}"
+                      oninput="updateAncField('${item.key}', Number(this.value))"
+                      class="w-full px-2.5 py-2 rounded-lg border border-slate-300 text-sm font-bold text-center text-slate-900 focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                  </div>
+                `).join('')}
+              </div>
+              <div class="mt-4 pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">${item.label}</label>
-                  <input type="number" min="0" max="20" value="${escapeHTML(anc[item.key] ?? 0)}"
-                    oninput="updateAncField('${item.key}', Number(this.value))"
-                    class="w-full px-2.5 py-2 rounded-lg border border-slate-300 text-sm font-bold text-center text-slate-900 focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Maternal Blood Type / Rh</label>
+                  <select onchange="updateAncField('bloodType', this.value)" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold bg-white">
+                    ${['', 'O+ (Rh Positive)', 'A+ (Rh Positive)', 'B+ (Rh Positive)', 'AB+ (Rh Positive)', 'O- (Rh Negative)', 'A- (Rh Negative)', 'B- (Rh Negative)', 'AB- (Rh Negative)'].map(bt => `
+                      <option value="${bt}" ${anc.bloodType === bt ? 'selected' : ''}>${bt || '-- Select Blood Type --'}</option>
+                    `).join('')}
+                  </select>
                 </div>
-              `).join('')}
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">PhilHealth Maternal Coverage</label>
+                  <input type="text" value="${escapeHTML(anc.philhealthStatus || '')}" placeholder="e.g., Active MCP / Accredited"
+                    oninput="updateAncField('philhealthStatus', this.value)"
+                    class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold">
+                </div>
+              </div>
             </div>
-            <div class="mt-4 pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+            <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+              <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                Menstrual Dating (Naegele's Rule Calculator)
+              </h3>
+
+              <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                <label class="block text-xs font-bold text-slate-800">Last Menstrual Period (LMP) — Select Month, Day &amp; Year or Type Date</label>
+                <div class="grid grid-cols-3 gap-2">
+                  <div>
+                    <span class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Month</span>
+                    <select id="anc-lmp-month" onchange="handleAncLmpDropdownChange()" class="w-full px-2.5 py-2 rounded-lg border border-slate-300 text-xs font-semibold bg-white">
+                      <option value="">Month</option>
+                      ${monthsList.map(m => `<option value="${m.val}" ${lmpMonth === m.val ? 'selected' : ''}>${m.name}</option>`).join('')}
+                    </select>
+                  </div>
+                  <div>
+                    <span class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Day (1–31)</span>
+                    <select id="anc-lmp-day" onchange="handleAncLmpDropdownChange()" class="w-full px-2.5 py-2 rounded-lg border border-slate-300 text-xs font-semibold bg-white">
+                      <option value="">Day</option>
+                      ${dayOptions.map(d => `<option value="${d.val}" ${lmpDay === d.val ? 'selected' : ''}>${d.label}</option>`).join('')}
+                    </select>
+                  </div>
+                  <div>
+                    <span class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Year</span>
+                    <select id="anc-lmp-year" onchange="handleAncLmpDropdownChange()" class="w-full px-2.5 py-2 rounded-lg border border-slate-300 text-xs font-semibold bg-white">
+                      <option value="">Year</option>
+                      ${yearOptions.map(y => `<option value="${y}" ${lmpYear === y ? 'selected' : ''}>${y}</option>`).join('')}
+                    </select>
+                  </div>
+                </div>
+                <div class="pt-1 flex items-center gap-2">
+                  <span class="text-[11px] font-semibold text-slate-500 shrink-0">Or Calendar / Direct Date:</span>
+                  <input id="anc-lmp-input" type="date" value="${escapeHTML(anc.lmp || '')}"
+                    oninput="handleAncLmpDirectInput(this.value)"
+                    class="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold bg-white">
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Current Trimester</label>
+                  <select id="anc-trimester-select" onchange="handleAncTrimesterChange(this.value)" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-bold text-teal-900 bg-teal-50">
+                    <option value="1st" ${anc.trimester === '1st' ? 'selected' : ''}>1st Trimester (&lt; 14 wks)</option>
+                    <option value="2nd" ${anc.trimester === '2nd' ? 'selected' : ''}>2nd Trimester (14 – 27 wks)</option>
+                    <option value="3rd" ${anc.trimester === '3rd' ? 'selected' : ''}>3rd Trimester (28 – 40+ wks)</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Calculated AOG</label>
+                  <input id="anc-aog-input" type="text" value="${escapeHTML(anc.aogWeeks || '')}" placeholder="e.g., 26 weeks 3 days"
+                    oninput="updateAncField('aogWeeks', this.value)"
+                    class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-bold text-teal-800 bg-slate-50">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Estimated Date of Confinement (EDC)</label>
+                  <input id="anc-edc-input" type="date" value="${escapeHTML(anc.edc || '')}"
+                    oninput="updateAncField('edc', this.value)"
+                    class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-bold text-slate-900 bg-slate-50">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- DOH Maternal Danger Signs Checklist Inside Step 1 -->
+          <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
+            <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider mb-1">
+              DOH Maternal Danger Signs Screening
+            </h3>
+            <p class="text-xs text-slate-500 mb-4">Check any maternal danger sign present during this consultation.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+              ${ANC_DANGER_SIGNS.map((sign: string) => {
+                const checked = (anc.dangerSigns || []).includes(sign);
+                return `
+                  <label class="flex items-start gap-2.5 p-3 rounded-xl border ${checked ? 'bg-teal-50 border-teal-500 text-teal-950 font-semibold' : 'bg-slate-50 border-slate-200 text-slate-700'} text-xs cursor-pointer">
+                    <input type="checkbox" ${checked ? 'checked' : ''}
+                      onchange="toggleAncDangerSign('${escapeHTML(sign)}')"
+                      class="mt-0.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500">
+                    <span>${escapeHTML(sign)}</span>
+                  </label>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-end shadow-xs">
+            <button type="button" onclick="setAncActiveTab('pe')" class="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-xs transition cursor-pointer">
+              Proceed to Obstetric PE &amp; Maternal SOAP →
+            </button>
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- OBSTETRIC PHYSICAL EXAMINATION & MATERNAL SOAP GENERATION -->
+      ${activeAncTab === 'pe' ? `
+        <div class="space-y-6">
+          <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs no-print">
+            <div class="flex items-center justify-between gap-2 mb-4">
+              <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                Obstetric Physical Examination (Leopold's Maneuvers &amp; FHT)
+              </h3>
+              ${renderClearFormIconButtonHTML('clearAncStep2Form()', 'Clear Form')}
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Maternal Blood Type / Rh</label>
-                <select onchange="updateAncField('bloodType', this.value)" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold bg-white">
-                  ${['', 'O+ (Rh Positive)', 'A+ (Rh Positive)', 'B+ (Rh Positive)', 'AB+ (Rh Positive)', 'O- (Rh Negative)', 'A- (Rh Negative)', 'B- (Rh Negative)', 'AB- (Rh Negative)'].map(bt => `
-                    <option value="${bt}" ${anc.bloodType === bt ? 'selected' : ''}>${bt || '-- Select Blood Type --'}</option>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Fetal Heart Tone (bpm &amp; Location)</label>
+                <input type="text" value="${escapeHTML(anc.fht || '')}" placeholder="e.g., 144 bpm (RLQ)"
+                  oninput="updateAncField('fht', this.value)"
+                  class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Fundic Height (cm)</label>
+                <input type="text" value="${escapeHTML(anc.fundicHeight || '')}" placeholder="e.g., 26 cm"
+                  oninput="updateAncField('fundicHeight', this.value)"
+                  class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Fetal Presentation / Lie</label>
+                <select onchange="updateAncField('presentation', this.value)" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold bg-white">
+                  ${['Cephalic', 'Breech', 'Transverse', 'Oblique', 'Variable / Too Early to Assess'].map(opt => `
+                    <option value="${opt}" ${anc.presentation === opt ? 'selected' : ''}>${opt}</option>
                   `).join('')}
                 </select>
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">PhilHealth Maternal Coverage</label>
-                <input type="text" value="${escapeHTML(anc.philhealthStatus || '')}" placeholder="e.g., Active MCP / Accredited"
-                  oninput="updateAncField('philhealthStatus', this.value)"
-                  class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold">
-              </div>
-            </div>
-          </div>
-
-          <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
-            <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">
-              Menstrual Dating (Naegele's Rule Calculator)
-            </h3>
-
-            <!-- Full Month, Day (All Days of Month), and Year Dropdowns + Direct Date Input -->
-            <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-              <label class="block text-xs font-bold text-slate-800">Last Menstrual Period (LMP) — Select Month, Day & Year or Type Date</label>
-              <div class="grid grid-cols-3 gap-2">
-                <div>
-                  <span class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Month</span>
-                  <select id="anc-lmp-month" onchange="handleAncLmpDropdownChange()" class="w-full px-2.5 py-2 rounded-lg border border-slate-300 text-xs font-semibold bg-white">
-                    <option value="">Month</option>
-                    ${monthsList.map(m => `<option value="${m.val}" ${lmpMonth === m.val ? 'selected' : ''}>${m.name}</option>`).join('')}
-                  </select>
-                </div>
-                <div>
-                  <span class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Day (1–31)</span>
-                  <select id="anc-lmp-day" onchange="handleAncLmpDropdownChange()" class="w-full px-2.5 py-2 rounded-lg border border-slate-300 text-xs font-semibold bg-white">
-                    <option value="">Day</option>
-                    ${dayOptions.map(d => `<option value="${d.val}" ${lmpDay === d.val ? 'selected' : ''}>${d.label}</option>`).join('')}
-                  </select>
-                </div>
-                <div>
-                  <span class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Year</span>
-                  <select id="anc-lmp-year" onchange="handleAncLmpDropdownChange()" class="w-full px-2.5 py-2 rounded-lg border border-slate-300 text-xs font-semibold bg-white">
-                    <option value="">Year</option>
-                    ${yearOptions.map(y => `<option value="${y}" ${lmpYear === y ? 'selected' : ''}>${y}</option>`).join('')}
-                  </select>
-                </div>
-              </div>
-              <div class="pt-1 flex items-center gap-2">
-                <span class="text-[11px] font-semibold text-slate-500 shrink-0">Or Calendar / Direct Date:</span>
-                <input id="anc-lmp-input" type="date" value="${escapeHTML(anc.lmp || '')}"
-                  oninput="handleAncLmpDirectInput(this.value)"
-                  class="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold bg-white">
-              </div>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Current Trimester</label>
-                <select id="anc-trimester-select" onchange="handleAncTrimesterChange(this.value)" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-bold text-teal-900 bg-teal-50">
-                  <option value="1st" ${anc.trimester === '1st' ? 'selected' : ''}>1st Trimester (&lt; 14 wks)</option>
-                  <option value="2nd" ${anc.trimester === '2nd' ? 'selected' : ''}>2nd Trimester (14 – 27 wks)</option>
-                  <option value="3rd" ${anc.trimester === '3rd' ? 'selected' : ''}>3rd Trimester (28 – 40+ wks)</option>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Fetal Movement</label>
+                <select onchange="updateAncField('fetalMovement', this.value)" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold bg-white">
+                  ${['Present / Active (>=10 kicks/12h)', 'Decreased Fetal Movement (<10 kicks/12h)', 'Not Yet Perceived (<18 wks)'].map(opt => `
+                    <option value="${opt}" ${anc.fetalMovement === opt ? 'selected' : ''}>${opt}</option>
+                  `).join('')}
                 </select>
               </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Calculated AOG</label>
-                <input id="anc-aog-input" type="text" value="${escapeHTML(anc.aogWeeks || '')}" placeholder="e.g., 26 weeks 3 days"
-                  oninput="updateAncField('aogWeeks', this.value)"
-                  class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-bold text-teal-800 bg-slate-50">
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Estimated Date of Confinement (EDC)</label>
-                <input id="anc-edc-input" type="date" value="${escapeHTML(anc.edc || '')}"
-                  oninput="updateAncField('edc', this.value)"
-                  class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-bold text-slate-900 bg-slate-50">
+              <div class="sm:col-span-2">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Maternal Edema / Preeclampsia Signs</label>
+                <select onchange="updateAncField('edema', this.value)" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold bg-white">
+                  ${['None', 'Trace Bipedal Edema (Physiologic)', 'Grade 1+ to 2+ Bipedal Edema', 'Generalized / Facial / Periorbital Edema (Evaluate for Preeclampsia)'].map(opt => `
+                    <option value="${opt}" ${anc.edema === opt ? 'selected' : ''}>${opt}</option>
+                  `).join('')}
+                </select>
               </div>
             </div>
           </div>
-        </div>
-      ` : ''}
 
-      <!-- TAB 2: OBSTETRIC PHYSICAL EXAMINATION -->
-      ${activeAncTab === 'pe' ? `
-        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
-          <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4">
-            Obstetric Physical Examination (Leopold's Maneuvers & FHT)
-          </h3>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Fetal Heart Tone (bpm & Location)</label>
-              <input type="text" value="${escapeHTML(anc.fht || '')}" placeholder="e.g., 144 bpm (RLQ)"
-                oninput="updateAncField('fht', this.value)"
-                class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs">
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Fundic Height (cm)</label>
-              <input type="text" value="${escapeHTML(anc.fundicHeight || '')}" placeholder="e.g., 26 cm"
-                oninput="updateAncField('fundicHeight', this.value)"
-                class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs">
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Fetal Presentation / Lie</label>
-              <select onchange="updateAncField('presentation', this.value)" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold bg-white">
-                ${['Cephalic', 'Breech', 'Transverse', 'Oblique', 'Variable / Too Early to Assess'].map(opt => `
-                  <option value="${opt}" ${anc.presentation === opt ? 'selected' : ''}>${opt}</option>
-                `).join('')}
-              </select>
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Fetal Movement</label>
-              <select onchange="updateAncField('fetalMovement', this.value)" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold bg-white">
-                ${['Present / Active (>=10 kicks/12h)', 'Decreased Fetal Movement (<10 kicks/12h)', 'Not Yet Perceived (<18 wks)'].map(opt => `
-                  <option value="${opt}" ${anc.fetalMovement === opt ? 'selected' : ''}>${opt}</option>
-                `).join('')}
-              </select>
-            </div>
-            <div class="sm:col-span-2">
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Maternal Edema / Preeclampsia Signs</label>
-              <select onchange="updateAncField('edema', this.value)" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold bg-white">
-                ${['None', 'Trace Bipedal Edema (Physiologic)', 'Grade 1+ to 2+ Bipedal Edema', 'Generalized / Facial / Periorbital Edema (Evaluate for Preeclampsia)'].map(opt => `
-                  <option value="${opt}" ${anc.edema === opt ? 'selected' : ''}>${opt}</option>
-                `).join('')}
-              </select>
-            </div>
-          </div>
-        </div>
-      ` : ''}
-
-      <!-- TAB 3: MATERNAL DANGER SIGNS -->
-      ${activeAncTab === 'danger' ? `
-        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
-          <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider mb-1">
-            DOH Maternal Danger Signs Screening
-          </h3>
-          <p class="text-xs text-slate-500 mb-4">Select any maternal danger sign present during this consultation.</p>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-            ${ANC_DANGER_SIGNS.map((sign: string) => {
-              const checked = (anc.dangerSigns || []).includes(sign);
-              return `
-                <label class="flex items-start gap-2.5 p-3 rounded-xl border ${checked ? 'bg-teal-50 border-teal-500 text-teal-950 font-semibold' : 'bg-slate-50 border-slate-200 text-slate-700'} text-xs cursor-pointer">
-                  <input type="checkbox" ${checked ? 'checked' : ''}
-                    onchange="toggleAncDangerSign('${escapeHTML(sign)}')"
-                    class="mt-0.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500">
-                  <span>${escapeHTML(sign)}</span>
-                </label>
-              `;
-            }).join('')}
-          </div>
-        </div>
-      ` : ''}
-
-      <!-- TAB 4: TRIMESTER-SPECIFIC SCREENING WORKUP -->
-      ${activeAncTab === 'screening' ? `
-        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
-            <div>
-              <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">Trimester-Specific Screening Workup Selection</h3>
-              <p class="text-xs text-slate-500 mt-0.5">Select the applicable trimester below and check the laboratory and ultrasound tests to order.</p>
-            </div>
-            <div class="flex flex-wrap items-center gap-2">
-              <select onchange="setAncScreeningFilter(this.value)" class="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-teal-900 bg-teal-50">
-                <option value="1st" ${screeningFilter === '1st' ? 'selected' : ''}>1st Trimester Workup (&lt;14 wks)</option>
-                <option value="2nd" ${screeningFilter === '2nd' ? 'selected' : ''}>2nd Trimester Workup (14–27 wks)</option>
-                <option value="3rd" ${screeningFilter === '3rd' ? 'selected' : ''}>3rd Trimester Workup (28–40+ wks)</option>
-                <option value="all" ${screeningFilter === 'all' ? 'selected' : ''}>Show All Trimesters (1st, 2nd &amp; 3rd)</option>
-              </select>
-              <button onclick="orderAllTrimesterTests('${screeningFilter === 'all' ? currentTrimesterKey : screeningFilter}')" class="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition shrink-0 cursor-pointer">
-                + Order All Selected Trimester Tests
-              </button>
-            </div>
-          </div>
-
-          <div class="space-y-5">
-            ${trimesterWorkupCatalog
-              .filter(t => screeningFilter === 'all' || t.code === screeningFilter)
-              .map(t => `
-                <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-                  <div class="flex items-center justify-between">
-                    <h4 class="text-xs font-extrabold uppercase tracking-wider text-teal-900">${escapeHTML(t.title)}</h4>
-                    <span class="text-[11px] font-semibold text-slate-500">DOH / POGS Standard</span>
-                  </div>
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p class="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-2">Applicable Laboratory Tests</p>
-                      <div class="space-y-1.5">
-                        ${(t.bundle.labs || []).map((labName: string) => {
-                          const isOrdered = selectedLabs.includes(labName);
-                          return `
-                            <label class="flex items-center justify-between p-2.5 rounded-lg bg-white border ${isOrdered ? 'border-teal-500 bg-teal-50/40' : 'border-slate-200'} text-xs cursor-pointer">
-                              <span class="font-medium text-slate-800">${escapeHTML(labName)}</span>
-                              <input type="checkbox" ${isOrdered ? 'checked' : ''} onchange="toggleDiagnosticTest('labs', '${escapeHTML(labName)}')" class="rounded text-teal-600">
-                            </label>
-                          `;
-                        }).join('')}
-                      </div>
-                    </div>
-                    <div>
-                      <p class="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-2">Applicable OB Ultrasound / Monitoring</p>
-                      <div class="space-y-1.5">
-                        ${(t.bundle.imaging || []).map((imgName: string) => {
-                          const isOrdered = selectedImaging.includes(imgName);
-                          return `
-                            <label class="flex items-center justify-between p-2.5 rounded-lg bg-white border ${isOrdered ? 'border-teal-500 bg-teal-50/40' : 'border-slate-200'} text-xs cursor-pointer">
-                              <span class="font-medium text-slate-800">${escapeHTML(imgName)}</span>
-                              <input type="checkbox" ${isOrdered ? 'checked' : ''} onchange="toggleDiagnosticTest('imaging', '${escapeHTML(imgName)}')" class="rounded text-teal-600">
-                            </label>
-                          `;
-                        }).join('')}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              `).join('')}
-          </div>
-        </div>
-      ` : ''}
-
-      <!-- TAB 5: MATERNAL MICRONUTRIENTS & IMMUNIZATION (DOH DROPDOWNS) -->
-      ${activeAncTab === 'immunization' ? `
-        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
-          <div>
-            <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">Maternal Micronutrients &amp; Immunization (DOH Guidelines)</h3>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">Iron + Folic Acid Supplementation (DOH Protocol)</label>
-              <select onchange="updateAncField('ironFolate', this.value)" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold bg-white focus:ring-2 focus:ring-teal-500">
-                ${ensureOptionList(DOH_IRON_FOLATE_OPTIONS, anc.ironFolate).map(opt => `
-                  <option value="${escapeHTML(opt)}" ${anc.ironFolate === opt ? 'selected' : ''}>${escapeHTML(opt)}</option>
-                `).join('')}
-              </select>
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">Calcium Carbonate Supplementation (Preeclampsia Prevention)</label>
-              <select onchange="updateAncField('calcium', this.value)" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold bg-white focus:ring-2 focus:ring-teal-500">
-                ${ensureOptionList(DOH_CALCIUM_OPTIONS, anc.calcium).map(opt => `
-                  <option value="${escapeHTML(opt)}" ${anc.calcium === opt ? 'selected' : ''}>${escapeHTML(opt)}</option>
-                `).join('')}
-              </select>
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">Tetanus Diphtheria (Td / Tdap) Vaccine Status</label>
-              <select onchange="updateAncField('tetanusStatus', this.value)" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold bg-white focus:ring-2 focus:ring-teal-500">
-                ${ensureOptionList(DOH_TETANUS_VACCINE_OPTIONS, anc.tetanusStatus).map(opt => `
-                  <option value="${escapeHTML(opt)}" ${anc.tetanusStatus === opt ? 'selected' : ''}>${escapeHTML(opt)}</option>
-                `).join('')}
-              </select>
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">Anti-Helminthic Deworming (2nd / 3rd Trimester)</label>
-              <select onchange="updateAncField('deworming', this.value)" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold bg-white focus:ring-2 focus:ring-teal-500">
-                ${ensureOptionList(DOH_DEWORMING_OPTIONS, anc.deworming).map(opt => `
-                  <option value="${escapeHTML(opt)}" ${anc.deworming === opt ? 'selected' : ''}>${escapeHTML(opt)}</option>
-                `).join('')}
-              </select>
-            </div>
-            <div class="md:col-span-2">
-              <label class="block text-xs font-bold text-slate-700 mb-1">Additional Maternal Vaccines & Micronutrients (DOH / POGS)</label>
-              <select onchange="updateAncField('otherVaccine', this.value)" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold bg-white focus:ring-2 focus:ring-teal-500">
-                ${ensureOptionList(DOH_OTHER_MATERNAL_VACCINES, anc.otherVaccine || DOH_OTHER_MATERNAL_VACCINES[0]).map(opt => `
-                  <option value="${escapeHTML(opt)}" ${(anc.otherVaccine || DOH_OTHER_MATERNAL_VACCINES[0]) === opt ? 'selected' : ''}>${escapeHTML(opt)}</option>
-                `).join('')}
-              </select>
-            </div>
-          </div>
-        </div>
-      ` : ''}
-
-      <!-- TAB 6: DOH BIRTH & EMERGENCY PLAN + REKORD NI NANAY -->
-      ${activeAncTab === 'birth-plan' ? `
-        <div class="space-y-6">
-          <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
+          <!-- Maternal SOAP Note Editor & Live A4 Antenatal SOAP Preview -->
+          <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4 no-print">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
               <div>
-                <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">DOH Mother-Baby Birth &amp; Emergency Plan</h3>
-                <p class="text-xs text-slate-500 mt-0.5">All details entered here sync directly to <strong>Rekord ni Nanay ${escapeHTML(p.name)}</strong> below.</p>
+                <span class="text-[10px] font-extrabold uppercase tracking-wider text-teal-700 block">Antenatal SOAP Note Generator</span>
+                <h3 class="text-base font-extrabold text-slate-900">Official Antenatal SOAP (Subjective, Objective, Assessment, Plan)</h3>
               </div>
+              <div class="flex flex-wrap items-center gap-2 shrink-0">
+                <div class="flex items-center gap-1.5 bg-teal-50/70 px-2.5 py-1.5 rounded-xl border border-teal-200">
+                  <label class="text-[10px] font-extrabold uppercase text-teal-800">Consultation Date:</label>
+                  <input
+                    type="date"
+                    value="${escapeHTML(p.consultationDate || visitDate)}"
+                    onchange="handleConsultationDateChange(this.value)"
+                    class="px-2 py-0.5 rounded-lg border border-teal-300 bg-white text-xs font-bold text-slate-900"
+                  >
+                </div>
+                <button type="button" onclick="downloadPdfElement('anc-printable-a4', 'Antenatal_Record_${escapeHTML(p.name.split(' ')[0].replace(/[^a-zA-Z0-9]/g, ''))}_${visitDate}.pdf', 'a4')"
+                  class="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-2xs flex items-center gap-1.5 cursor-pointer">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                  Download Antenatal SOAP PDF
+                </button>
+                <button type="button" onclick="printDocumentElement('anc-printable-a4', 'A4 portrait')"
+                  class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold shadow-2xs flex items-center gap-1.5 cursor-pointer">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                  Print A4 SOAP
+                </button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">S — Maternal Subjective</label>
+                <textarea rows="3" oninput="handleSoapFieldInput('subjective', this.value)"
+                  class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs leading-relaxed focus:ring-2 focus:ring-teal-500 focus:outline-none">${escapeHTML(ds.subjective || '')}</textarea>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">O — Maternal &amp; Fetal Objective</label>
+                <textarea rows="3" oninput="handleSoapFieldInput('objective', this.value)"
+                  class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs leading-relaxed focus:ring-2 focus:ring-teal-500 focus:outline-none">${escapeHTML(ds.objective || '')}</textarea>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">A — Obstetric Assessment / Diagnosis</label>
+                <textarea rows="3" oninput="handleSoapFieldInput('assessment', this.value)"
+                  class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-900 leading-relaxed focus:ring-2 focus:ring-teal-500 focus:outline-none">${escapeHTML(ds.assessment || '')}</textarea>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">P — Antenatal Management Plan</label>
+                <textarea rows="3" oninput="handleSoapFieldInput('plan', this.value)"
+                  class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs leading-relaxed focus:ring-2 focus:ring-teal-500 focus:outline-none">${escapeHTML(ds.plan || '')}</textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- Official Printable / Downloadable A4 Antenatal SOAP Preview -->
+          <div>
+            <div class="flex items-center justify-between max-w-[210mm] mx-auto mb-2 no-print">
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Official A4 Antenatal Clinical Record (SOAP) Preview</span>
+              <div class="flex items-center gap-3">
+                <button onclick="printDocumentElement('anc-printable-a4', 'A4 portrait')" class="text-xs font-bold text-slate-700 hover:text-slate-900 hover:underline cursor-pointer">Print A4 Record</button>
+                <button onclick="downloadPdfElement('anc-printable-a4', 'Antenatal_Record_${escapeHTML(p.name.split(' ')[0].replace(/[^a-zA-Z0-9]/g, ''))}_${visitDate}.pdf', 'a4')" class="text-xs font-bold text-teal-700 hover:underline cursor-pointer">Download PDF ↓</button>
+              </div>
+            </div>
+            <div id="anc-printable-a4" class="paper-a4 print-only-target">
+              ${buildA4SoapRecordSheetHTML(doc, p, 'ANC')}
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-between shadow-xs no-print">
+            <button type="button" onclick="setAncActiveTab('ob-dating')" class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer">
+              ← Back
+            </button>
+            <button type="button" onclick="setAncActiveTab('screening')" class="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-xs transition cursor-pointer">
+              Proceed to Trimester Lab &amp; Imaging Request →
+            </button>
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- TRIMESTER SCREENING PACKAGE DROPDOWN + DIRECT LAB & IMAGING REQUEST GENERATION -->
+      ${activeAncTab === 'screening' ? `
+        <div class="space-y-6">
+          <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5 no-print">
+            <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4">
+              <div class="flex flex-wrap items-center gap-2">
+                <select
+                  onchange="selectAncTrimesterPackage(this.value)"
+                  class="px-3.5 py-2.5 rounded-xl border-2 border-teal-600 text-xs font-extrabold text-teal-950 bg-teal-50 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
+                >
+                  <option value="1st" ${screeningFilter === '1st' ? 'selected' : ''}>1st Trimester Package (&lt;14 Weeks AOG — Baseline Labs + TVS/Pelvic UTZ)</option>
+                  <option value="2nd" ${screeningFilter === '2nd' ? 'selected' : ''}>2nd Trimester Package (14–27 Weeks AOG — 75g OGTT + CAS Ultrasound)</option>
+                  <option value="3rd" ${screeningFilter === '3rd' ? 'selected' : ''}>3rd Trimester Package (28–40+ Weeks AOG — Repeat CBC/UA + Biometry/BPP UTZ)</option>
+                  <option value="all" ${screeningFilter === 'all' ? 'selected' : ''}>View All Trimesters (1st, 2nd &amp; 3rd Packages)</option>
+                </select>
+                <button
+                  type="button"
+                  onclick="selectAncTrimesterPackage('${screeningFilter === 'all' ? currentTrimesterKey : screeningFilter}')"
+                  class="px-3.5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition shrink-0 cursor-pointer"
+                >
+                  ✓ Apply Package &amp; Generate Request
+                </button>
+              </div>
+              ${renderClearFormIconButtonHTML('clearAncStep3Form()', 'Clear Lab & Imaging Selection')}
+            </div>
+
+            <div class="space-y-4">
+              ${trimesterWorkupCatalog
+                .filter(t => screeningFilter === 'all' || t.code === screeningFilter)
+                .map(t => `
+                  <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                    <div class="flex items-center justify-between">
+                      <h4 class="text-xs font-extrabold uppercase tracking-wider text-teal-900">${escapeHTML(t.title)}</h4>
+                      <span class="text-[11px] font-semibold text-slate-500">Check/uncheck individual tests to customize</span>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <p class="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-2">Applicable Laboratory Tests (${selectedLabs.length} selected)</p>
+                        <div class="space-y-1.5">
+                          ${(t.bundle.labs || []).map((labName: string) => {
+                            const isOrdered = selectedLabs.includes(labName);
+                            return `
+                              <label class="flex items-center justify-between p-2.5 rounded-lg bg-white border ${isOrdered ? 'border-teal-500 bg-teal-50/40' : 'border-slate-200'} text-xs cursor-pointer">
+                                <span class="font-medium text-slate-800">${escapeHTML(labName)}</span>
+                                <input type="checkbox" ${isOrdered ? 'checked' : ''} onchange="toggleDiagnosticTest('labs', '${escapeHTML(labName)}')" class="rounded text-teal-600">
+                              </label>
+                            `;
+                          }).join('')}
+                        </div>
+                      </div>
+                      <div>
+                        <p class="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-2">Applicable OB Ultrasound / Monitoring (${selectedImaging.length} selected)</p>
+                        <div class="space-y-1.5">
+                          ${(t.bundle.imaging || []).map((imgName: string) => {
+                            const isOrdered = selectedImaging.includes(imgName);
+                            return `
+                              <label class="flex items-center justify-between p-2.5 rounded-lg bg-white border ${isOrdered ? 'border-teal-500 bg-teal-50/40' : 'border-slate-200'} text-xs cursor-pointer">
+                                <span class="font-medium text-slate-800">${escapeHTML(imgName)}</span>
+                                <input type="checkbox" ${isOrdered ? 'checked' : ''} onchange="toggleDiagnosticTest('imaging', '${escapeHTML(imgName)}')" class="rounded text-teal-600">
+                              </label>
+                            `;
+                          }).join('')}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                `).join('')}
+            </div>
+          </div>
+
+          <!-- Directly Generated Antenatal Laboratory & Imaging Request Sheet -->
+          <div>
+            <div class="flex flex-wrap items-center justify-between max-w-[260mm] mx-auto mb-2.5 gap-2 no-print">
+              <div>
+                <span class="text-xs font-extrabold uppercase tracking-wider text-teal-900 block">Directly Generated Antenatal Laboratory &amp; Imaging Request Sheet</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  onclick="downloadPdfElement('anc-diag-printable-sheet', 'Antenatal_Lab_Imaging_Request_${escapeHTML(p.name.split(' ')[0].replace(/[^a-zA-Z0-9]/g, ''))}_${visitDate}.pdf', 'a5-landscape')"
+                  class="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                  Download Lab &amp; Imaging PDF
+                </button>
+                <button
+                  type="button"
+                  onclick="printDocumentElement('anc-diag-printable-sheet', 'A5 landscape')"
+                  class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                  Print Request Sheet
+                </button>
+              </div>
+            </div>
+            <div id="anc-diag-printable-sheet" class="print-only-target">
+              ${buildDualLabImagingRequestSheetHTML(doc, p)}
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-between shadow-xs no-print">
+            <button type="button" onclick="setAncActiveTab('pe')" class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer">
+              ← Back
+            </button>
+            <button type="button" onclick="setAncActiveTab('immunization')" class="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-xs transition cursor-pointer">
+              Proceed to Maternal Prescription (Rx) →
+            </button>
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- MATERNAL MICRONUTRIENTS & IMMUNIZATION DROPDOWNS + DIRECT PRESCRIPTION (RX) GENERATION -->
+      ${activeAncTab === 'immunization' ? `
+        <div class="space-y-6">
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- Left: DOH Micronutrient & Immunization Dropdowns + Medication List -->
+            <div class="lg:col-span-6 bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4 no-print">
+              <div class="flex items-center justify-end border-b border-slate-200 pb-2">
+                ${renderClearFormIconButtonHTML('clearAncStep4Form()', 'Clear Prescription Form')}
+              </div>
+
+              <div class="space-y-3.5">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Iron + Folic Acid Supplementation (DOH Protocol)</label>
+                  <select onchange="updateAncMedicationDropdown('ironFolate', this.value)" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold bg-white focus:ring-2 focus:ring-teal-500">
+                    ${ensureOptionList(DOH_IRON_FOLATE_OPTIONS, anc.ironFolate).map(opt => `
+                      <option value="${escapeHTML(opt)}" ${anc.ironFolate === opt ? 'selected' : ''}>${escapeHTML(opt)}</option>
+                    `).join('')}
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Calcium Carbonate Supplementation (Preeclampsia Prevention)</label>
+                  <select onchange="updateAncMedicationDropdown('calcium', this.value)" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold bg-white focus:ring-2 focus:ring-teal-500">
+                    ${ensureOptionList(DOH_CALCIUM_OPTIONS, anc.calcium).map(opt => `
+                      <option value="${escapeHTML(opt)}" ${anc.calcium === opt ? 'selected' : ''}>${escapeHTML(opt)}</option>
+                    `).join('')}
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Tetanus Diphtheria (Td / Tdap) Vaccine Status</label>
+                  <select onchange="updateAncMedicationDropdown('tetanusStatus', this.value)" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold bg-white focus:ring-2 focus:ring-teal-500">
+                    ${ensureOptionList(DOH_TETANUS_VACCINE_OPTIONS, anc.tetanusStatus).map(opt => `
+                      <option value="${escapeHTML(opt)}" ${anc.tetanusStatus === opt ? 'selected' : ''}>${escapeHTML(opt)}</option>
+                    `).join('')}
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Anti-Helminthic Deworming (2nd / 3rd Trimester)</label>
+                  <select onchange="updateAncMedicationDropdown('deworming', this.value)" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold bg-white focus:ring-2 focus:ring-teal-500">
+                    ${ensureOptionList(DOH_DEWORMING_OPTIONS, anc.deworming).map(opt => `
+                      <option value="${escapeHTML(opt)}" ${anc.deworming === opt ? 'selected' : ''}>${escapeHTML(opt)}</option>
+                    `).join('')}
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Additional Maternal Vaccines &amp; Micronutrients (DOH / POGS)</label>
+                  <select onchange="updateAncMedicationDropdown('otherVaccine', this.value)" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold bg-white focus:ring-2 focus:ring-teal-500">
+                    ${ensureOptionList(DOH_OTHER_MATERNAL_VACCINES, anc.otherVaccine || DOH_OTHER_MATERNAL_VACCINES[0]).map(opt => `
+                      <option value="${escapeHTML(opt)}" ${(anc.otherVaccine || DOH_OTHER_MATERNAL_VACCINES[0]) === opt ? 'selected' : ''}>${escapeHTML(opt)}</option>
+                    `).join('')}
+                  </select>
+                </div>
+              </div>
+
+              <!-- Customize / Add Additional Rx Items -->
+              <div class="pt-3 border-t border-slate-200 space-y-2.5">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-slate-800 uppercase tracking-wider">Generated Rx Medications (${meds.length})</span>
+                  <button type="button" onclick="addBlankDoctorMed()" class="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold cursor-pointer">
+                    + Add Custom Medication
+                  </button>
+                </div>
+                <div class="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  ${meds.map((m: any, idx: number) => `
+                    <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+                      <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-bold text-teal-800 uppercase">Rx Item #${idx + 1}</span>
+                        <button type="button" onclick="removeDoctorMed(${idx})" class="text-[11px] text-slate-500 hover:text-slate-900 font-bold cursor-pointer">Remove ✕</button>
+                      </div>
+                      <input type="text" value="${escapeHTML(m.genericName)}" placeholder="Generic Name + Strength"
+                        oninput="updateDoctorMed(${idx}, 'genericName', this.value)"
+                        class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-bold bg-white">
+                      <div class="grid grid-cols-3 gap-2">
+                        <input type="text" value="${escapeHTML(m.brandExample || '')}" placeholder="Brand"
+                          oninput="updateDoctorMed(${idx}, 'brandExample', this.value)"
+                          class="col-span-2 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white">
+                        <input type="text" value="${escapeHTML(m.quantity || '#30')}" placeholder="#30"
+                          oninput="updateDoctorMed(${idx}, 'quantity', this.value)"
+                          class="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white text-center">
+                      </div>
+                      <input type="text" value="${escapeHTML(m.sig || '')}" placeholder="Sig / Instructions"
+                        oninput="updateDoctorMed(${idx}, 'sig', this.value)"
+                        class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white">
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Directly Generated Maternal Prescription (Rx Pad) Inside Step 4 -->
+            <div class="lg:col-span-6 flex flex-col items-center">
+              <div class="w-full bg-white rounded-2xl border border-slate-200 p-4 mb-3 shadow-xs no-print space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span class="text-[10px] font-extrabold uppercase tracking-wider text-teal-700 block">Directly Generated Maternal Prescription (Rx)</span>
+                    <h4 class="text-sm font-extrabold text-slate-900">Official RA 6675 Maternal Rx Pad Preview</h4>
+                  </div>
+                  <div class="flex items-center gap-1.5">
+                    <button type="button" onclick="setRxPrintMode('single-a6')" class="px-2.5 py-1.5 rounded-lg border text-[11px] font-bold cursor-pointer ${rxMode === 'single-a6' ? 'bg-teal-600 text-white border-teal-600' : 'bg-slate-50 text-slate-700 border-slate-300'}">
+                      Single A6
+                    </button>
+                    <button type="button" onclick="setRxPrintMode('dual-a6')" class="px-2.5 py-1.5 rounded-lg border text-[11px] font-bold cursor-pointer ${rxMode === 'dual-a6' ? 'bg-teal-600 text-white border-teal-600' : 'bg-slate-50 text-slate-700 border-slate-300'}">
+                      Dual A6 (Half-Bond)
+                    </button>
+                  </div>
+                </div>
+                <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onclick="downloadPdfElement('anc-rx-printable-sheet', 'Maternal_Prescription_${escapeHTML(p.name.replace(/\s+/g, '_'))}_${visitDate}.pdf', '${rxMode === 'dual-a6' ? 'a5-landscape' : 'a6'}')"
+                    class="flex-1 py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    Download Maternal Rx PDF
+                  </button>
+                  <button
+                    type="button"
+                    onclick="printDocumentElement('anc-rx-printable-sheet', '${rxMode === 'dual-a6' ? 'A5 landscape' : 'A6 portrait'}')"
+                    class="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                    Print Maternal Rx
+                  </button>
+                </div>
+              </div>
+
+              ${rxMode === 'dual-a6' ? `
+                <div id="anc-rx-printable-sheet" class="paper-dual-a6 print-only-target">
+                  <div class="paper-dual-a6-half paper-dual-a6-divider">
+                    <div class="text-[8px] font-bold uppercase tracking-widest text-teal-700 mb-1">Patient Copy</div>
+                    ${buildSingleA6RxPadHTML(doc, p, meds)}
+                  </div>
+                  <div class="paper-dual-a6-half">
+                    <div class="text-[8px] font-bold uppercase tracking-widest text-slate-700 mb-1">Pharmacy / Clinic Copy</div>
+                    ${buildSingleA6RxPadHTML(doc, p, meds)}
+                  </div>
+                </div>
+              ` : `
+                <div id="anc-rx-printable-sheet" class="paper-a6 print-only-target">
+                  ${buildSingleA6RxPadHTML(doc, p, meds)}
+                </div>
+              `}
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-between shadow-xs no-print">
+            <button type="button" onclick="setAncActiveTab('screening')" class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer">
+              ← Back
+            </button>
+            <button type="button" onclick="setAncActiveTab('birth-plan')" class="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-xs transition cursor-pointer">
+              Proceed to Birth Plan, Rekord ni Nanay &amp; Save Record →
+            </button>
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- BIRTH & EMERGENCY PLAN + REKORD NI NANAY + SAVE PATIENT RECORD -->
+      ${activeAncTab === 'birth-plan' ? `
+        <div class="space-y-6">
+          <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5 no-print">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
               <div class="flex items-center gap-2">
                 <label class="text-xs font-bold text-teal-900">Total Prenatal Visits:</label>
                 <input type="number" min="1" max="30" value="${escapeHTML(anc.prenatalVisitCount || getPatientPrenatalVisits(p).length)}"
                   oninput="updateAncField('prenatalVisitCount', Number(this.value))"
                   class="w-20 px-2.5 py-1.5 rounded-lg border border-teal-400 bg-teal-50 text-xs font-extrabold text-center text-teal-950">
+              </div>
+              <div class="flex items-center gap-2">
+                ${renderClearFormIconButtonHTML('clearAncStep5Form()', 'Clear Birth Plan Form')}
               </div>
             </div>
 
@@ -1108,7 +1769,7 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Identified Blood Donor(s)</label>
-                <input type="text" value="${escapeHTML(anc.bloodDonorName || '')}" placeholder="Name & Blood Type"
+                <input type="text" value="${escapeHTML(anc.bloodDonorName || '')}" placeholder="Name &amp; Blood Type"
                   oninput="updateAncField('bloodDonorName', this.value)" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs">
               </div>
               <div>
@@ -1145,7 +1806,7 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
                       class="sm:col-span-2 px-2 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold" title="Visit Date">
                     <input type="text" value="${escapeHTML(v.aog || '')}" placeholder="AOG / Trimester" oninput="updateAncPrenatalVisit(${idx}, 'aog', this.value)"
                       class="sm:col-span-2 px-2 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold">
-                    <input type="text" value="${escapeHTML(v.bpWeight || '')}" placeholder="BP & Weight" oninput="updateAncPrenatalVisit(${idx}, 'bpWeight', this.value)"
+                    <input type="text" value="${escapeHTML(v.bpWeight || '')}" placeholder="BP &amp; Weight" oninput="updateAncPrenatalVisit(${idx}, 'bpWeight', this.value)"
                       class="sm:col-span-2 px-2 py-1.5 rounded-lg border border-slate-300 bg-white text-xs">
                     <input type="text" value="${escapeHTML(v.obExam || '')}" placeholder="FH / FHT / Lie" oninput="updateAncPrenatalVisit(${idx}, 'obExam', this.value)"
                       class="sm:col-span-2 px-2 py-1.5 rounded-lg border border-slate-300 bg-white text-xs">
@@ -1162,7 +1823,7 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
 
           <!-- REKORD NI NANAY [PATIENT NAME] CARD & HALF-BONDPAPER PDF / PRINT -->
           <div class="bg-gradient-to-r from-teal-50 via-white to-slate-50 rounded-2xl border-2 border-teal-200 p-5 sm:p-6 shadow-xs space-y-4">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-teal-200/80 pb-3">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-teal-200/80 pb-3 no-print">
               <div>
                 <span class="inline-block px-2.5 py-0.5 rounded-full bg-teal-600 text-white text-[10px] font-extrabold uppercase tracking-wider mb-1">
                   Half-Bondpaper Maternal Tracker (${escapeHTML(anc.prenatalVisitCount || getPatientPrenatalVisits(p).length)} Prenatal Visit${Number(anc.prenatalVisitCount || getPatientPrenatalVisits(p).length) === 1 ? '' : 's'})
@@ -1190,25 +1851,28 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
               ${buildRekordNiNanayHalfBondHTML(doc, p)}
             </div>
           </div>
+
+          <!-- FINAL SAVE PATIENT RECORD ACTION AT THE END OF ANTENATAL PATHWAY -->
+          <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
+            <div>
+              <h3 class="text-base sm:text-lg font-extrabold">Save ${escapeHTML(p.name)}'s Antenatal Record</h3>
+            </div>
+            <div class="flex flex-wrap items-center gap-2.5 shrink-0">
+              <button type="button" onclick="setAncActiveTab('immunization')" class="px-4 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-bold transition cursor-pointer">
+                ← Back
+              </button>
+              <button
+                type="button"
+                onclick="completeAndSaveAntenatalRecord()"
+                class="px-6 py-3 rounded-xl bg-white text-teal-950 hover:bg-teal-50 text-xs sm:text-sm font-extrabold shadow-md transition flex items-center gap-2 cursor-pointer"
+              >
+                <svg class="w-4 h-4 text-teal-700" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                Save Patient's Record
+              </button>
+            </div>
+          </div>
         </div>
       ` : ''}
-    </div>
-
-    <!-- Printable / Downloadable Antenatal Clinical Record (SOAP) A4 Preview -->
-    <div class="mt-8">
-      <div class="flex items-center justify-between max-w-[210mm] mx-auto mb-2 no-print">
-        <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Official A4 Antenatal Clinical Record (SOAP) Preview</span>
-        <div class="flex items-center gap-3">
-          <button onclick="printDocumentElement('anc-printable-a4', 'A4 portrait')" class="text-xs font-bold text-slate-700 hover:text-slate-900 hover:underline flex items-center gap-1 cursor-pointer">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-            Print A4 Record
-          </button>
-          <button onclick="downloadPdfElement('anc-printable-a4', 'Antenatal_Record_${escapeHTML(p.name.split(' ')[0].replace(/[^a-zA-Z0-9]/g, ''))}_${visitDate}.pdf', 'a4')" class="text-xs font-bold text-teal-700 hover:underline cursor-pointer">Download PDF ↓</button>
-        </div>
-      </div>
-      <div id="anc-printable-a4" class="paper-a4 print-only-target">
-        ${buildA4SoapRecordSheetHTML(doc, p, 'ANC')}
-      </div>
     </div>
   `;
 }
@@ -1396,16 +2060,22 @@ export function buildOfflineCpgReferencePanelHTML(appState: any, p: any): string
 }
 
 export function buildSoapWorkspaceHTML(appState: any, p: any, aiLeftHTML: string): string {
-  if (!p) {
+  if (!p || p.patientType === 'antenatal') {
     return `
       <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md mb-6 no-print">
-        <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">SOAP (Subjective, Objective, Assessment, Plan)</h2>
+        <span class="px-2.5 py-0.5 rounded-full bg-teal-500/20 border border-teal-400/30 text-[10px] font-extrabold uppercase tracking-wider">
+          General OPD Pathway • Step 2 of 4
+        </span>
+        <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight mt-1">SOAP (Subjective, Objective, Assessment, Plan)</h2>
       </div>
-      ${renderPatientSelectorBannerHTML(appState, null)}
+      ${renderPatientSelectorBannerHTML(appState, null, 'opd')}
       <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center">
-        <p class="text-base font-bold text-slate-800">No Active Patient Selected</p>
-        <p class="text-xs text-slate-500 mt-1 mb-4">Select or register a patient to open the SOAP Workspace.</p>
-        <button onclick="startNewPatientRegistration()" class="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold cursor-pointer">+ Register New Patient</button>
+        <p class="text-base font-bold text-slate-800">No Active General OPD Patient Selected</p>
+        <p class="text-xs text-slate-500 mt-1 mb-4">Select or register a General / Outpatient patient to open the OPD SOAP Workspace. (Antenatal patients are managed strictly inside the Maternal &amp; Antenatal Care tab.)</p>
+        <div class="flex flex-wrap justify-center gap-2.5">
+          <button onclick="startNewPatientRegistration('regular')" class="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold cursor-pointer">+ Register General OPD Patient</button>
+          <button onclick="switchView('anc')" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer">Go to Maternal &amp; Antenatal Care →</button>
+        </div>
       </div>
     `;
   }
@@ -1420,7 +2090,10 @@ export function buildSoapWorkspaceHTML(appState: any, p: any, aiLeftHTML: string
     <!-- Uniform Green Banner Title -->
     <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
       <div>
-        <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">SOAP (Subjective, Objective, Assessment, Plan)</h2>
+        <span class="px-2.5 py-0.5 rounded-full bg-teal-500/20 border border-teal-400/30 text-[10px] font-extrabold uppercase tracking-wider">
+          General OPD Pathway • Step 2 of 4 (Registration → SOAP → Prescription → Lab &amp; Imaging)
+        </span>
+        <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight mt-1">SOAP (Subjective, Objective, Assessment, Plan)</h2>
       </div>
       <button
         type="button"
@@ -1444,8 +2117,8 @@ export function buildSoapWorkspaceHTML(appState: any, p: any, aiLeftHTML: string
       </button>
     </div>
 
-    <!-- Active Patient Card Below Banner (Left-Side Half Screen) -->
-    ${renderPatientSelectorBannerHTML(appState, p)}
+    <!-- Active General OPD Patient Card Below Banner -->
+    ${renderPatientSelectorBannerHTML(appState, p, 'opd')}
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 no-print">
       <!-- Left Column: Either AI SOAP Assistant OR Offline CPG Reference -->
@@ -1477,9 +2150,27 @@ export function buildSoapWorkspaceHTML(appState: any, p: any, aiLeftHTML: string
             <h3 class="text-base font-extrabold text-slate-900">Official SOAP</h3>
           </div>
           <div class="flex flex-wrap items-center gap-2">
+            <div class="flex items-center gap-1.5 bg-teal-50/70 px-2.5 py-1.5 rounded-lg border border-teal-200">
+              <label class="text-[10px] font-extrabold uppercase text-teal-800">Consultation Date:</label>
+              <input
+                type="date"
+                value="${escapeHTML(p.consultationDate || visitDate)}"
+                onchange="handleConsultationDateChange(this.value)"
+                class="px-2 py-0.5 rounded border border-teal-300 bg-white text-xs font-bold text-slate-900"
+              >
+            </div>
+            <select
+              onchange="handleNatureOfVisitChange(this.value)"
+              class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800"
+            >
+              <option value="New Consultation" ${(p.natureOfVisit || 'New Consultation') === 'New Consultation' ? 'selected' : ''}>New Consultation</option>
+              <option value="Follow-Up" ${p.natureOfVisit === 'Follow-Up' ? 'selected' : ''}>Follow-Up</option>
+              <option value="Referral" ${p.natureOfVisit === 'Referral' ? 'selected' : ''}>Referral</option>
+            </select>
+            ${renderClearFormIconButtonHTML('clearOfficialSoapForm()', 'Clear Official SOAP Form')}
             <button onclick="savePatientConsultationSnapshot()" class="px-3 py-2 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-900 border border-teal-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer" title="Save Record">
               <svg class="w-3.5 h-3.5 text-teal-700" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-              Save Record
+              Save SOAP Draft
             </button>
             <button onclick="downloadPdfElement('soap-printable-a4', 'SOAP_${escapeHTML(p.name.split(' ')[0].replace(/[^a-zA-Z0-9]/g, ''))}_${visitDate}.pdf', 'a4')" class="px-3 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
@@ -1572,6 +2263,17 @@ export function buildSoapWorkspaceHTML(appState: any, p: any, aiLeftHTML: string
         ${buildA4SoapRecordSheetHTML(doc, p, 'CONS')}
       </div>
     </div>
+
+    <!-- General OPD Pathway Step Progression Footer -->
+    <div class="mt-6 bg-white rounded-2xl border border-teal-200 p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
+      <div>
+        <span class="text-[10px] font-extrabold uppercase tracking-wider text-teal-800 block">General OPD Pathway • Next Step</span>
+        <p class="text-xs font-bold text-slate-800">Step 2 (SOAP) complete? Proceed to Step 3: Medical Prescription (Rx).</p>
+      </div>
+      <button onclick="saveSoapAndProceedToRx()" class="px-6 py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-extrabold shadow-sm transition cursor-pointer">
+        Save SOAP &amp; Proceed to Medical Prescription (Rx) →
+      </button>
+    </div>
   `;
 }
 
@@ -1641,15 +2343,22 @@ export function buildSingleA6RxPadHTML(doc: any, p: any, meds: any[]): string {
 }
 
 export function buildPrescriptionWorkspaceHTML(appState: any, p: any): string {
-  if (!p) {
+  if (!p || p.patientType === 'antenatal') {
     return `
       <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md mb-6 no-print">
-        <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Medical Prescription</h2>
+        <span class="px-2.5 py-0.5 rounded-full bg-teal-500/20 border border-teal-400/30 text-[10px] font-extrabold uppercase tracking-wider">
+          General OPD Pathway • Step 3 of 4
+        </span>
+        <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight mt-1">Medical Prescription</h2>
       </div>
-      ${renderPatientSelectorBannerHTML(appState, null)}
+      ${renderPatientSelectorBannerHTML(appState, null, 'opd')}
       <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center">
-        <p class="text-base font-bold text-slate-800">No Active Patient Selected</p>
-        <p class="text-xs text-slate-500 mt-1 mb-4">Select or register a patient to prepare and download their Prescription (Rx).</p>
+        <p class="text-base font-bold text-slate-800">No Active General OPD Patient Selected</p>
+        <p class="text-xs text-slate-500 mt-1 mb-4">Select or register a General OPD patient to prepare and download their Prescription (Rx). (Antenatal prescriptions are generated inside Step 4 of the Maternal &amp; Antenatal Care tab.)</p>
+        <div class="flex flex-wrap justify-center gap-2.5">
+          <button onclick="startNewPatientRegistration('regular')" class="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold cursor-pointer">+ Register General OPD Patient</button>
+          <button onclick="switchView('anc')" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer">Go to Maternal &amp; Antenatal Care →</button>
+        </div>
       </div>
     `;
   }
@@ -1661,11 +2370,14 @@ export function buildPrescriptionWorkspaceHTML(appState: any, p: any): string {
   return `
     <!-- Uniform Green Banner Title -->
     <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md mb-6 no-print">
-      <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Medical Prescription</h2>
+      <span class="px-2.5 py-0.5 rounded-full bg-teal-500/20 border border-teal-400/30 text-[10px] font-extrabold uppercase tracking-wider">
+        General OPD Pathway • Step 3 of 4 (Registration → SOAP → Prescription → Lab &amp; Imaging)
+      </span>
+      <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight mt-1">Medical Prescription</h2>
     </div>
 
-    <!-- Active Patient Card Below Banner (Left-Side Half Screen) -->
-    ${renderPatientSelectorBannerHTML(appState, p)}
+    <!-- Active General OPD Patient Card Below Banner -->
+    ${renderPatientSelectorBannerHTML(appState, p, 'opd')}
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
       <!-- Left: Rx Medication Editor -->
@@ -1675,9 +2387,12 @@ export function buildPrescriptionWorkspaceHTML(appState: any, p: any): string {
             <h3 class="text-base font-extrabold text-slate-900">Generics Act Rx Pad Builder</h3>
             <p class="text-xs text-slate-500">RA 6675 compliant (Generic name prominent, brand optional).</p>
           </div>
-          <button onclick="addBlankDoctorMed()" class="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold cursor-pointer">
-            + Add Medication
-          </button>
+          <div class="flex items-center gap-2">
+            ${renderClearFormIconButtonHTML('clearPrescriptionForm()', 'Clear Prescription Form')}
+            <button onclick="addBlankDoctorMed()" class="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold cursor-pointer">
+              + Add Medication
+            </button>
+          </div>
         </div>
 
         <div class="space-y-3 max-h-[420px] overflow-y-auto pr-1">
@@ -1760,19 +2475,36 @@ export function buildPrescriptionWorkspaceHTML(appState: any, p: any): string {
         `}
       </div>
     </div>
+
+    <!-- General OPD Pathway Step Progression Footer -->
+    <div class="mt-6 bg-white rounded-2xl border border-teal-200 p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
+      <button onclick="switchView('soap')" class="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer">
+        ← Back to Step 2: SOAP
+      </button>
+      <button onclick="saveRxAndProceedToDiagnostics()" class="px-6 py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-extrabold shadow-sm transition cursor-pointer">
+        Save Prescription &amp; Proceed to Lab &amp; Imaging →
+      </button>
+    </div>
   `;
 }
 
 export function buildDiagnosticsWorkspaceHTML(appState: any, p: any): string {
-  if (!p) {
+  if (!p || p.patientType === 'antenatal') {
     return `
       <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md mb-6 no-print">
-        <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Laboratory and Imaging</h2>
+        <span class="px-2.5 py-0.5 rounded-full bg-teal-500/20 border border-teal-400/30 text-[10px] font-extrabold uppercase tracking-wider">
+          General OPD Pathway • Step 4 of 4 (Final Step)
+        </span>
+        <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight mt-1">Laboratory and Imaging</h2>
       </div>
-      ${renderPatientSelectorBannerHTML(appState, null)}
+      ${renderPatientSelectorBannerHTML(appState, null, 'opd')}
       <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center">
-        <p class="text-base font-bold text-slate-800">No Active Patient Selected</p>
-        <p class="text-xs text-slate-500 mt-1 mb-4">Select or register a patient to order Laboratory &amp; Imaging tests.</p>
+        <p class="text-base font-bold text-slate-800">No Active General OPD Patient Selected</p>
+        <p class="text-xs text-slate-500 mt-1 mb-4">Select or register a General OPD patient to order Laboratory &amp; Imaging tests and complete their record. (Antenatal lab &amp; imaging requests are generated inside Step 3 of the Maternal &amp; Antenatal Care tab.)</p>
+        <div class="flex flex-wrap justify-center gap-2.5">
+          <button onclick="startNewPatientRegistration('regular')" class="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold cursor-pointer">+ Register General OPD Patient</button>
+          <button onclick="switchView('anc')" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer">Go to Maternal &amp; Antenatal Care →</button>
+        </div>
       </div>
     `;
   }
@@ -1787,11 +2519,14 @@ export function buildDiagnosticsWorkspaceHTML(appState: any, p: any): string {
   return `
     <!-- Uniform Green Banner Title -->
     <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md mb-6 no-print">
-      <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Laboratory and Imaging</h2>
+      <span class="px-2.5 py-0.5 rounded-full bg-teal-500/20 border border-teal-400/30 text-[10px] font-extrabold uppercase tracking-wider">
+        General OPD Pathway • Step 4 of 4 (Final Step: Lab &amp; Imaging → Save Patient's Record)
+      </span>
+      <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight mt-1">Laboratory and Imaging</h2>
     </div>
 
-    <!-- Active Patient Card Below Banner (Left-Side Half Screen) -->
-    ${renderPatientSelectorBannerHTML(appState, p)}
+    <!-- Active General OPD Patient Card Below Banner -->
+    ${renderPatientSelectorBannerHTML(appState, p, 'opd')}
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 no-print">
       <!-- Left: Philippine Lab & Imaging Catalog Selector -->
@@ -1837,7 +2572,8 @@ export function buildDiagnosticsWorkspaceHTML(appState: any, p: any): string {
       <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
         <div class="flex items-center justify-between border-b border-slate-200 pb-3">
           <h3 class="text-base font-extrabold text-slate-900">Diagnostic Request Summary</h3>
-          <div class="flex gap-2">
+          <div class="flex items-center gap-2">
+            ${renderClearFormIconButtonHTML('clearDiagnosticsForm()', 'Clear Lab & Imaging Form')}
             <button onclick="downloadPdfElement('diag-printable-a4', 'Lab_Imaging_Request_${escapeHTML(p.name.split(' ')[0].replace(/[^a-zA-Z0-9]/g, ''))}_${visitDate}.pdf', 'a5-landscape')" class="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold cursor-pointer">
               Download PDF
             </button>
@@ -1905,6 +2641,38 @@ export function buildDiagnosticsWorkspaceHTML(appState: any, p: any): string {
         ${buildDualLabImagingRequestSheetHTML(doc, p)}
       </div>
     </div>
+
+    <!-- Final General OPD Completion Banner & Save Patient's Record Button -->
+    <div class="mt-8 bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4 no-print">
+      <div class="space-y-1">
+        <span class="px-2.5 py-0.5 rounded-full bg-teal-400/20 border border-teal-300/30 text-[10px] font-extrabold uppercase tracking-wider">
+          End of General OPD Consultation Pathway
+        </span>
+        <h3 class="text-lg font-extrabold tracking-tight">Complete &amp; Save ${escapeHTML(p.name)}'s General OPD Record</h3>
+        <p class="text-xs text-teal-100/90">
+          Saves the patient's Registration, SOAP Note, Medical Prescription (Rx), and Laboratory &amp; Imaging Request into the Patient Records Registry folder.
+        </p>
+      </div>
+      <div class="flex flex-wrap items-center gap-3 shrink-0">
+        <button
+          type="button"
+          onclick="switchView('rx')"
+          class="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-bold cursor-pointer"
+        >
+          ← Back to Prescription
+        </button>
+        <button
+          type="button"
+          onclick="completeAndSaveOpdRecord()"
+          class="px-6 py-3 rounded-xl bg-white text-teal-950 hover:bg-teal-50 text-xs sm:text-sm font-extrabold shadow-md flex items-center gap-2 cursor-pointer"
+        >
+          <svg class="w-4 h-4 text-teal-700" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          <span>Save Patient's Record</span>
+        </button>
+      </div>
+    </div>
   `;
 }
 
@@ -1926,15 +2694,69 @@ export function buildPatientRecordsHTML(appState: any): string {
     return hay.includes(search);
   });
 
-  const openFolderPatientId = appState.registryOpenFolderPatientId || (filtered[0]?.id || null);
+  const openFolderPatientId = appState.registryOpenFolderPatientId || null;
+  const openVisitFolderKey = appState.registryOpenVisitFolderKey || '';
   const selectedPdfPatientId = appState.registryPreviewPatientId || null;
-  const selectedPdfType = appState.registryPreviewDocType || 'soap';
+  const selectedPdfType = appState.registryPreviewDocType || 'itr';
+  const selectedPdfVisitDate = appState.registryPreviewVisitDate || '';
 
-  const getPatientPdfFilesList = (p: any) => {
+  const getPatientConsultationVisits = (p: any) => {
+    const rawHistory = Array.isArray(p.consultationHistory) ? p.consultationHistory : [];
+    const defaultDate = p.consultationDate || todayStr;
+    if (rawHistory.length === 0) {
+      return [
+        {
+          date: defaultDate,
+          type: p.natureOfVisit || (p.patientType === 'antenatal' ? 'Antenatal Visit' : 'New Consultation'),
+          doctorSoap: p.doctorSoap,
+          diagnostics: p.diagnostics,
+          vitals: p.vitals,
+          anc: p.anc
+        }
+      ];
+    }
+    return rawHistory.map((h: any, idx: number) => ({
+      ...h,
+      date: h.date || defaultDate,
+      doctorSoap: h.doctorSoap || (idx === 0 ? p.doctorSoap : h.doctorSoap),
+      diagnostics: h.diagnostics || (idx === 0 ? p.diagnostics : h.diagnostics),
+      vitals: h.vitals || p.vitals,
+      anc: h.anc || p.anc
+    }));
+  };
+
+  const buildPatientSnapshotForVisit = (p: any, visitDate: string) => {
+    const visits = getPatientConsultationVisits(p);
+    const matched = visits.find((v: any) => v.date === visitDate) || visits[0];
+    if (!matched) return p;
+    return {
+      ...p,
+      consultationDate: matched.date || p.consultationDate || todayStr,
+      natureOfVisit: matched.type || p.natureOfVisit || 'Consultation',
+      vitals: matched.vitals || p.vitals,
+      anc: matched.anc || p.anc,
+      doctorSoap: matched.doctorSoap || {
+        ...(p.doctorSoap || {}),
+        assessment: matched.assessment || p.doctorSoap?.assessment || '',
+        plan: matched.planSummary || p.doctorSoap?.plan || ''
+      },
+      diagnostics: matched.diagnostics || p.diagnostics
+    };
+  };
+
+  const getPatientPdfFilesList = (p: any, vDateOverride?: string) => {
     const safeFirst = (p.name || 'Patient').split(' ')[0].replace(/[^a-zA-Z0-9]/g, '') || 'Patient';
     const safeFull = (p.name || 'Patient').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '') || 'Patient';
-    const vDate = p.consultationDate || todayStr;
+    const vDate = vDateOverride || p.consultationDate || todayStr;
     const files = [
+      {
+        type: 'itr',
+        filename: `ITR_${safeFull}_${vDate}.pdf`,
+        label: 'Individual Treatment Record (ITR)',
+        sizeBadge: 'DOH A4 Record',
+        formatType: 'a4',
+        pageSize: 'A4 portrait'
+      },
       {
         type: 'soap',
         filename: `SOAP_${safeFirst}_${vDate}.pdf`,
@@ -1983,16 +2805,22 @@ export function buildPatientRecordsHTML(appState: any): string {
     return files;
   };
 
-  const renderInlineRegistryPdfPreview = (p: any, docType: string) => {
-    const files = getPatientPdfFilesList(p);
+  const renderInlineRegistryPdfPreview = (rawPatient: any, docType: string, visitDate: string) => {
+    const p = buildPatientSnapshotForVisit(rawPatient, visitDate);
+    const vDate = p.consultationDate || todayStr;
+    const files = getPatientPdfFilesList(p, vDate);
     const activeFile = files.find((f) => f.type === docType) || files[0];
     const meds = p.doctorSoap?.medications || [];
     const rxMode = appState.rxPrintMode || 'single-a6';
+    const lastName = extractPatientLastName(p.name);
 
     let sheetBodyHTML = '';
     let sheetPaperClass = 'paper-a4';
 
-    if (activeFile.type === 'soap') {
+    if (activeFile.type === 'itr') {
+      sheetPaperClass = 'paper-a4';
+      sheetBodyHTML = buildA4IndividualTreatmentRecordHTML(doc, p);
+    } else if (activeFile.type === 'soap') {
       sheetPaperClass = 'paper-a4';
       sheetBodyHTML = buildA4SoapRecordSheetHTML(doc, p, 'CONS');
     } else if (activeFile.type === 'anc-soap') {
@@ -2025,24 +2853,24 @@ export function buildPatientRecordsHTML(appState: any): string {
 
     return `
       <div class="mt-4 pt-4 border-t-2 border-teal-200 bg-slate-50/90 rounded-2xl p-4 sm:p-5 space-y-4">
-        <!-- Inline PDF Viewer Toolbar (Stays inside Patient Records Registry Tab) -->
+        <!-- Inline PDF Viewer Toolbar -->
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-teal-200 shadow-2xs no-print">
           <div class="flex items-center gap-2.5 min-w-0">
             <div class="w-9 h-9 rounded-lg bg-teal-600 text-white flex items-center justify-center font-extrabold text-xs shrink-0">
               PDF
             </div>
             <div class="min-w-0">
-              <span class="text-[10px] font-extrabold uppercase tracking-wider text-teal-700 block">Opened Inside Registry Folder • ${escapeHTML(p.name)}</span>
+              <span class="text-[10px] font-extrabold uppercase tracking-wider text-teal-700 block">${escapeHTML(lastName)} - ${escapeHTML(vDate)}</span>
               <h4 class="text-xs sm:text-sm font-extrabold text-slate-900 truncate">${escapeHTML(activeFile.filename)}</h4>
             </div>
           </div>
 
-          <!-- Switch Between Patient's PDF Files Inside Folder -->
+          <!-- Switch Between PDF Files Inside This Consultation Folder -->
           <div class="flex flex-wrap items-center gap-1.5">
             ${files.map((f) => `
               <button
                 type="button"
-                onclick="openRegistryPatientPdf('${escapeHTML(p.id)}', '${f.type}')"
+                onclick="openRegistryPatientPdf('${escapeHTML(p.id)}', '${f.type}', '${escapeHTML(vDate)}')"
                 class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
                   f.type === activeFile.type
                     ? 'bg-teal-600 text-white shadow-2xs'
@@ -2124,7 +2952,7 @@ export function buildPatientRecordsHTML(appState: any): string {
         </div>
         <input type="text" value="${escapeHTML(appState.recordsSearchQuery || '')}"
           oninput="updateRecordsSearch(this.value)"
-          placeholder="Search patient folder, ID, diagnosis, or PDF..."
+          placeholder="Search patient folder..."
           class="w-full sm:w-72 px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
       </div>
 
@@ -2137,33 +2965,24 @@ export function buildPatientRecordsHTML(appState: any): string {
             </div>
           </div>
         ` : filtered.map((p: any) => {
-          const pdfFiles = getPatientPdfFilesList(p);
           const isFolderOpen = openFolderPatientId === p.id || selectedPdfPatientId === p.id;
           const isPreviewingThisPatient = selectedPdfPatientId === p.id;
+          const visits = getPatientConsultationVisits(p);
+          const lastName = extractPatientLastName(p.name);
 
           return `
             <div class="bg-white rounded-2xl border-2 ${isPreviewingThisPatient ? 'border-teal-600' : 'border-slate-200'} p-4 sm:p-5 shadow-xs transition">
-              <!-- Patient Folder Header -->
-              <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print">
-                <div class="flex items-start gap-3.5 cursor-pointer" onclick="toggleRegistryPatientFolder('${escapeHTML(p.id)}')">
+              <!-- Patient Folder Header (Outside shows ONLY Full Name, Sex & Age, Open Folder, and Delete) -->
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
+                <div class="flex items-center gap-3.5 cursor-pointer" onclick="toggleRegistryPatientFolder('${escapeHTML(p.id)}')">
                   <div class="w-11 h-11 rounded-xl bg-teal-50 border border-teal-200 text-teal-700 flex items-center justify-center shrink-0 shadow-2xs">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                     </svg>
                   </div>
-                  <div class="space-y-1">
-                    <div class="flex items-center gap-2 flex-wrap">
-                      <span class="text-sm sm:text-base font-extrabold text-slate-900">${escapeHTML(p.name)}</span>
-                      <span class="text-xs font-semibold bg-slate-100 px-2 py-0.5 rounded text-slate-700">${escapeHTML(p.age)}y / ${escapeHTML(p.sex)}</span>
-                      <span class="text-[10px] font-bold px-2.5 py-0.5 rounded-full ${p.patientType === 'antenatal' ? 'bg-slate-800 text-white' : 'bg-teal-50 text-teal-800 border border-teal-200'}">
-                        ${p.patientType === 'antenatal' ? 'Antenatal / Maternal Folder' : 'Outpatient Folder'}
-                      </span>
-                      <span class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-teal-600 text-white">
-                        ${pdfFiles.length} PDF Files in Folder
-                      </span>
-                    </div>
-                    <p class="text-xs text-slate-600"><strong>CC:</strong> ${escapeHTML(p.chiefComplaint || 'N/A')} • <strong>Assessment:</strong> ${escapeHTML(p.doctorSoap?.assessment || 'Pending')}</p>
-                    <p class="text-[11px] text-slate-400">ID: ${escapeHTML(p.id)} | BP: ${escapeHTML(p.vitals?.bp || '-')} | BMI: ${escapeHTML(p.vitals?.bmi || '-')} | Visit: ${escapeHTML(p.consultationDate || '-')}</p>
+                  <div class="flex items-center gap-2.5 flex-wrap">
+                    <span class="text-sm sm:text-base font-extrabold text-slate-900">${escapeHTML(p.name)}</span>
+                    <span class="text-xs font-semibold bg-slate-100 px-2.5 py-0.5 rounded-lg text-slate-700">${escapeHTML(p.sex)} • ${escapeHTML(p.age)} yrs</span>
                   </div>
                 </div>
 
@@ -2176,7 +2995,7 @@ export function buildPatientRecordsHTML(appState: any): string {
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
                     </svg>
-                    <span>${isFolderOpen ? 'Hide Folder Files' : `Open Folder (${pdfFiles.length} PDFs)`}</span>
+                    <span>${isFolderOpen ? 'Close Folder' : 'Open Folder'}</span>
                   </button>
                   <button
                     type="button"
@@ -2188,38 +3007,90 @@ export function buildPatientRecordsHTML(appState: any): string {
                 </div>
               </div>
 
-              <!-- Patient Folder PDF Files Grid (Opens Directly Within This Tab When Clicked) -->
+              <!-- Inside Patient Folder: Nested Consultation Visit Folders ([LastName] - [Date of Consultation]) -->
               ${isFolderOpen ? `
-                <div class="mt-4 pt-3.5 border-t border-slate-100 no-print">
-                  <div class="flex items-center justify-between mb-2.5">
+                <div class="mt-4 pt-4 border-t border-slate-100 space-y-3 no-print">
+                  <div class="flex flex-wrap items-center justify-between gap-2">
                     <span class="text-[11px] font-extrabold uppercase tracking-wider text-teal-800">
-                      📁 ${escapeHTML(p.name)}'s Generated PDF Documents (Click any PDF file to open inside this tab)
+                      📁 ${escapeHTML(p.name)}'s Consultation Folders
                     </span>
+                    <button
+                      type="button"
+                      onclick="startNewConsultationVisitForPatient('${escapeHTML(p.id)}')"
+                      class="px-3 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-900 border border-teal-200 text-xs font-bold cursor-pointer"
+                    >
+                      + New Consultation Visit
+                    </button>
                   </div>
-                  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${p.patientType === 'antenatal' ? '5' : '3'} gap-2.5">
-                    ${pdfFiles.map((file) => {
-                      const isFileActive = isPreviewingThisPatient && selectedPdfType === file.type;
+
+                  <div class="space-y-2.5">
+                    ${visits.map((visit: any, vIdx: number) => {
+                      const vDate = visit.date || p.consultationDate || todayStr;
+                      const visitFolderName = `${lastName} - ${vDate}`;
+                      const visitKey = `${p.id}__${vDate}`;
+                      const isVisitFolderOpen =
+                        openVisitFolderKey === visitKey ||
+                        (!openVisitFolderKey && vIdx === 0) ||
+                        (isPreviewingThisPatient && (selectedPdfVisitDate || vDate) === vDate);
+                      const pdfFiles = getPatientPdfFilesList(p, vDate);
+
                       return `
-                        <div
-                          onclick="openRegistryPatientPdf('${escapeHTML(p.id)}', '${file.type}')"
-                          class="group p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-2 ${
-                            isFileActive
-                              ? 'bg-teal-600 text-white border-teal-700 shadow-sm'
-                              : 'bg-slate-50 hover:bg-teal-50/70 text-slate-900 border-slate-200 hover:border-teal-400'
-                          }"
-                        >
-                          <div class="flex items-start gap-2.5">
-                            <div class="w-8 h-8 rounded-lg ${isFileActive ? 'bg-white/20 text-white' : 'bg-teal-600 text-white'} flex items-center justify-center font-extrabold text-[10px] shrink-0">
-                              PDF
+                        <div class="rounded-xl border ${isVisitFolderOpen ? 'border-teal-500 bg-teal-50/20' : 'border-slate-200 bg-slate-50/60'} p-3.5 transition">
+                          <!-- Consultation Visit Subfolder Header: [LastName] - [Date of Consultation] -->
+                          <div class="flex items-center justify-between gap-3 cursor-pointer" onclick="toggleRegistryVisitSubfolder('${escapeHTML(p.id)}', '${escapeHTML(vDate)}')">
+                            <div class="flex items-center gap-2.5">
+                              <div class="w-9 h-9 rounded-lg ${isVisitFolderOpen ? 'bg-teal-600 text-white' : 'bg-white border border-teal-200 text-teal-700'} flex items-center justify-center shrink-0">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                </svg>
+                              </div>
+                              <div>
+                                <span class="text-xs sm:text-sm font-extrabold text-slate-900 block">${escapeHTML(visitFolderName)}</span>
+                                <span class="text-[10px] font-semibold text-slate-500">${pdfFiles.length} PDF files</span>
+                              </div>
                             </div>
-                            <div class="min-w-0">
-                              <p class="text-xs font-extrabold truncate" title="${escapeHTML(file.filename)}">${escapeHTML(file.filename)}</p>
-                              <p class="text-[10px] ${isFileActive ? 'text-teal-100' : 'text-slate-500'} truncate">${escapeHTML(file.label)} • ${escapeHTML(file.sizeBadge)}</p>
+                            <button
+                              type="button"
+                              class="px-3 py-1.5 rounded-lg ${isVisitFolderOpen ? 'bg-teal-600 text-white' : 'bg-white border border-slate-200 text-slate-700'} text-xs font-bold cursor-pointer"
+                            >
+                              ${isVisitFolderOpen ? 'Hide Files' : 'Open Visit Folder'}
+                            </button>
+                          </div>
+
+                          <!-- Generated PDFs Inside This Consultation Visit Folder -->
+                          ${isVisitFolderOpen ? `
+                            <div class="mt-3 pt-3 border-t border-teal-200/60 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${p.patientType === 'antenatal' ? '3' : '4'} gap-2.5">
+                              ${pdfFiles.map((file) => {
+                                const isFileActive =
+                                  isPreviewingThisPatient &&
+                                  selectedPdfType === file.type &&
+                                  (selectedPdfVisitDate || vDate) === vDate;
+                                return `
+                                  <div
+                                    onclick="openRegistryPatientPdf('${escapeHTML(p.id)}', '${file.type}', '${escapeHTML(vDate)}')"
+                                    class="group p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                                      isFileActive
+                                        ? 'bg-teal-600 text-white border-teal-700 shadow-sm'
+                                        : 'bg-white hover:bg-teal-50/70 text-slate-900 border-slate-200 hover:border-teal-400'
+                                    }"
+                                  >
+                                    <div class="flex items-start gap-2.5">
+                                      <div class="w-8 h-8 rounded-lg ${isFileActive ? 'bg-white/20 text-white' : 'bg-teal-600 text-white'} flex items-center justify-center font-extrabold text-[10px] shrink-0">
+                                        PDF
+                                      </div>
+                                      <div class="min-w-0">
+                                        <p class="text-xs font-extrabold truncate" title="${escapeHTML(file.filename)}">${escapeHTML(file.filename)}</p>
+                                        <p class="text-[10px] ${isFileActive ? 'text-teal-100' : 'text-slate-500'} truncate">${escapeHTML(file.label)} • ${escapeHTML(file.sizeBadge)}</p>
+                                      </div>
+                                    </div>
+                                    <div class="flex items-center justify-between pt-1.5 border-t ${isFileActive ? 'border-teal-500 text-white' : 'border-slate-200/80 text-teal-700'} text-[10.5px] font-bold">
+                                      <span>${isFileActive ? 'Viewing Below ↓' : 'Open PDF →'}</span>
+                                    </div>
+                                  </div>
+                                `;
+                              }).join('')}
                             </div>
-                          </div>
-                          <div class="flex items-center justify-between pt-1.5 border-t ${isFileActive ? 'border-teal-500 text-white' : 'border-slate-200/80 text-teal-700'} text-[10.5px] font-bold">
-                            <span>${isFileActive ? 'Viewing Below ↓' : 'Click to Open PDF →'}</span>
-                          </div>
+                          ` : ''}
                         </div>
                       `;
                     }).join('')}
@@ -2228,7 +3099,7 @@ export function buildPatientRecordsHTML(appState: any): string {
               ` : ''}
 
               <!-- Inline PDF Document Viewer Inside This Patient's Folder -->
-              ${isPreviewingThisPatient ? renderInlineRegistryPdfPreview(p, selectedPdfType) : ''}
+              ${isPreviewingThisPatient ? renderInlineRegistryPdfPreview(p, selectedPdfType, selectedPdfVisitDate || p.consultationDate || todayStr) : ''}
             </div>
           `;
         }).join('')}
@@ -2287,15 +3158,14 @@ export function buildHiddenAdminPortalHTML(appState: any, firebaseConfigObj: any
         </div>
         <form onsubmit="handleAdminPortalLogin(event)" class="p-6 space-y-4">
           <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">Admin Email or Passkey <span class="text-teal-700">*</span></label>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Admin Password / Passkey <span class="text-teal-700">*</span></label>
             <input
               id="admin-portal-passkey"
               type="password"
               required
-              placeholder="Enter Admin Passkey (Default: admin199)"
+              placeholder="Enter Admin Password"
               class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
             />
-            <p class="text-[11px] text-slate-500 mt-1.5">Default Admin Passkey: <code class="font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded">admin199</code> (or your admin email <code class="font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded">artjanny303@gmail.com</code>)</p>
           </div>
           <button
             type="submit"
@@ -2357,7 +3227,8 @@ export function buildHiddenAdminPortalHTML(appState: any, firebaseConfigObj: any
       acc.supervisingDoctor,
       acc.prc,
       acc.ptr,
-      acc.s2
+      acc.s2,
+      acc.gcashReference
     ]
       .filter(Boolean)
       .join(' ')
@@ -2382,7 +3253,7 @@ export function buildHiddenAdminPortalHTML(appState: any, firebaseConfigObj: any
             Clinician Enrollment, Credentials &amp; Subscription Administration
           </h2>
           <p class="text-xs text-teal-100/90 mt-1">
-            Approve sign-ups, set subscription start &amp; due dates (₱199/month), monitor user credentials, and ban or lock overdue accounts.
+            Approve sign-ups, set subscription start &amp; due dates (₱199/month via GCash), change passwords, and ban or lock overdue accounts.
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-2 shrink-0">
@@ -2430,7 +3301,7 @@ export function buildHiddenAdminPortalHTML(appState: any, firebaseConfigObj: any
             <span class="text-sm font-extrabold text-teal-900">₱${monthlyRevenuePhp.toLocaleString()}/mo</span>
           </div>
           <p class="text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
-            Rate: <strong>₱199.00 PHP / month</strong> per active clinician
+            Rate: <strong>₱199.00 PHP / month</strong> (GCash payment before enrollment)
           </p>
         </div>
 
@@ -2455,6 +3326,47 @@ export function buildHiddenAdminPortalHTML(appState: any, firebaseConfigObj: any
             <strong>${expiredAccounts.length}</strong> Subscription Due • <strong>${bannedOrRejectedAccounts.length}</strong> Banned/Declined
           </p>
         </div>
+      </div>
+
+      <!-- Admin Portal Password Change Card -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
+        <form onsubmit="handleAdminPasswordChange(event)" class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <span class="text-[10px] font-extrabold uppercase tracking-wider text-teal-800 block">Admin Security</span>
+            <h3 class="text-sm font-extrabold text-slate-900">Change Admin Portal Password / Passkey</h3>
+            <p class="text-xs text-slate-500">Update the password used to unlock this hidden Admin Portal (<code class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">?portal=admin</code>).</p>
+          </div>
+          <div class="flex flex-wrap sm:flex-nowrap items-end gap-2.5">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-700 mb-1">New Admin Password</label>
+              <input
+                id="admin-new-portal-passkey"
+                type="password"
+                required
+                minlength="4"
+                placeholder="Enter new admin password"
+                class="w-full sm:w-52 px-3 py-2 rounded-xl border border-slate-300 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-teal-500"
+              />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-700 mb-1">Confirm New Password</label>
+              <input
+                id="admin-confirm-portal-passkey"
+                type="password"
+                required
+                minlength="4"
+                placeholder="Confirm new password"
+                class="w-full sm:w-52 px-3 py-2 rounded-xl border border-slate-300 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-teal-500"
+              />
+            </div>
+            <button
+              type="submit"
+              class="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-2xs transition cursor-pointer shrink-0"
+            >
+              Update Admin Password
+            </button>
+          </div>
+        </form>
       </div>
 
       <!-- Filter Tabs & Search Bar -->
@@ -2510,6 +3422,8 @@ export function buildHiddenAdminPortalHTML(appState: any, firebaseConfigObj: any
                   const startVal = acc.subscriptionStartDate || todayStr;
                   const endVal = acc.subscriptionEndDate || defaultEndDate;
                   const isTrainee = acc.role === 'Medical Clerk' || acc.role === 'Medical Intern';
+                  const monthsAvailed = acc.subscriptionMonths || 1;
+                  const totalPaymentPhp = acc.subscriptionAmountPhp || monthsAvailed * 199;
 
                   let statusBadgeHTML = '';
                   if (acc.approvalStatus === 'banned') {
@@ -2553,13 +3467,20 @@ export function buildHiddenAdminPortalHTML(appState: any, firebaseConfigObj: any
                           </div>
                         </div>
                         <div class="text-left lg:text-right shrink-0">
-                          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Subscription Plan</span>
-                          <span class="text-sm font-extrabold text-teal-800">₱${escapeHTML(acc.subscriptionAmountPhp || 199)}.00 PHP / Month</span>
+                          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Availed Subscription (₱199/mo via GCash)</span>
+                          <span class="text-sm font-extrabold text-teal-800">${monthsAvailed} Month${monthsAvailed > 1 ? 's' : ''} • Total: ₱${Number(totalPaymentPhp).toLocaleString()}.00 PHP</span>
+                          ${acc.gcashReference ? `<span class="block text-[11px] font-bold text-slate-700">GCash Ref: ${escapeHTML(acc.gcashReference)}</span>` : ''}
+                          ${acc.gcashReceiptDataUrl ? `
+                            <div class="mt-1.5 flex items-center lg:justify-end gap-2">
+                              <img src="${acc.gcashReceiptDataUrl}" alt="GCash Receipt" class="w-10 h-10 object-cover rounded-lg border border-teal-300 shadow-2xs" />
+                              <span class="text-[10px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">✓ GCash Receipt Attached</span>
+                            </div>
+                          ` : ''}
                         </div>
                       </div>
 
-                      <!-- Middle Row: Credentials & Facility Summary -->
-                      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                      <!-- Middle Row: Credentials, Facility, Subscription Dates & Password Reset -->
+                      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                         <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
                           <span class="text-[10px] font-extrabold uppercase tracking-wider text-teal-800 block">Assigned Facility &amp; Address</span>
                           <p class="font-bold text-slate-900">${escapeHTML(acc.facility || 'Not specified')}</p>
@@ -2574,7 +3495,7 @@ export function buildHiddenAdminPortalHTML(appState: any, firebaseConfigObj: any
                               ? `
                             <p><strong>Affiliation School:</strong> ${escapeHTML(acc.school || 'N/A')}</p>
                             <p><strong>Supervising Doctor:</strong> ${escapeHTML(acc.supervisingDoctor || 'N/A')}</p>
-                            <p><strong>Trainee ID:</strong> ${escapeHTML(acc.prc || 'N/A')}</p>
+                            <p><strong>Availed Period:</strong> ${escapeHTML(startVal)} to ${escapeHTML(endVal)} (${monthsAvailed} mo • ₱${Number(totalPaymentPhp).toLocaleString()})</p>
                           `
                               : `
                             <p><strong>PRC License No.:</strong> <span class="font-extrabold text-slate-900">${escapeHTML(acc.prc || 'N/A')}</span></p>
@@ -2630,6 +3551,27 @@ export function buildHiddenAdminPortalHTML(appState: any, firebaseConfigObj: any
                             </div>
                           </div>
                         </div>
+
+                        <!-- Change / Reset Clinician Password -->
+                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
+                          <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-800 block">Change User Password</span>
+                          <p class="text-[11px] text-slate-500">Current Password: <code class="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-bold text-slate-800">${escapeHTML(acc.passwordHash || '')}</code></p>
+                          <div class="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              id="admin-user-pass-${escapeHTML(acc.id)}"
+                              placeholder="New password"
+                              class="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-medium"
+                            />
+                            <button
+                              type="button"
+                              onclick="adminChangeClinicianPassword('${escapeHTML(acc.id)}')"
+                              class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold cursor-pointer shrink-0"
+                            >
+                              Save Password
+                            </button>
+                          </div>
+                        </div>
                       </div>
 
                       <!-- Bottom Row: Admin Enrollment & Enforcement Actions -->
@@ -2637,7 +3579,7 @@ export function buildHiddenAdminPortalHTML(appState: any, firebaseConfigObj: any
                         <div class="text-[11px] text-slate-500">
                           ${
                             acc.subscriptionStartDate && acc.subscriptionEndDate
-                              ? `Active Window: <strong>${escapeHTML(acc.subscriptionStartDate)}</strong> to <strong>${escapeHTML(acc.subscriptionEndDate)}</strong>`
+                              ? `Subscription Window: <strong>${escapeHTML(acc.subscriptionStartDate)}</strong> to <strong>${escapeHTML(acc.subscriptionEndDate)}</strong> (${monthsAvailed} month${monthsAvailed > 1 ? 's' : ''} • ₱${Number(totalPaymentPhp).toLocaleString()} PHP)`
                               : 'Set Start Date and End Date above, then click Accept Enrollment & Activate.'
                           }
                         </div>
@@ -2647,7 +3589,7 @@ export function buildHiddenAdminPortalHTML(appState: any, firebaseConfigObj: any
                             onclick="adminApproveAndSetSubscription('${escapeHTML(acc.id)}')"
                             class="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-2xs transition cursor-pointer"
                           >
-                            ✓ Accept Enrollment &amp; Save Subscription (₱199/mo)
+                            ✓ Accept Enrollment &amp; Save Subscription
                           </button>
                           ${
                             acc.approvalStatus !== 'banned'
@@ -2686,11 +3628,20 @@ export function buildHiddenAdminPortalHTML(appState: any, firebaseConfigObj: any
         }
       </div>
 
-      <!-- Firebase & Cloud Storage Connection Guide -->
+      <!-- Firebase Free Plan (Spark Plan) Cloud Firestore Guide -->
       <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
-        <div class="border-b border-slate-100 pb-3">
-          <span class="text-[10px] font-extrabold uppercase tracking-wider text-teal-700 block">Cloud Infrastructure &amp; Storage</span>
-          <h3 class="text-base font-extrabold text-slate-900">Firebase Firestore &amp; Firebase Cloud Storage Connection</h3>
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div>
+            <span class="text-[10px] font-extrabold uppercase tracking-wider text-teal-700 block">100% Firebase Free Plan (Spark Plan) Compatible</span>
+            <h3 class="text-base font-extrabold text-slate-900">Cloud Firestore Storage (No Paid Firebase Storage Needed)</h3>
+          </div>
+          <button
+            type="button"
+            onclick="copyFreePlanFirestoreRules()"
+            class="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-2xs transition cursor-pointer shrink-0"
+          >
+            Copy Firestore Rules (Free Plan)
+          </button>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
           <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
@@ -2698,19 +3649,19 @@ export function buildHiddenAdminPortalHTML(appState: any, firebaseConfigObj: any
             <p class="font-extrabold text-slate-900 mt-0.5">${escapeHTML(firebaseConfigObj?.projectId || 'Not configured')}</p>
           </div>
           <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-            <span class="text-[10px] font-bold uppercase text-slate-400 block">Connected Firestore Database</span>
+            <span class="text-[10px] font-bold uppercase text-slate-400 block">Connected Free-Tier Firestore DB</span>
             <p class="font-extrabold text-teal-800 mt-0.5 truncate">${escapeHTML(firebaseConfigObj?.firestoreDatabaseId || '(default)')}</p>
           </div>
           <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-            <span class="text-[10px] font-bold uppercase text-slate-400 block">Connected Firebase Storage Bucket</span>
-            <p class="font-extrabold text-slate-900 mt-0.5">${escapeHTML(firebaseConfigObj?.storageBucket || 'Not configured')}</p>
+            <span class="text-[10px] font-bold uppercase text-slate-400 block">Billing Tier Requirement</span>
+            <p class="font-extrabold text-teal-700 mt-0.5">Spark Plan (100% Free — No Card Needed)</p>
           </div>
         </div>
-        <div class="text-xs text-slate-600 space-y-1.5 leading-relaxed bg-teal-50/50 border border-teal-200 rounded-xl p-4">
-          <p class="font-bold text-teal-950">How your app connects to Firebase Storage &amp; Firestore:</p>
-          <p>1. <strong>Already Configured in App:</strong> The Firebase Web SDK (<code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">firebase/firestore</code> and <code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">firebase/storage</code>) is initialized in <code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">src/firebase.ts</code> using <code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">firebase-applet-config.json</code>.</p>
-          <p>2. <strong>Automatic Attachment Uploads:</strong> When clinicians attach lab results, imaging files, or documents during patient registration, the app uploads them to <code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">gs://${escapeHTML(firebaseConfigObj?.storageBucket || 'your-bucket')}/clinicians/{clinicianId}/attachments/</code> when online and stores an offline copy for offline access.</p>
-          <p>3. <strong>Connecting Your Own External Firebase Project (if deploying outside AI Studio):</strong> Open the <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer" class="text-teal-700 font-bold underline">Firebase Console</a> → Project Settings → Your Apps (Web App), copy your <code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">firebaseConfig</code> values (<code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">projectId</code>, <code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">apiKey</code>, <code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">storageBucket</code>, <code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">firestoreDatabaseId</code>) into <code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">firebase-applet-config.json</code>, and enable <strong>Build → Storage</strong> in the Firebase Console.</p>
+        <div class="text-xs text-slate-600 space-y-2 leading-relaxed bg-teal-50/50 border border-teal-200 rounded-xl p-4">
+          <p class="font-bold text-teal-950">Why you do NOT need "Build → Storage" or Storage Security Rules on the Free Plan:</p>
+          <p>1. <strong>Works 100% on the Free Spark Plan:</strong> Firebase now requires the paid Blaze plan for <code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">Build → Storage</code>. To keep your app <strong>100% free</strong>, MedFlow stores all Clinician Accounts (<code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">/clinicians</code>), Patient Records, SOAP Notes, Prescriptions, Rekord ni Nanay, and PDFs directly inside <strong>Cloud Firestore (<code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">Build → Firestore Database</code>)</strong> + Browser Offline Storage, which is completely free on the Spark Plan (1 GiB free storage, 50,000 free reads/day, 20,000 free writes/day).</p>
+          <p>2. <strong>Already Active Right Now:</strong> Your app is already connected to the provisioned Free-tier Firestore database above (<code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">${escapeHTML(firebaseConfigObj?.firestoreDatabaseId || '(default)')}</code>) with its Firestore Security Rules already deployed—you do not need to set up <code class="bg-white px-1.5 py-0.5 rounded border border-teal-200">Build → Storage</code> at all.</p>
+          <p>3. <strong>If Using Your Own Personal Free Firebase Project:</strong> In the <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer" class="text-teal-700 font-bold underline">Firebase Console</a>, skip <em>Storage</em> and instead click <strong>Build → Firestore Database → Create database</strong> (100% Free Spark Plan). Then go to the <strong>Rules</strong> tab inside Firestore Database and paste the rules from the <strong>"Copy Firestore Rules (Free Plan)"</strong> button above.</p>
         </div>
       </div>
     </div>

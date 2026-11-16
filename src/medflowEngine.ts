@@ -2613,7 +2613,7 @@ service cloud.firestore {
               <div class="flex items-center gap-2.5">
                 <span class="w-6 h-6 rounded-lg bg-white text-teal-900 font-extrabold text-xs flex items-center justify-center shadow-2xs">1</span>
                 <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">
-                  Section I. Patient Demographics &amp; Identification
+                  Patient Demographics &amp; Identification
                 </h3>
               </div>
               <div class="flex items-center gap-2">
@@ -2718,7 +2718,7 @@ service cloud.firestore {
               <div class="flex items-center gap-2.5">
                 <span class="w-6 h-6 rounded-lg bg-white text-teal-900 font-extrabold text-xs flex items-center justify-center shadow-2xs">2</span>
                 <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">
-                  Section II. Medical, Family, Social &amp; OB-GYN History
+                  Medical, Family, Social &amp; OB-GYN History
                 </h3>
               </div>
               <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100">Clinical History Baseline</span>

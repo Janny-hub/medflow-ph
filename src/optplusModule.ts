@@ -275,86 +275,98 @@ export function createBlankOptPlusForm(doctorInfo?: any) {
 
 
 export function buildOptPlusChildCardPrintableHTML(rec: OptPlusChildRecord): string {
+  const remarkLines = String(rec.remarks || '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const remarksHTML =
+    remarkLines.length > 0
+      ? `<div class="mt-2 pt-2 border-t border-slate-200"><span class="text-[10px] font-bold uppercase text-slate-500 block mb-0.5">Clinical / Nutritional Remarks</span>${remarkLines.map((line) => `<p class="text-slate-800 leading-relaxed mb-1 last:mb-0">${escapeHTML(line)}</p>`).join('')}</div>`
+      : '';
+
   return `
-    <div id="optplus-child-card-printable" class="bg-white text-slate-900 p-6 rounded-xl border border-slate-300 text-xs space-y-4">
-      <div class="border-b-2 border-teal-800 pb-3 flex items-start justify-between gap-4">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-teal-700 text-white font-black text-xs flex items-center justify-center shrink-0">
+    <div id="optplus-child-card-printable" class="paper-a4 bg-white text-slate-900 p-6 rounded-xl border border-slate-300 text-xs space-y-5 leading-relaxed">
+      <div class="border-b-2 border-teal-800 pb-3.5 flex items-start justify-between gap-4">
+        <div class="flex items-center gap-3.5">
+          <div class="w-11 h-11 rounded-xl bg-teal-700 text-white font-black text-xs flex items-center justify-center shrink-0">
             OPT+
           </div>
-          <div>
+          <div class="space-y-0.5">
             <div class="text-[10px] font-bold uppercase tracking-wider text-teal-800">Republic of the Philippines • DOH / National Nutrition Council</div>
-            <div class="text-base font-extrabold text-slate-900">OPT Plus Child Growth &amp; Nutrition Card</div>
+            <div class="text-base font-extrabold text-slate-900 leading-snug">OPT Plus Child Growth &amp; Nutrition Card</div>
           </div>
         </div>
-        <div class="text-right text-[11px] text-slate-600">
+        <div class="text-right text-[11px] text-slate-600 space-y-0.5">
           <div class="font-extrabold text-slate-900">${escapeHTML(rec.barangay)}, ${escapeHTML(rec.city)}, ${escapeHTML(rec.province)}</div>
           <div>OPT Year ${escapeHTML(rec.optYear)} • Measured: ${escapeHTML(rec.measureDate)}</div>
         </div>
       </div>
 
-      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-        <div><span class="text-slate-500 block text-[10px] uppercase font-bold">Child Full Name</span> <strong class="text-slate-900">${escapeHTML(rec.childName)}</strong></div>
-        <div><span class="text-slate-500 block text-[10px] uppercase font-bold">Sex / Completed Age</span> <strong class="text-slate-900">${escapeHTML(rec.sex)} • ${rec.ageMonths} mos</strong></div>
-        <div><span class="text-slate-500 block text-[10px] uppercase font-bold">Date of Birth</span> <strong class="text-slate-900">${escapeHTML(rec.dob)}</strong></div>
-        <div><span class="text-slate-500 block text-[10px] uppercase font-bold">Mother / Caregiver</span> <strong class="text-slate-900">${escapeHTML(rec.motherName)}</strong></div>
-        <div><span class="text-slate-500 block text-[10px] uppercase font-bold">Purok / Sitio</span> <strong class="text-slate-900">${escapeHTML(rec.purok)}</strong></div>
-        <div><span class="text-slate-500 block text-[10px] uppercase font-bold">4Ps / IP Group</span> <strong class="text-slate-900">4Ps: ${escapeHTML(rec.is4ps)} • IP: ${escapeHTML(rec.isIp)}</strong></div>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3.5 text-xs bg-slate-50 p-4 rounded-xl border border-slate-200 leading-relaxed">
+        <div><span class="text-slate-500 block text-[10px] uppercase font-bold mb-0.5">Child Full Name</span> <strong class="text-slate-900">${escapeHTML(rec.childName)}</strong></div>
+        <div><span class="text-slate-500 block text-[10px] uppercase font-bold mb-0.5">Sex / Completed Age</span> <strong class="text-slate-900">${escapeHTML(rec.sex)} • ${rec.ageMonths} mos</strong></div>
+        <div><span class="text-slate-500 block text-[10px] uppercase font-bold mb-0.5">Date of Birth</span> <strong class="text-slate-900">${escapeHTML(rec.dob)}</strong></div>
+        <div><span class="text-slate-500 block text-[10px] uppercase font-bold mb-0.5">Mother / Caregiver</span> <strong class="text-slate-900">${escapeHTML(rec.motherName)}</strong></div>
+        <div><span class="text-slate-500 block text-[10px] uppercase font-bold mb-0.5">Purok / Sitio</span> <strong class="text-slate-900">${escapeHTML(rec.purok)}</strong></div>
+        <div><span class="text-slate-500 block text-[10px] uppercase font-bold mb-0.5">4Ps / IP Group</span> <strong class="text-slate-900">4Ps: ${escapeHTML(rec.is4ps)} • IP: ${escapeHTML(rec.isIp)}</strong></div>
       </div>
 
-      <div class="grid grid-cols-3 gap-3 text-center">
-        <div class="p-3 rounded-xl border border-teal-200 bg-teal-50/40">
+      <div class="grid grid-cols-3 gap-3.5 text-center">
+        <div class="p-3.5 rounded-xl border border-teal-200 bg-teal-50/40">
           <div class="text-[10px] text-teal-800 uppercase font-extrabold">Weight</div>
-          <div class="text-base font-extrabold text-slate-900 mt-0.5">${Number(rec.weight).toFixed(2)} kg</div>
+          <div class="text-base font-extrabold text-slate-900 mt-1">${Number(rec.weight).toFixed(2)} kg</div>
         </div>
-        <div class="p-3 rounded-xl border border-teal-200 bg-teal-50/40">
+        <div class="p-3.5 rounded-xl border border-teal-200 bg-teal-50/40">
           <div class="text-[10px] text-teal-800 uppercase font-extrabold">Length / Height</div>
-          <div class="text-base font-extrabold text-slate-900 mt-0.5">${Number(rec.height).toFixed(1)} cm</div>
+          <div class="text-base font-extrabold text-slate-900 mt-1">${Number(rec.height).toFixed(1)} cm</div>
         </div>
-        <div class="p-3 rounded-xl border border-teal-200 bg-teal-50/40">
+        <div class="p-3.5 rounded-xl border border-teal-200 bg-teal-50/40">
           <div class="text-[10px] text-teal-800 uppercase font-extrabold">MUAC / Edema</div>
-          <div class="text-base font-extrabold text-slate-900 mt-0.5">${escapeHTML(rec.muac || '—')} cm / ${escapeHTML(rec.edema)}</div>
+          <div class="text-base font-extrabold text-slate-900 mt-1">${escapeHTML(rec.muac || '—')} cm / ${escapeHTML(rec.edema)}</div>
         </div>
       </div>
 
-      <table class="w-full text-xs border-collapse border border-slate-300">
+      <table class="w-full text-xs border-collapse border border-slate-300 leading-normal">
         <thead class="bg-slate-900 text-white font-bold uppercase text-[10px]">
           <tr>
-            <th class="p-2 text-left border border-slate-300">WHO-CGS Indicator</th>
-            <th class="p-2 text-center border border-slate-300">Z-Score</th>
-            <th class="p-2 text-left border border-slate-300">Classification</th>
-            <th class="p-2 text-center border border-slate-300">Code</th>
+            <th class="py-2 px-3 text-left border border-slate-300">WHO-CGS Indicator</th>
+            <th class="py-2 px-3 text-center border border-slate-300">Z-Score</th>
+            <th class="py-2 px-3 text-left border border-slate-300">Classification</th>
+            <th class="py-2 px-3 text-center border border-slate-300">Code</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-200">
           <tr>
-            <td class="p-2 font-bold border border-slate-200">Weight-for-Age (WFA)</td>
-            <td class="p-2 text-center font-mono border border-slate-200">${rec.who.zWFA >= 0 ? '+' : ''}${rec.who.zWFA} SD</td>
-            <td class="p-2 font-extrabold border border-slate-200">${escapeHTML(rec.who.wfaLabel)}</td>
-            <td class="p-2 text-center font-extrabold border border-slate-200">${escapeHTML(rec.who.wfaCode)}</td>
+            <td class="py-2 px-3 font-bold border border-slate-200">Weight-for-Age (WFA)</td>
+            <td class="py-2 px-3 text-center font-mono border border-slate-200">${rec.who.zWFA >= 0 ? '+' : ''}${rec.who.zWFA} SD</td>
+            <td class="py-2 px-3 font-extrabold border border-slate-200">${escapeHTML(rec.who.wfaLabel)}</td>
+            <td class="py-2 px-3 text-center font-extrabold border border-slate-200">${escapeHTML(rec.who.wfaCode)}</td>
           </tr>
           <tr>
-            <td class="p-2 font-bold border border-slate-200">Length/Height-for-Age (L/HFA)</td>
-            <td class="p-2 text-center font-mono border border-slate-200">${rec.who.zHFA >= 0 ? '+' : ''}${rec.who.zHFA} SD</td>
-            <td class="p-2 font-extrabold border border-slate-200">${escapeHTML(rec.who.hfaLabel)}</td>
-            <td class="p-2 text-center font-extrabold border border-slate-200">${escapeHTML(rec.who.hfaCode)}</td>
+            <td class="py-2 px-3 font-bold border border-slate-200">Length/Height-for-Age (L/HFA)</td>
+            <td class="py-2 px-3 text-center font-mono border border-slate-200">${rec.who.zHFA >= 0 ? '+' : ''}${rec.who.zHFA} SD</td>
+            <td class="py-2 px-3 font-extrabold border border-slate-200">${escapeHTML(rec.who.hfaLabel)}</td>
+            <td class="py-2 px-3 text-center font-extrabold border border-slate-200">${escapeHTML(rec.who.hfaCode)}</td>
           </tr>
           <tr>
-            <td class="p-2 font-bold border border-slate-200">Weight-for-Length/Height (WFL/H)</td>
-            <td class="p-2 text-center font-mono border border-slate-200">${rec.who.zWFH >= 0 ? '+' : ''}${rec.who.zWFH} SD</td>
-            <td class="p-2 font-extrabold border border-slate-200">${escapeHTML(rec.who.wfhLabel)}</td>
-            <td class="p-2 text-center font-extrabold border border-slate-200">${escapeHTML(rec.who.wfhCode)}</td>
+            <td class="py-2 px-3 font-bold border border-slate-200">Weight-for-Length/Height (WFL/H)</td>
+            <td class="py-2 px-3 text-center font-mono border border-slate-200">${rec.who.zWFH >= 0 ? '+' : ''}${rec.who.zWFH} SD</td>
+            <td class="py-2 px-3 font-extrabold border border-slate-200">${escapeHTML(rec.who.wfhLabel)}</td>
+            <td class="py-2 px-3 text-center font-extrabold border border-slate-200">${escapeHTML(rec.who.wfhCode)}</td>
           </tr>
         </tbody>
       </table>
 
-      <div class="flex flex-wrap justify-between items-center gap-2 text-xs text-slate-700 pt-2 border-t border-slate-200">
-        <div>
-          <strong>Nutrition Services:</strong>
-          ${rec.srvVitA ? 'Vitamin A ✓ • ' : ''}${rec.srvDeworm ? 'Deworming ✓ • ' : ''}${rec.srvIycf ? 'IYCF Counseling ✓' : 'None'}
-          ${rec.remarks ? ` | <strong>Remarks:</strong> ${escapeHTML(rec.remarks)}` : ''}
+      <div class="pt-3 border-t border-slate-200 text-xs text-slate-700 leading-relaxed">
+        <div class="flex flex-wrap justify-between items-center gap-3">
+          <div>
+            <strong>Nutrition Services Provided:</strong>
+            ${rec.srvVitA ? 'Vitamin A ✓ • ' : ''}${rec.srvDeworm ? 'Deworming ✓ • ' : ''}${rec.srvIycf ? 'IYCF Counseling ✓' : 'None'}
+          </div>
+          <div>Measured &amp; Encoded by: <strong class="text-slate-900">${escapeHTML(rec.measurer)}</strong></div>
         </div>
-        <div>Measured &amp; Encoded by: <strong class="text-slate-900">${escapeHTML(rec.measurer)}</strong></div>
+        ${remarksHTML}
       </div>
     </div>
   `;
@@ -368,33 +380,33 @@ export function buildOptPlusForm1ASheetHTML(records: OptPlusChildRecord[], meta?
     optYear: String(new Date().getFullYear())
   };
   return `
-    <div class="border-b-2 border-slate-900 pb-3 mb-3 flex items-start justify-between gap-4">
-      <div>
+    <div class="border-b-2 border-slate-900 pb-3.5 mb-4 flex items-start justify-between gap-4 leading-normal">
+      <div class="space-y-0.5">
         <div class="text-[10px] font-bold uppercase tracking-widest text-teal-800">Republic of the Philippines • Department of Health • National Nutrition Council</div>
-        <h3 class="text-base font-black uppercase tracking-tight text-slate-900">Operation Timbang Plus (OPT Plus) Form 1A — Barangay Masterlist</h3>
-        <div class="text-xs font-semibold text-slate-600 mt-0.5">
+        <h3 class="text-base font-black uppercase tracking-tight text-slate-900 leading-snug">Operation Timbang Plus (OPT Plus) Form 1A — Barangay Masterlist</h3>
+        <div class="text-xs font-semibold text-slate-600">
           Barangay: <strong>${escapeHTML(sampleMeta.barangay || '—')}</strong> | City/Mun: <strong>${escapeHTML(sampleMeta.city || '—')}</strong> | Province: <strong>${escapeHTML(sampleMeta.province || '—')}</strong> | OPT Year: <strong>${escapeHTML(sampleMeta.optYear || '—')}</strong>
         </div>
       </div>
-      <div class="text-right bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 shrink-0">
+      <div class="text-right bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2 shrink-0 space-y-0.5">
         <div class="text-[9px] font-bold uppercase text-slate-500">Total Children Listed</div>
         <div class="text-sm font-black text-teal-900">${records.length} Children (0–59m)</div>
       </div>
     </div>
 
-    <table class="w-full border-collapse border border-slate-400 text-[10px]">
+    <table class="w-full border-collapse border border-slate-400 text-[10px] leading-normal">
       <thead>
         <tr class="bg-slate-900 text-white font-bold uppercase">
           <th class="border border-slate-400 py-1.5 px-2 text-center">#</th>
-          <th class="border border-slate-400 py-1.5 px-2 text-left">Child Full Name</th>
+          <th class="border border-slate-400 py-1.5 px-2.5 text-left">Child Full Name</th>
           <th class="border border-slate-400 py-1.5 px-1.5 text-center">Sex</th>
           <th class="border border-slate-400 py-1.5 px-2 text-left">DOB</th>
           <th class="border border-slate-400 py-1.5 px-1.5 text-center">Age(m)</th>
           <th class="border border-slate-400 py-1.5 px-2 text-left">Purok / Sitio</th>
-          <th class="border border-slate-400 py-1.5 px-2 text-left">Mother / Caregiver</th>
+          <th class="border border-slate-400 py-1.5 px-2.5 text-left">Mother / Caregiver</th>
           <th class="border border-slate-400 py-1.5 px-1.5 text-center">4Ps</th>
-          <th class="border border-slate-400 py-1.5 px-1.5 text-right">Wt(kg)</th>
-          <th class="border border-slate-400 py-1.5 px-1.5 text-right">Ht(cm)</th>
+          <th class="border border-slate-400 py-1.5 px-2 text-right">Wt(kg)</th>
+          <th class="border border-slate-400 py-1.5 px-2 text-right">Ht(cm)</th>
           <th class="border border-slate-400 py-1.5 px-1.5 text-center">WFA</th>
           <th class="border border-slate-400 py-1.5 px-1.5 text-center">L/HFA</th>
           <th class="border border-slate-400 py-1.5 px-1.5 text-center">WFL/H</th>
@@ -405,19 +417,19 @@ export function buildOptPlusForm1ASheetHTML(records: OptPlusChildRecord[], meta?
           .map(
             (r, i) => `
           <tr class="${i % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}">
-            <td class="border border-slate-300 py-1 px-2 text-center font-mono">${i + 1}</td>
-            <td class="border border-slate-300 py-1 px-2 font-bold text-slate-900">${escapeHTML(r.childName)}</td>
-            <td class="border border-slate-300 py-1 px-1.5 text-center">${r.sex === 'Male' ? 'M' : 'F'}</td>
-            <td class="border border-slate-300 py-1 px-2">${escapeHTML(r.dob)}</td>
-            <td class="border border-slate-300 py-1 px-1.5 text-center font-bold">${r.ageMonths}</td>
-            <td class="border border-slate-300 py-1 px-2">${escapeHTML(r.purok)}</td>
-            <td class="border border-slate-300 py-1 px-2">${escapeHTML(r.motherName)}</td>
-            <td class="border border-slate-300 py-1 px-1.5 text-center">${escapeHTML(r.is4ps)}</td>
-            <td class="border border-slate-300 py-1 px-1.5 text-right font-semibold">${Number(r.weight).toFixed(1)}</td>
-            <td class="border border-slate-300 py-1 px-1.5 text-right font-semibold">${Number(r.height).toFixed(1)}</td>
-            <td class="border border-slate-300 py-1 px-1.5 text-center font-bold">${escapeHTML(r.who.wfaCode)}</td>
-            <td class="border border-slate-300 py-1 px-1.5 text-center font-bold">${escapeHTML(r.who.hfaCode)}</td>
-            <td class="border border-slate-300 py-1 px-1.5 text-center font-bold">${escapeHTML(r.who.wfhCode)}</td>
+            <td class="border border-slate-300 py-1.5 px-2 text-center font-mono">${i + 1}</td>
+            <td class="border border-slate-300 py-1.5 px-2.5 font-bold text-slate-900">${escapeHTML(r.childName)}</td>
+            <td class="border border-slate-300 py-1.5 px-1.5 text-center">${r.sex === 'Male' ? 'M' : 'F'}</td>
+            <td class="border border-slate-300 py-1.5 px-2">${escapeHTML(r.dob)}</td>
+            <td class="border border-slate-300 py-1.5 px-1.5 text-center font-bold">${r.ageMonths}</td>
+            <td class="border border-slate-300 py-1.5 px-2">${escapeHTML(r.purok)}</td>
+            <td class="border border-slate-300 py-1.5 px-2.5">${escapeHTML(r.motherName)}</td>
+            <td class="border border-slate-300 py-1.5 px-1.5 text-center">${escapeHTML(r.is4ps)}</td>
+            <td class="border border-slate-300 py-1.5 px-2 text-right font-semibold">${Number(r.weight).toFixed(1)}</td>
+            <td class="border border-slate-300 py-1.5 px-2 text-right font-semibold">${Number(r.height).toFixed(1)}</td>
+            <td class="border border-slate-300 py-1.5 px-1.5 text-center font-bold">${escapeHTML(r.who.wfaCode)}</td>
+            <td class="border border-slate-300 py-1.5 px-1.5 text-center font-bold">${escapeHTML(r.who.hfaCode)}</td>
+            <td class="border border-slate-300 py-1.5 px-1.5 text-center font-bold">${escapeHTML(r.who.wfhCode)}</td>
           </tr>
         `
           )

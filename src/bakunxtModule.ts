@@ -476,20 +476,44 @@ export function buildBakuNxtItrSheetHTML(p: BakuNxtPatientRecord): string {
   const contraSummary =
     contraArr.length > 0 ? contraArr.join('; ') : 'Cleared — No Contraindications';
 
+  const clinicalNoteLines = String(p.clinicalNotes || '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const clinicalNotesHTML =
+    clinicalNoteLines.length > 0
+      ? clinicalNoteLines
+          .map((line) => `<p class="text-slate-800 font-medium leading-relaxed mb-1 last:mb-0">${escapeHTML(line)}</p>`)
+          .join('')
+      : `<p class="text-slate-800 font-medium leading-relaxed">—</p>`;
+
+  const aefiNoteLines = String(p.aefiNotes || '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const aefiNotesHTML =
+    aefiNoteLines.length > 0
+      ? aefiNoteLines
+          .map((line) => `<p class="text-[10.5px] text-slate-700 leading-relaxed mb-1 last:mb-0">${escapeHTML(line)}</p>`)
+          .join('')
+      : `<p class="text-[10.5px] text-slate-600 leading-relaxed">Notes: None</p>`;
+
   return `
     <!-- Official Header -->
-    <div class="border-b-2 border-slate-900 pb-3 mb-3 flex items-start justify-between gap-4">
-      <div class="flex items-center gap-3">
+    <div class="border-b-2 border-slate-900 pb-3.5 mb-4 flex items-start justify-between gap-4 leading-normal">
+      <div class="flex items-center gap-3.5">
         <div class="w-11 h-11 rounded-full border-2 border-teal-800 bg-teal-50 flex items-center justify-center text-teal-900 font-black text-xs shrink-0">
           DOH
         </div>
-        <div>
+        <div class="space-y-0.5">
           <div class="text-[10px] font-bold uppercase tracking-widest text-slate-600">Republic of the Philippines • Department of Health</div>
-          <h2 class="text-base font-black uppercase tracking-tight text-slate-900">National Immunization Program — Individual Treatment Record (ITR)</h2>
+          <h2 class="text-base font-black uppercase tracking-tight text-slate-900 leading-snug">National Immunization Program — Individual Treatment Record (ITR)</h2>
           <div class="text-xs font-bold text-teal-800">${escapeHTML(p.facilityName || 'Rural Health Unit / Barangay Health Station')}</div>
         </div>
       </div>
-      <div class="text-right border border-slate-800 rounded-lg px-3 py-1.5 bg-slate-50 shrink-0">
+      <div class="text-right border border-slate-800 rounded-lg px-3.5 py-2 bg-slate-50 shrink-0 space-y-0.5">
         <div class="text-[9px] font-bold uppercase text-slate-500">Family Serial Number</div>
         <div class="text-xs font-black text-slate-900">${escapeHTML(p.fsn || '—')}</div>
         <div class="text-[9px] text-slate-500">Record ID: ${escapeHTML(p.id || '—')}</div>
@@ -497,141 +521,141 @@ export function buildBakuNxtItrSheetHTML(p: BakuNxtPatientRecord): string {
     </div>
 
     <!-- I. Patient & Family Demographics -->
-    <div class="mb-3">
-      <div class="bg-slate-900 text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 mb-1.5">
+    <div class="mb-4">
+      <div class="bg-slate-900 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 mb-2">
         I. Client &amp; Family Identification
       </div>
-      <div class="grid grid-cols-4 gap-2 border border-slate-300 p-2.5 bg-slate-50/50 text-[11px]">
+      <div class="grid grid-cols-4 gap-3 border border-slate-300 p-3.5 bg-slate-50/50 text-[11px] leading-relaxed">
         <div class="col-span-2">
-          <span class="text-slate-500 font-semibold block text-[9px] uppercase">Child's Full Name (Last, First, Middle)</span>
+          <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">Child's Full Name (Last, First, Middle)</span>
           <span class="font-extrabold text-slate-900 text-xs">${escapeHTML(p.childName || '—')}</span>
         </div>
         <div>
-          <span class="text-slate-500 font-semibold block text-[9px] uppercase">Date &amp; Time of Birth</span>
+          <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">Date &amp; Time of Birth</span>
           <span class="font-bold text-slate-900">${escapeHTML(p.dob ? `${p.dob}${p.birthTime ? ` (${p.birthTime})` : ''}` : '—')}</span>
         </div>
         <div>
-          <span class="text-slate-500 font-semibold block text-[9px] uppercase">Sex &amp; Current Age</span>
+          <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">Sex &amp; Current Age</span>
           <span class="font-bold text-slate-900">${escapeHTML(`${p.sex || '—'} • ${ageObj.label}`)}</span>
         </div>
         <div class="col-span-2">
-          <span class="text-slate-500 font-semibold block text-[9px] uppercase">Mother's Full Maiden Name</span>
+          <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">Mother's Full Maiden Name</span>
           <span class="font-bold text-slate-900">${escapeHTML(p.motherName || '—')}</span>
         </div>
         <div>
-          <span class="text-slate-500 font-semibold block text-[9px] uppercase">Father / Guardian</span>
+          <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">Father / Guardian</span>
           <span class="font-bold text-slate-900">${escapeHTML(p.fatherName || '—')}</span>
         </div>
         <div>
-          <span class="text-slate-500 font-semibold block text-[9px] uppercase">Contact Number</span>
+          <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">Contact Number</span>
           <span class="font-bold text-slate-900">${escapeHTML(p.contactNumber || '—')}</span>
         </div>
         <div class="col-span-2">
-          <span class="text-slate-500 font-semibold block text-[9px] uppercase">Complete Address</span>
-          <span class="font-bold text-slate-900">${escapeHTML(p.address || '—')}</span>
+          <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">Complete Address</span>
+          <span class="font-bold text-slate-900 leading-relaxed">${escapeHTML(p.address || '—')}</span>
         </div>
         <div>
-          <span class="text-slate-500 font-semibold block text-[9px] uppercase">PhilHealth PIN</span>
+          <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">PhilHealth PIN</span>
           <span class="font-bold text-slate-900">${escapeHTML(p.philhealthPin || 'N/A')}</span>
         </div>
         <div>
-          <span class="text-slate-500 font-semibold block text-[9px] uppercase">4Ps / NHTS-PR Status</span>
+          <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">4Ps / NHTS-PR Status</span>
           <span class="font-bold text-slate-900">${escapeHTML(p.fourPsStatus || '—')}</span>
         </div>
       </div>
     </div>
 
     <!-- II. Birth & Maternal Protection Baseline -->
-    <div class="mb-3">
-      <div class="bg-slate-900 text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 mb-1.5">
+    <div class="mb-4">
+      <div class="bg-slate-900 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 mb-2">
         II. Birth, Maternal Protection (CPAB) &amp; Newborn Baseline
       </div>
-      <div class="grid grid-cols-4 gap-2 border border-slate-300 p-2.5 text-[11px]">
+      <div class="grid grid-cols-4 gap-3 border border-slate-300 p-3.5 text-[11px] leading-relaxed">
         <div>
-          <span class="text-slate-500 font-semibold block text-[9px] uppercase">Place &amp; Type of Delivery</span>
+          <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">Place &amp; Type of Delivery</span>
           <span class="font-bold text-slate-900">${escapeHTML(`${p.placeOfDelivery || '—'} (${p.deliveryType || ''})`)}</span>
         </div>
         <div>
-          <span class="text-slate-500 font-semibold block text-[9px] uppercase">Birth Weight &amp; Classification</span>
+          <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">Birth Weight &amp; Classification</span>
           <span class="font-bold text-slate-900">${escapeHTML(`${p.birthWeightGrams || '—'} g (${bwClass.text})`)}</span>
         </div>
         <div>
-          <span class="text-slate-500 font-semibold block text-[9px] uppercase">Birth Length &amp; Order</span>
+          <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">Birth Length &amp; Order</span>
           <span class="font-bold text-slate-900">${escapeHTML(`${p.birthLengthCm || '—'} cm • ${p.birthOrder || '—'} Child`)}</span>
         </div>
         <div>
-          <span class="text-slate-500 font-semibold block text-[9px] uppercase">Mother Tetanus / CPAB Status</span>
+          <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">Mother Tetanus / CPAB Status</span>
           <span class="font-bold text-teal-800">${escapeHTML(p.motherTdStatus || '—')}</span>
         </div>
         <div>
-          <span class="text-slate-500 font-semibold block text-[9px] uppercase">Newborn Screening (ENBS)</span>
+          <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">Newborn Screening (ENBS)</span>
           <span class="font-bold text-slate-900">${escapeHTML(`${p.nbsStatus || '—'} ${p.nbsDate ? `(${p.nbsDate})` : ''}`)}</span>
         </div>
         <div>
-          <span class="text-slate-500 font-semibold block text-[9px] uppercase">Newborn Hearing Test</span>
+          <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">Newborn Hearing Test</span>
           <span class="font-bold text-slate-900">${escapeHTML(p.nhstStatus || '—')}</span>
         </div>
         <div>
-          <span class="text-slate-500 font-semibold block text-[9px] uppercase">Exclusive Breastfeeding (1-6m)</span>
+          <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">Exclusive Breastfeeding (1-6m)</span>
           <span class="font-bold text-slate-900">${escapeHTML(`${ebfMonthsCount} of 6 Months Logged`)}</span>
         </div>
         <div>
-          <span class="text-slate-500 font-semibold block text-[9px] uppercase">Complementary Feeding</span>
+          <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">Complementary Feeding</span>
           <span class="font-bold text-slate-900">${escapeHTML(p.compFeedingDate || 'Not yet started')}</span>
         </div>
       </div>
     </div>
 
     <!-- III. Pre-Vaccination Clinical & Nutritional Assessment -->
-    <div class="mb-3">
-      <div class="bg-slate-900 text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 mb-1.5">
+    <div class="mb-4">
+      <div class="bg-slate-900 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 mb-2">
         III. Pre-Vaccination Clinical Screening, Growth &amp; Micronutrient Log
       </div>
-      <div class="grid grid-cols-5 gap-2 border border-slate-300 p-2.5 text-[11px]">
+      <div class="grid grid-cols-5 gap-3 border border-slate-300 p-3.5 text-[11px] leading-relaxed">
         <div>
-          <span class="text-slate-500 font-semibold block text-[9px] uppercase">Visit Date &amp; Temp</span>
+          <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">Visit Date &amp; Temp</span>
           <span class="font-bold text-slate-900">${escapeHTML(`${p.visitDate || '—'} • ${p.tempCelsius || '—'} °C`)}</span>
         </div>
         <div>
-          <span class="text-slate-500 font-semibold block text-[9px] uppercase">Current Wt / Length / MUAC</span>
+          <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">Current Wt / Length / MUAC</span>
           <span class="font-bold text-slate-900">${escapeHTML(`${p.currentWeightKg || '—'} kg / ${p.currentLengthCm || '—'} cm / ${p.muacCm || '—'} cm`)}</span>
         </div>
         <div>
-          <span class="text-slate-500 font-semibold block text-[9px] uppercase">WHO Growth Status</span>
+          <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">WHO Growth Status</span>
           <span class="font-bold text-slate-900">${escapeHTML(`${p.nutritionalStatusWFA}, ${p.nutritionalStatusLFA}, ${p.nutritionalStatusWFL}`)}</span>
         </div>
         <div>
-          <span class="text-slate-500 font-semibold block text-[9px] uppercase">Vit A / MNP / Deworming</span>
+          <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">Vit A / MNP / Deworming</span>
           <span class="font-bold text-slate-900">${escapeHTML(`VitA: ${p.vitADate || '—'} | MNP: ${p.mnpDate || '—'}`)}</span>
         </div>
         <div>
-          <span class="text-slate-500 font-semibold block text-[9px] uppercase">Contraindication Screen</span>
+          <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">Contraindication Screen</span>
           <span class="font-bold text-teal-800">${escapeHTML(contraSummary)}</span>
         </div>
-        <div class="col-span-5 pt-1 border-t border-slate-200">
-          <span class="text-slate-500 font-semibold text-[9px] uppercase">Clinical Assessment Notes: </span>
-          <span class="text-slate-800 font-medium">${escapeHTML(p.clinicalNotes || '—')}</span>
+        <div class="col-span-5 pt-2 border-t border-slate-200">
+          <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-1">Clinical Assessment Notes</span>
+          <div class="space-y-1">${clinicalNotesHTML}</div>
         </div>
       </div>
     </div>
 
     <!-- IV. Official Immunization Table -->
-    <div class="mb-3">
-      <div class="bg-slate-900 text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 mb-1 flex items-center justify-between">
+    <div class="mb-4">
+      <div class="bg-slate-900 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 mb-2 flex items-center justify-between">
         <span>IV. Official National Immunization Program (EPI) Vaccination &amp; Logistics Log</span>
         <span>Milestone: ${escapeHTML(milestone.statusBadge)}</span>
       </div>
-      <table class="w-full border-collapse border border-slate-400 text-[10px]">
+      <table class="w-full border-collapse border border-slate-400 text-[10px] leading-normal">
         <thead>
           <tr class="bg-slate-100 text-slate-800 font-bold uppercase">
-            <th class="border border-slate-300 py-1 px-2 text-left">Antigen / Vaccine</th>
-            <th class="border border-slate-300 py-1 px-2 text-left">Target Age</th>
-            <th class="border border-slate-300 py-1 px-2 text-left">Dose &amp; Route</th>
-            <th class="border border-slate-300 py-1 px-2 text-center">Status</th>
-            <th class="border border-slate-300 py-1 px-2 text-left">Date Given</th>
-            <th class="border border-slate-300 py-1 px-2 text-left">Lot / Batch No.</th>
-            <th class="border border-slate-300 py-1 px-2 text-left">Expiry Date</th>
-            <th class="border border-slate-300 py-1 px-2 text-left">Site &amp; Facility</th>
+            <th class="border border-slate-300 py-1.5 px-2.5 text-left">Antigen / Vaccine</th>
+            <th class="border border-slate-300 py-1.5 px-2.5 text-left">Target Age</th>
+            <th class="border border-slate-300 py-1.5 px-2.5 text-left">Dose &amp; Route</th>
+            <th class="border border-slate-300 py-1.5 px-2.5 text-center">Status</th>
+            <th class="border border-slate-300 py-1.5 px-2.5 text-left">Date Given</th>
+            <th class="border border-slate-300 py-1.5 px-2.5 text-left">Lot / Batch No.</th>
+            <th class="border border-slate-300 py-1.5 px-2.5 text-left">Expiry Date</th>
+            <th class="border border-slate-300 py-1.5 px-2.5 text-left">Site &amp; Facility</th>
           </tr>
         </thead>
         <tbody>
@@ -646,14 +670,14 @@ export function buildBakuNxtItrSheetHTML(p: BakuNxtPatientRecord): string {
             };
             return `
               <tr class="${dRec.given ? 'bg-teal-50/40' : ''}">
-                <td class="border border-slate-300 py-1 px-2 font-bold text-slate-900">${escapeHTML(v.code)} — <span class="font-normal">${escapeHTML(v.name)}</span></td>
-                <td class="border border-slate-300 py-1 px-2 text-slate-700">${escapeHTML(v.targetAge)}</td>
-                <td class="border border-slate-300 py-1 px-2 text-slate-700">${escapeHTML(`${v.dose} (${v.route})`)}</td>
-                <td class="border border-slate-300 py-1 px-2 text-center font-bold ${dRec.given ? 'text-teal-800' : 'text-slate-400'}">${dRec.given ? 'GIVEN' : 'PENDING'}</td>
-                <td class="border border-slate-300 py-1 px-2 font-semibold text-slate-900">${escapeHTML(dRec.given ? dRec.dateGiven || 'Recorded' : '—')}</td>
-                <td class="border border-slate-300 py-1 px-2 text-slate-700">${escapeHTML(dRec.given ? dRec.lotNumber || '—' : '—')}</td>
-                <td class="border border-slate-300 py-1 px-2 text-slate-700">${escapeHTML(dRec.given ? dRec.expiryDate || '—' : '—')}</td>
-                <td class="border border-slate-300 py-1 px-2 text-slate-700">${escapeHTML(dRec.given ? `${dRec.site || v.site} (${dRec.facility || 'RHU'})` : '—')}</td>
+                <td class="border border-slate-300 py-1.5 px-2.5 font-bold text-slate-900">${escapeHTML(v.code)} — <span class="font-normal">${escapeHTML(v.name)}</span></td>
+                <td class="border border-slate-300 py-1.5 px-2.5 text-slate-700">${escapeHTML(v.targetAge)}</td>
+                <td class="border border-slate-300 py-1.5 px-2.5 text-slate-700">${escapeHTML(`${v.dose} (${v.route})`)}</td>
+                <td class="border border-slate-300 py-1.5 px-2.5 text-center font-bold ${dRec.given ? 'text-teal-800' : 'text-slate-400'}">${dRec.given ? 'GIVEN' : 'PENDING'}</td>
+                <td class="border border-slate-300 py-1.5 px-2.5 font-semibold text-slate-900">${escapeHTML(dRec.given ? dRec.dateGiven || 'Recorded' : '—')}</td>
+                <td class="border border-slate-300 py-1.5 px-2.5 text-slate-700">${escapeHTML(dRec.given ? dRec.lotNumber || '—' : '—')}</td>
+                <td class="border border-slate-300 py-1.5 px-2.5 text-slate-700">${escapeHTML(dRec.given ? dRec.expiryDate || '—' : '—')}</td>
+                <td class="border border-slate-300 py-1.5 px-2.5 text-slate-700">${escapeHTML(dRec.given ? `${dRec.site || v.site} (${dRec.facility || 'RHU'})` : '—')}</td>
               </tr>
             `;
           }).join('')}
@@ -662,20 +686,20 @@ export function buildBakuNxtItrSheetHTML(p: BakuNxtPatientRecord): string {
     </div>
 
     <!-- V. Post-Vaccination & Sign-Off -->
-    <div class="grid grid-cols-3 gap-3 border border-slate-300 p-2.5 text-[11px] bg-slate-50/50">
+    <div class="grid grid-cols-3 gap-4 border border-slate-300 p-3.5 text-[11px] bg-slate-50/50 leading-relaxed">
       <div>
-        <span class="text-slate-500 font-semibold block text-[9px] uppercase">Post-Vaccination Observation / AEFI</span>
-        <span class="font-bold text-slate-900">${escapeHTML(p.aefiObservation || '—')}</span>
-        <div class="text-[10px] text-slate-600 mt-0.5">Notes: ${escapeHTML(p.aefiNotes || 'None')}</div>
+        <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">Post-Vaccination Observation / AEFI</span>
+        <span class="font-bold text-slate-900 block mb-1">${escapeHTML(p.aefiObservation || '—')}</span>
+        ${aefiNotesHTML}
       </div>
       <div>
-        <span class="text-slate-500 font-semibold block text-[9px] uppercase">Next Scheduled Visit &amp; Due Vaccines</span>
-        <span class="font-extrabold text-teal-800">${escapeHTML(p.nextVisitDate || 'All 1st-Year Vaccines Completed')}</span>
-        <div class="text-[10px] text-slate-700 font-medium mt-0.5">${escapeHTML(p.nextVisitVaccines || '—')}</div>
+        <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">Next Scheduled Visit &amp; Due Vaccines</span>
+        <span class="font-extrabold text-teal-800 block mb-1">${escapeHTML(p.nextVisitDate || 'All 1st-Year Vaccines Completed')}</span>
+        <p class="text-[10.5px] text-slate-700 font-medium leading-relaxed">${escapeHTML(p.nextVisitVaccines || '—')}</p>
       </div>
-      <div class="border-l border-slate-300 pl-3 flex flex-col justify-between">
-        <span class="text-slate-500 font-semibold block text-[9px] uppercase">Administering Health Worker Sign-Off</span>
-        <div class="mt-3 pt-1 border-t border-slate-400 font-extrabold text-slate-900">${escapeHTML(p.healthWorker || 'Health Worker on Duty')}</div>
+      <div class="border-l border-slate-300 pl-4 flex flex-col justify-between">
+        <span class="text-slate-500 font-semibold block text-[9px] uppercase mb-0.5">Administering Health Worker Sign-Off</span>
+        <div class="mt-4 pt-1.5 border-t border-slate-400 font-extrabold text-slate-900">${escapeHTML(p.healthWorker || 'Health Worker on Duty')}</div>
         <div class="text-[9px] text-slate-500">Signature over Printed Name &amp; License No.</div>
       </div>
     </div>
@@ -688,7 +712,7 @@ export function buildBakuNxtPassportSheetHTML(p: BakuNxtPatientRecord): string {
 
   return `
     <!-- Passport Header Banner -->
-    <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 text-white p-6">
+    <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 text-white p-6 leading-normal">
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div class="flex items-center gap-3.5">
           <div class="w-12 h-12 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center border border-white/25 shrink-0">
@@ -696,7 +720,7 @@ export function buildBakuNxtPassportSheetHTML(p: BakuNxtPatientRecord): string {
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>
           </div>
-          <div>
+          <div class="space-y-0.5">
             <div class="flex items-center gap-2">
               <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-teal-400 text-slate-950">Official Parent Copy</span>
               <span class="text-[11px] font-semibold text-teal-100">${escapeHTML(p.facilityName || 'Rural Health Unit')}</span>
@@ -704,9 +728,9 @@ export function buildBakuNxtPassportSheetHTML(p: BakuNxtPatientRecord): string {
             <h2 class="text-xl font-black tracking-tight mt-0.5">BAKUNXT BABY VACCINE CARD</h2>
           </div>
         </div>
-        <div class="bg-white/10 backdrop-blur rounded-xl px-4 py-2.5 border border-white/20 text-right">
+        <div class="bg-white/10 backdrop-blur rounded-xl px-4 py-2.5 border border-white/20 text-right space-y-0.5">
           <div class="text-[9px] uppercase tracking-wider text-teal-200 font-bold">Immunization Status</div>
-          <div class="text-sm font-black text-white mt-0.5">
+          <div class="text-sm font-black text-white">
             ${escapeHTML(milestone.isCIC ? '★ CIC & FIC COMPLETED' : milestone.isFIC ? '★ FULLY IMMUNIZED (FIC)' : 'ON TRACK / IN PROGRESS')}
           </div>
           <div class="text-[11px] text-teal-100 font-semibold">${milestone.dosesCount} of ${milestone.totalVaccines} Doses Completed</div>
@@ -715,50 +739,50 @@ export function buildBakuNxtPassportSheetHTML(p: BakuNxtPatientRecord): string {
     </div>
 
     <!-- Baby Profile Strip -->
-    <div class="p-5 bg-teal-50/50 border-b border-teal-200">
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div class="bg-white p-3 rounded-xl border border-teal-200 shadow-2xs">
+    <div class="p-5 bg-teal-50/50 border-b border-teal-200 leading-relaxed">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+        <div class="bg-white p-3.5 rounded-xl border border-teal-200 shadow-2xs space-y-0.5">
           <div class="text-[9px] font-bold uppercase text-teal-700">Child's Full Name</div>
-          <div class="text-xs font-black text-slate-900 mt-0.5">${escapeHTML(p.childName || '—')}</div>
-          <div class="text-[10px] text-slate-500 mt-0.5">FSN: ${escapeHTML(p.fsn || '—')}</div>
+          <div class="text-xs font-black text-slate-900">${escapeHTML(p.childName || '—')}</div>
+          <div class="text-[10px] text-slate-500">FSN: ${escapeHTML(p.fsn || '—')}</div>
         </div>
-        <div class="bg-white p-3 rounded-xl border border-teal-200 shadow-2xs">
+        <div class="bg-white p-3.5 rounded-xl border border-teal-200 shadow-2xs space-y-0.5">
           <div class="text-[9px] font-bold uppercase text-teal-700">Date of Birth &amp; Age</div>
-          <div class="text-xs font-black text-slate-900 mt-0.5">${escapeHTML(p.dob || '—')}</div>
-          <div class="text-[10px] text-teal-700 font-bold mt-0.5">${escapeHTML(ageObj.label)}</div>
+          <div class="text-xs font-black text-slate-900">${escapeHTML(p.dob || '—')}</div>
+          <div class="text-[10px] text-teal-700 font-bold">${escapeHTML(ageObj.label)}</div>
         </div>
-        <div class="bg-white p-3 rounded-xl border border-teal-200 shadow-2xs">
+        <div class="bg-white p-3.5 rounded-xl border border-teal-200 shadow-2xs space-y-0.5">
           <div class="text-[9px] font-bold uppercase text-teal-700">Sex &amp; Birth Weight</div>
-          <div class="text-xs font-black text-slate-900 mt-0.5">${escapeHTML(`${p.sex || '—'} • ${p.birthWeightGrams || '—'} g`)}</div>
-          <div class="text-[10px] text-slate-500 mt-0.5">${escapeHTML(p.placeOfDelivery || 'Facility Delivery')}</div>
+          <div class="text-xs font-black text-slate-900">${escapeHTML(`${p.sex || '—'} • ${p.birthWeightGrams || '—'} g`)}</div>
+          <div class="text-[10px] text-slate-500">${escapeHTML(p.placeOfDelivery || 'Facility Delivery')}</div>
         </div>
-        <div class="bg-white p-3 rounded-xl border border-teal-200 shadow-2xs">
+        <div class="bg-white p-3.5 rounded-xl border border-teal-200 shadow-2xs space-y-0.5">
           <div class="text-[9px] font-bold uppercase text-teal-700">Mother's Name &amp; Contact</div>
-          <div class="text-xs font-black text-slate-900 mt-0.5">${escapeHTML(p.motherName || '—')}</div>
-          <div class="text-[10px] text-slate-600 font-semibold mt-0.5">${escapeHTML(p.contactNumber || '—')}</div>
+          <div class="text-xs font-black text-slate-900">${escapeHTML(p.motherName || '—')}</div>
+          <div class="text-[10px] text-slate-600 font-semibold">${escapeHTML(p.contactNumber || '—')}</div>
         </div>
       </div>
 
       <!-- Next Appointment Highlight Box -->
-      <div class="mt-3 bg-teal-900 text-white rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-        <div class="flex items-center gap-2.5">
+      <div class="mt-3.5 bg-teal-900 text-white rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+        <div class="flex items-center gap-3">
           <div class="w-8 h-8 rounded-lg bg-teal-700 text-teal-100 flex items-center justify-center font-black text-xs shrink-0">
             📅
           </div>
-          <div>
+          <div class="space-y-0.5">
             <div class="text-[9px] font-black uppercase tracking-wider text-teal-200">Next Scheduled Bakuna Visit (Petsa ng Susunod na Bakuna)</div>
-            <div class="text-xs font-extrabold text-white">${escapeHTML(p.nextVisitDate || 'Completed 1st Year Schedule')} — <span class="font-semibold text-teal-200">${escapeHTML(p.nextVisitVaccines || 'Routine Growth Monitoring')}</span></div>
+            <div class="text-xs font-extrabold text-white leading-snug">${escapeHTML(p.nextVisitDate || 'Completed 1st Year Schedule')} — <span class="font-semibold text-teal-200">${escapeHTML(p.nextVisitVaccines || 'Routine Growth Monitoring')}</span></div>
           </div>
         </div>
-        <span class="text-[10px] font-bold bg-white/15 text-teal-100 px-2.5 py-1 rounded-lg border border-white/20 shrink-0">
+        <span class="text-[10px] font-bold bg-white/15 text-teal-100 px-3 py-1 rounded-lg border border-white/20 shrink-0">
           Always bring this card!
         </span>
       </div>
     </div>
 
     <!-- Visual Milestone Cards Grid -->
-    <div class="p-5">
-      <div class="flex items-center justify-between mb-3">
+    <div class="p-5 leading-relaxed">
+      <div class="flex items-center justify-between mb-3.5">
         <h3 class="text-xs font-black uppercase tracking-wider text-slate-800">
           Philippine EPI Vaccine Checklist (Birth to 12 Months)
         </h3>
@@ -768,7 +792,7 @@ export function buildBakuNxtPassportSheetHTML(p: BakuNxtPatientRecord): string {
         </div>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
         ${DOH_VACCINES.map((v) => {
           const dRec = (p.doses && p.doses[v.id]) || {
             given: false,
@@ -780,7 +804,7 @@ export function buildBakuNxtPassportSheetHTML(p: BakuNxtPatientRecord): string {
           };
           const isDone = dRec.given;
           return `
-            <div class="rounded-xl p-3 border ${
+            <div class="rounded-xl p-3.5 border ${
               isDone
                 ? 'bg-teal-50/70 border-teal-300'
                 : 'bg-slate-50 border-slate-200'
@@ -797,11 +821,11 @@ export function buildBakuNxtPassportSheetHTML(p: BakuNxtPatientRecord): string {
                   <span class="text-[9px] font-bold text-slate-500">${escapeHTML(v.targetAge)}</span>
                 </div>
                 <div class="font-black text-slate-900 text-xs mt-1.5">${escapeHTML(v.code)}</div>
-                <div class="text-[10px] text-slate-600 font-medium leading-tight">${escapeHTML(v.name)}</div>
+                <div class="text-[10px] text-slate-600 font-medium leading-normal mt-0.5">${escapeHTML(v.name)}</div>
               </div>
-              <div class="mt-2 pt-2 border-t ${
+              <div class="mt-2.5 pt-2 border-t ${
                 isDone ? 'border-teal-200' : 'border-slate-200'
-              } text-[10px] space-y-0.5">
+              } text-[10px] space-y-1">
                 <div class="flex justify-between">
                   <span class="text-slate-500">Date Given:</span>
                   <span class="font-extrabold ${isDone ? 'text-teal-900' : 'text-slate-400'}">${escapeHTML(isDone ? dRec.dateGiven || 'Recorded' : 'Not yet given')}</span>
@@ -818,21 +842,21 @@ export function buildBakuNxtPassportSheetHTML(p: BakuNxtPatientRecord): string {
     </div>
 
     <!-- Footer Reminders & Signature -->
-    <div class="bg-slate-900 text-white p-5 grid grid-cols-1 md:grid-cols-3 gap-4 text-[11px]">
-      <div class="md:col-span-2 space-y-1">
+    <div class="bg-slate-900 text-white p-5 grid grid-cols-1 md:grid-cols-3 gap-4 text-[11px] leading-relaxed">
+      <div class="md:col-span-2 space-y-1.5">
         <div class="text-teal-300 font-extrabold uppercase tracking-wider text-[10px]">
           Paalala sa Magulang (Parent Care Guide)
         </div>
-        <p class="text-slate-300 leading-relaxed">
-          • Normal ang bahagyang lagnat o pamamaga sa bakuna; maaaring bigyan ng Paracetamol drops ayon sa timbang.<br>
-          • Huwag lagyan ng alcohol, gamot, o pisain ang BCG scar sa kanang braso.<br>
-          • Dalhin palagi ang BakuNxt Baby Vaccine Card tuwing pupunta sa Health Center o Doktor.
-        </p>
+        <div class="text-slate-300 space-y-1 leading-relaxed">
+          <p>• Normal ang bahagyang lagnat o pamamaga sa bakuna; maaaring bigyan ng Paracetamol drops ayon sa timbang.</p>
+          <p>• Huwag lagyan ng alcohol, gamot, o pisain ang BCG scar sa kanang braso.</p>
+          <p>• Dalhin palagi ang BakuNxt Baby Vaccine Card tuwing pupunta sa Health Center o Doktor.</p>
+        </div>
       </div>
-      <div class="bg-slate-800 rounded-xl p-3 border border-slate-700 flex flex-col justify-between">
+      <div class="bg-slate-800 rounded-xl p-3.5 border border-slate-700 flex flex-col justify-between">
         <div class="text-[9px] uppercase text-slate-400 font-bold">Certified By Health Worker</div>
-        <div class="font-bold text-white text-xs mt-2 pt-1.5 border-t border-slate-600">${escapeHTML(p.healthWorker || 'NIP Nurse / Midwife')}</div>
-        <div class="text-[10px] text-teal-300">${escapeHTML(p.address || '')}</div>
+        <div class="font-bold text-white text-xs mt-3 pt-1.5 border-t border-slate-600">${escapeHTML(p.healthWorker || 'NIP Nurse / Midwife')}</div>
+        <div class="text-[10px] text-teal-300 mt-0.5">${escapeHTML(p.address || '')}</div>
       </div>
     </div>
   `;

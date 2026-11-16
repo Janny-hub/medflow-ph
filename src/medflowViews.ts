@@ -35,6 +35,28 @@ function findDiagnosticCategoryLabel(testName: string): string {
   return testName;
 }
 
+export function formatOfficialParagraphsHTML(rawText: any, fallbackText = '', extraClass = 'text-slate-800'): string {
+  const source = String(rawText || fallbackText || '').trim();
+  if (!source) return '';
+
+  // Ensure inline clinical section headers and numbered plan items break cleanly into separate paragraphs
+  const normalized = source
+    .replace(/\r\n/g, '\n')
+    .replace(/\s+(?=(?:History of Present Illness|Clinical History|Maternal Danger Signs Screening|Past medical history|Allergies|Family History|Obstetric Physical Examination|Physical Examination|Pertinent Laboratory\/Diagnostic Results):)/gi, '\n')
+    .replace(/\s+(?=\d+\.\s+[A-Z])/g, '\n');
+
+  const paragraphs = normalized
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (paragraphs.length === 0) return '';
+
+  return paragraphs
+    .map((para) => `<p class="leading-relaxed mb-1.5 last:mb-0 ${extraClass}">${escapeHTML(para)}</p>`)
+    .join('');
+}
+
 export function buildA4SoapRecordSheetHTML(doc: any, p: any, recordPrefix = 'CONS'): string {
   const ds = p.doctorSoap || { subjective: '', objective: '', assessment: '', plan: '', followUpDate: '', medications: [] };
   const meds = ds.medications || [];
@@ -52,33 +74,33 @@ export function buildA4SoapRecordSheetHTML(doc: any, p: any, recordPrefix = 'CON
 
   const defaultObjective =
     ds.objective ||
-    `Vital Signs: BP ${p.vitals?.bp || '-'} mmHg | HR ${p.vitals?.hr || '-'} bpm | RR ${p.vitals?.rr || '-'} cpm | Temp ${p.vitals?.temp || '-'}°C | SpO2 ${p.vitals?.spo2 || '-'}% | Wt ${p.vitals?.weight || '-'} kg | Ht ${p.vitals?.height || '-'} cm | BMI ${p.vitals?.bmi || '-'} kg/m² (${p.vitals?.bmiCategory || '-'}).\nPhysical Examination:\nGeneral: ${p.peFindings || 'Awake, alert, coherent, not in acute cardiorespiratory distress.'}`;
+    `Vital Signs: BP ${p.vitals?.bp || '-'} mmHg | HR ${p.vitals?.hr || '-'} bpm | RR ${p.vitals?.rr || '-'} cpm | Temp ${p.vitals?.temp || '-'}°C | SpO2 ${p.vitals?.spo2 || '-'}% | Wt ${p.vitals?.weight || '-'} kg | Ht ${p.vitals?.height || '-'} cm | BMI ${p.vitals?.bmi || '-'} kg/m² (${p.vitals?.bmiCategory || '-'}).\nPhysical Examination: ${p.peFindings || 'Awake, alert, coherent, not in acute cardiorespiratory distress.'}`;
 
   return `
-    <div class="flex flex-col justify-between min-h-[262mm] text-slate-900">
+    <div class="flex flex-col justify-between min-h-[262mm] text-slate-900 leading-relaxed">
       <div>
         <!-- Top Clinic / Facility Header -->
-        <div class="border-b-2 border-slate-900 pb-3 mb-4 flex flex-row items-start justify-between gap-3">
-          <div>
-            <h2 class="text-lg font-extrabold text-slate-900 uppercase tracking-tight">${escapeHTML(doc.facility || doc.clinic || 'MEDICAL & DIAGNOSTIC CLINIC')}</h2>
-            ${doc.address ? `<p class="text-[11px] text-slate-600 mt-0.5">${escapeHTML(doc.address)}</p>` : ''}
-            <p class="text-[11px] text-slate-600 mt-0.5">
+        <div class="border-b-2 border-slate-900 pb-3.5 mb-4 flex flex-row items-start justify-between gap-4">
+          <div class="space-y-0.5">
+            <h2 class="text-lg font-extrabold text-slate-900 uppercase tracking-tight leading-snug">${escapeHTML(doc.facility || doc.clinic || 'MEDICAL & DIAGNOSTIC CLINIC')}</h2>
+            ${doc.address ? `<p class="text-[11px] text-slate-600 leading-normal">${escapeHTML(doc.address)}</p>` : ''}
+            <p class="text-[11px] text-slate-600 leading-normal">
               ${doc.phone ? `Contact: ${escapeHTML(doc.phone)}` : ''}
               ${isTrainee && doc.school ? `${doc.phone ? ' | ' : ''}Affiliation: ${escapeHTML(doc.school)}` : ''}
             </p>
           </div>
           <div class="text-right shrink-0">
-            <span class="inline-block bg-slate-900 text-white text-[10.5px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded">OUTPATIENT CLINICAL RECORD (SOAP)</span>
-            <p class="text-[10px] text-slate-500 mt-1">Record ID: ${escapeHTML(recordIdDisplay)} • Date: ${escapeHTML(visitDate)}</p>
+            <span class="inline-block bg-teal-900 text-white text-[10.5px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded">OUTPATIENT CLINICAL RECORD (SOAP)</span>
+            <p class="text-[10.5px] text-slate-600 mt-1.5 font-semibold">Record ID: ${escapeHTML(recordIdDisplay)} • Date: ${escapeHTML(visitDate)}</p>
           </div>
         </div>
 
         <!-- Patient Demographics Box -->
-        <div class="bg-slate-50/90 border border-slate-300 rounded-lg p-3.5 mb-4 text-[11px] space-y-1.5">
-          <div class="grid grid-cols-12 gap-2">
+        <div class="bg-slate-50/90 border border-slate-300 rounded-lg p-4 mb-4 text-[11.5px] space-y-2 leading-relaxed">
+          <div class="grid grid-cols-12 gap-3">
             <div class="col-span-5">
               <span class="font-extrabold uppercase text-slate-900">PATIENT NAME:</span>
-              <span class="text-slate-800 ml-1">${escapeHTML(p.name)}</span>
+              <span class="text-slate-800 ml-1 font-semibold">${escapeHTML(p.name)}</span>
             </div>
             <div class="col-span-4">
               <span class="font-extrabold uppercase text-slate-900">AGE / SEX:</span>
@@ -90,7 +112,7 @@ export function buildA4SoapRecordSheetHTML(doc: any, p: any, recordPrefix = 'CON
             </div>
           </div>
 
-          <div class="grid grid-cols-12 gap-2">
+          <div class="grid grid-cols-12 gap-3">
             <div class="col-span-5">
               <span class="font-extrabold uppercase text-slate-900">ADDRESS:</span>
               <span class="text-slate-800 ml-1">${escapeHTML(p.address || 'N/A')}</span>
@@ -105,59 +127,67 @@ export function buildA4SoapRecordSheetHTML(doc: any, p: any, recordPrefix = 'CON
             </div>
           </div>
 
-          <div class="grid grid-cols-12 gap-2 pt-0.5">
+          <div class="grid grid-cols-12 gap-3 pt-1.5 border-t border-slate-200">
             <div class="col-span-7">
               <span class="font-extrabold uppercase text-slate-900">CHIEF COMPLAINT:</span>
               <span class="text-slate-800 ml-1">${escapeHTML(p.chiefComplaint || 'Routine consultation')}</span>
             </div>
             <div class="col-span-5 text-right">
               <span class="font-extrabold uppercase text-rose-700">ALLERGIES:</span>
-              <span class="text-rose-700 ml-1">${escapeHTML(p.allergies || 'No Known Drug Allergies (NKDA)')}</span>
+              <span class="text-rose-700 ml-1 font-semibold">${escapeHTML(p.allergies || 'No Known Drug Allergies (NKDA)')}</span>
             </div>
           </div>
         </div>
 
         <!-- Boxed S-O-A-P Sections -->
-        <div class="space-y-3 text-xs leading-relaxed">
+        <div class="space-y-3.5 text-xs leading-relaxed">
           <!-- S -->
           <div class="border border-slate-300 rounded-lg overflow-hidden bg-white">
-            <div class="bg-slate-100/90 border-b border-slate-300 px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-wider text-slate-900">
+            <div class="bg-slate-100 border-b border-slate-300 px-4 py-2 text-[11px] font-extrabold uppercase tracking-wider text-teal-950">
               S — SUBJECTIVE
             </div>
-            <div class="p-3.5 text-slate-800 whitespace-pre-line" id="print-soap-subjective">${escapeHTML(ds.subjective || p.hpi || p.chiefComplaint || '')}</div>
+            <div class="p-4 text-slate-800 leading-relaxed" id="print-soap-subjective">
+              ${formatOfficialParagraphsHTML(ds.subjective || p.hpi || p.chiefComplaint || 'Routine consultation')}
+            </div>
           </div>
 
           <!-- O -->
           <div class="border border-slate-300 rounded-lg overflow-hidden bg-white">
-            <div class="bg-slate-100/90 border-b border-slate-300 px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-wider text-slate-900">
+            <div class="bg-slate-100 border-b border-slate-300 px-4 py-2 text-[11px] font-extrabold uppercase tracking-wider text-teal-950">
               O — OBJECTIVE
             </div>
-            <div class="p-3.5 text-slate-800 whitespace-pre-line" id="print-soap-objective">${escapeHTML(defaultObjective)}</div>
+            <div class="p-4 text-slate-800 leading-relaxed" id="print-soap-objective">
+              ${formatOfficialParagraphsHTML(defaultObjective)}
+            </div>
           </div>
 
           <!-- A -->
           <div class="border border-slate-300 rounded-lg overflow-hidden bg-white">
-            <div class="bg-slate-100/90 border-b border-slate-300 px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-wider text-slate-900">
+            <div class="bg-slate-100 border-b border-slate-300 px-4 py-2 text-[11px] font-extrabold uppercase tracking-wider text-teal-950">
               A — ASSESSMENT / DIAGNOSIS
             </div>
-            <div class="p-3.5 font-bold text-slate-900 whitespace-pre-line" id="print-soap-assessment">${escapeHTML(ds.assessment || '')}</div>
+            <div class="p-4 font-bold text-slate-900 leading-relaxed" id="print-soap-assessment">
+              ${formatOfficialParagraphsHTML(ds.assessment || p.chiefComplaint || 'Pending Clinical Impression', '', 'font-bold text-slate-900')}
+            </div>
           </div>
 
           <!-- P -->
           <div class="border border-slate-300 rounded-lg overflow-hidden bg-white">
-            <div class="bg-slate-100/90 border-b border-slate-300 px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-wider text-slate-900">
+            <div class="bg-slate-100 border-b border-slate-300 px-4 py-2 text-[11px] font-extrabold uppercase tracking-wider text-teal-950">
               P — PLAN
             </div>
-            <div class="p-3.5 text-slate-800 space-y-3">
-              <div class="whitespace-pre-line" id="print-soap-plan">${escapeHTML(ds.plan || '')}</div>
+            <div class="p-4 text-slate-800 space-y-3 leading-relaxed">
+              <div class="leading-relaxed" id="print-soap-plan">
+                ${formatOfficialParagraphsHTML(ds.plan || '')}
+              </div>
 
               ${meds.length > 0 ? `
-                <div class="pt-2.5 border-t border-slate-200 text-[11.5px]">
-                  <p class="font-bold text-slate-900 mb-1">Medications:</p>
-                  <ol class="list-decimal list-inside space-y-0.5 text-slate-800">
+                <div class="pt-3 border-t border-slate-200 text-[11.5px]">
+                  <p class="font-bold text-slate-900 mb-1.5">Medications Prescribed:</p>
+                  <ol class="list-decimal list-inside space-y-1.5 text-slate-800 leading-relaxed">
                     ${meds.map((m: any) => `
-                      <li>
-                        ${escapeHTML(m.genericName)}${m.brandExample ? ` (${escapeHTML(m.brandExample)})` : ''} ${escapeHTML(m.quantity || '')} — ${escapeHTML(m.sig || '')}
+                      <li class="leading-relaxed">
+                        <strong>${escapeHTML(m.genericName)}</strong>${m.brandExample ? ` (${escapeHTML(m.brandExample)})` : ''} ${escapeHTML(m.quantity || '')} — Sig: ${escapeHTML(m.sig || '')}
                       </li>
                     `).join('')}
                   </ol>
@@ -165,8 +195,8 @@ export function buildA4SoapRecordSheetHTML(doc: any, p: any, recordPrefix = 'CON
               ` : ''}
 
               ${allDiagnosticsWithCategory.length > 0 ? `
-                <div class="pt-2.5 border-t border-slate-200 text-[11.5px]">
-                  <p class="text-slate-800">
+                <div class="pt-3 border-t border-slate-200 text-[11.5px] leading-relaxed">
+                  <p class="text-slate-800 leading-relaxed">
                     <strong class="text-slate-900">Requested Diagnostics:</strong>
                     ${escapeHTML(allDiagnosticsWithCategory.join(', '))}
                   </p>
@@ -178,23 +208,23 @@ export function buildA4SoapRecordSheetHTML(doc: any, p: any, recordPrefix = 'CON
       </div>
 
       <!-- Bottom Signature & Confidential Footer -->
-      <div class="pt-8 mt-8">
-        <div class="border-t border-slate-300 pt-3 flex flex-row items-end justify-between gap-4 text-[11px]">
-          <div class="text-slate-500 space-y-0.5">
-            <p class="font-bold text-slate-600">Confidential Medical Record • MedFlow PH</p>
+      <div class="pt-6 mt-6">
+        <div class="border-t border-slate-300 pt-3.5 flex flex-row items-end justify-between gap-4 text-[11px] leading-relaxed">
+          <div class="text-slate-500 space-y-1">
+            <p class="font-bold text-slate-700">Confidential Medical Record • MedFlow PH</p>
             <p>Follow-up Date: <span class="font-semibold text-slate-800">${escapeHTML(ds.followUpDate || 'As advised')}</span></p>
           </div>
           <div class="text-right min-w-[240px]">
-            <div class="border-t-[1.5px] border-slate-900 pt-1.5">
+            <div class="border-t-[1.5px] border-slate-900 pt-1.5 space-y-0.5">
               <p class="font-extrabold text-xs text-slate-900">${escapeHTML(doc.name)}</p>
               <p class="text-[11px] text-slate-600">
                 ${isTrainee ? `${escapeHTML(doc.role)}${doc.school ? ` (${escapeHTML(doc.school)})` : ''}` : `Licensed Physician${doc.specialty ? ` (${escapeHTML(doc.specialty)})` : ''}`}
               </p>
-              <p class="text-[10.5px] text-slate-700 mt-0.5">
+              <p class="text-[10.5px] text-slate-700">
                 PRC Lic. No.: <strong>${escapeHTML(doc.prc || 'N/A')}</strong> • PTR No.: <strong>${escapeHTML(doc.ptr || 'N/A')}</strong>
               </p>
               ${isTrainee && doc.supervisingDoctor ? `
-                <p class="text-[10.5px] text-slate-800 mt-0.5">
+                <p class="text-[10.5px] text-slate-800">
                   Supervising MD: <strong>${escapeHTML(doc.supervisingDoctor)}</strong>
                 </p>
               ` : ''}
@@ -263,82 +293,82 @@ export function buildA4IndividualTreatmentRecordHTML(doc: any, p: any): string {
       : 'G0P0');
 
   return `
-    <div class="flex flex-col justify-between min-h-[262mm] text-slate-900 text-[10.5px] leading-snug">
-      <div class="space-y-3">
+    <div class="flex flex-col justify-between min-h-[262mm] text-slate-900 text-[11px] leading-relaxed">
+      <div class="space-y-3.5">
         <!-- Top DOH / Konsulta / LGU Facility Header -->
-        <div class="border-b-2 border-slate-900 pb-2.5 flex flex-row items-start justify-between gap-2">
-          <div>
-            <span class="text-[9px] font-extrabold uppercase tracking-widest text-teal-800 block">Department of Health (DOH) • PhilHealth Konsulta / iClinicSys Standard</span>
-            <h2 class="text-base font-extrabold text-slate-900 uppercase tracking-tight">${escapeHTML(doc.facility || doc.clinic || 'RURAL HEALTH UNIT / MEDICAL CLINIC')}</h2>
-            ${doc.address ? `<p class="text-[10px] text-slate-600">${escapeHTML(doc.address)}</p>` : ''}
-            <p class="text-[10px] text-slate-600">
+        <div class="border-b-2 border-slate-900 pb-3 flex flex-row items-start justify-between gap-4">
+          <div class="space-y-0.5">
+            <span class="text-[9.5px] font-extrabold uppercase tracking-widest text-teal-800 block">Department of Health (DOH) • PhilHealth Konsulta / iClinicSys Standard</span>
+            <h2 class="text-base font-extrabold text-slate-900 uppercase tracking-tight leading-snug">${escapeHTML(doc.facility || doc.clinic || 'RURAL HEALTH UNIT / MEDICAL CLINIC')}</h2>
+            ${doc.address ? `<p class="text-[10.5px] text-slate-600 leading-normal">${escapeHTML(doc.address)}</p>` : ''}
+            <p class="text-[10.5px] text-slate-600 leading-normal">
               ${doc.phone ? `Contact: ${escapeHTML(doc.phone)}` : ''}
               ${isTrainee && doc.school ? `${doc.phone ? ' | ' : ''}Affiliation: ${escapeHTML(doc.school)}` : ''}
             </p>
           </div>
           <div class="text-right shrink-0">
-            <span class="inline-block bg-slate-900 text-white text-[10px] font-extrabold uppercase tracking-wider px-3 py-1 rounded">INDIVIDUAL TREATMENT RECORD (ITR)</span>
-            <p class="text-[9.5px] text-slate-600 mt-1 font-semibold">ITR No.: ${escapeHTML(itrIdDisplay)} • Patient ID: ${escapeHTML(p.id)}</p>
-            <p class="text-[9.5px] text-slate-500">Date of Visit: ${escapeHTML(visitDate)}</p>
+            <span class="inline-block bg-teal-900 text-white text-[10px] font-extrabold uppercase tracking-wider px-3 py-1 rounded">INDIVIDUAL TREATMENT RECORD (ITR)</span>
+            <p class="text-[10px] text-slate-700 mt-1.5 font-semibold">ITR No.: ${escapeHTML(itrIdDisplay)} • Patient ID: ${escapeHTML(p.id)}</p>
+            <p class="text-[10px] text-slate-500">Date of Visit: ${escapeHTML(visitDate)}</p>
           </div>
         </div>
 
         <!-- SECTION 1: PATIENT DEMOGRAPHICS & IDENTIFICATION -->
         <div class="border border-slate-300 rounded-lg overflow-hidden bg-white">
-          <div class="bg-slate-900 text-white px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider flex items-center justify-between">
+          <div class="bg-teal-900 text-white px-3.5 py-1.5 text-[10.5px] font-extrabold uppercase tracking-wider flex items-center justify-between">
             <span>I. Patient Demographics &amp; Identification</span>
             <span>Pathway: ${p.patientType === 'antenatal' ? 'Maternal / Antenatal' : 'General Outpatient (OPD)'}</span>
           </div>
-          <div class="p-2.5 space-y-2">
+          <div class="p-3.5 space-y-3">
             <!-- Identifiers Row -->
-            <div class="grid grid-cols-3 gap-2 pb-2 border-b border-slate-200 bg-slate-50/80 p-2 rounded">
+            <div class="grid grid-cols-3 gap-4 p-2.5 border border-slate-200 bg-slate-50/90 rounded-md">
               <div>
-                <span class="text-[9px] font-extrabold uppercase text-slate-500 block">Family Serial Number</span>
-                <span class="font-extrabold text-slate-900">${escapeHTML(p.familySerialNo || 'N/A')}</span>
+                <span class="text-[9px] font-extrabold uppercase text-slate-500 block mb-0.5">Family Serial Number</span>
+                <span class="font-extrabold text-slate-900 text-[11px]">${escapeHTML(p.familySerialNo || 'N/A')}</span>
               </div>
               <div>
-                <span class="text-[9px] font-extrabold uppercase text-slate-500 block">Household Number</span>
-                <span class="font-extrabold text-slate-900">${escapeHTML(p.householdNo || 'N/A')}</span>
+                <span class="text-[9px] font-extrabold uppercase text-slate-500 block mb-0.5">Household Number</span>
+                <span class="font-extrabold text-slate-900 text-[11px]">${escapeHTML(p.householdNo || 'N/A')}</span>
               </div>
               <div>
-                <span class="text-[9px] font-extrabold uppercase text-slate-500 block">PhilHealth ID Number (PIN)</span>
-                <span class="font-extrabold text-teal-900">${escapeHTML(p.philhealth || 'N/A')}</span>
+                <span class="text-[9px] font-extrabold uppercase text-slate-500 block mb-0.5">PhilHealth ID Number (PIN)</span>
+                <span class="font-extrabold text-teal-900 text-[11px]">${escapeHTML(p.philhealth || 'N/A')}</span>
               </div>
             </div>
 
             <!-- Personal Details Grid -->
-            <div class="grid grid-cols-4 gap-2">
+            <div class="grid grid-cols-4 gap-x-4 gap-y-2.5">
               <div class="col-span-2">
-                <span class="text-[9px] font-bold uppercase text-slate-500 block">Full Name</span>
+                <span class="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Full Name (Last, First, Middle)</span>
                 <span class="font-extrabold text-slate-900 text-xs">${escapeHTML(p.name)}</span>
               </div>
               <div>
-                <span class="text-[9px] font-bold uppercase text-slate-500 block">Date of Birth</span>
+                <span class="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Date of Birth</span>
                 <span class="font-bold text-slate-800">${escapeHTML(p.dob || 'N/A')}</span>
               </div>
               <div>
-                <span class="text-[9px] font-bold uppercase text-slate-500 block">Age / Sex / Civil Status</span>
+                <span class="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Age / Sex / Civil Status</span>
                 <span class="font-bold text-slate-800">${escapeHTML(p.age)} y/o • ${escapeHTML(p.sex)} • ${escapeHTML(p.civilStatus || 'Single')}</span>
               </div>
               <div>
-                <span class="text-[9px] font-bold uppercase text-slate-500 block">Occupation</span>
+                <span class="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Occupation</span>
                 <span class="font-semibold text-slate-800">${escapeHTML(p.occupation || 'N/A')}</span>
               </div>
               <div>
-                <span class="text-[9px] font-bold uppercase text-slate-500 block">Educational Attainment</span>
+                <span class="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Educational Attainment</span>
                 <span class="font-semibold text-slate-800">${escapeHTML(p.educationalAttainment || 'N/A')}</span>
               </div>
               <div>
-                <span class="text-[9px] font-bold uppercase text-slate-500 block">Contact Number</span>
+                <span class="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Contact Number</span>
                 <span class="font-semibold text-slate-800">${escapeHTML(p.contact || 'N/A')}</span>
               </div>
               <div>
-                <span class="text-[9px] font-bold uppercase text-slate-500 block">Mother's Maiden Name</span>
+                <span class="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Mother's Maiden Name</span>
                 <span class="font-semibold text-slate-800">${escapeHTML(p.mothersMaidenName || 'N/A')}</span>
               </div>
-              <div class="col-span-4 pt-1 border-t border-slate-100">
-                <span class="text-[9px] font-bold uppercase text-slate-500">Complete Address (Zone/Purok, Barangay, Municipality/Province):</span>
-                <span class="font-semibold text-slate-900 ml-1">${escapeHTML(completeAddress)}</span>
+              <div class="col-span-4 pt-2 border-t border-slate-200 leading-relaxed">
+                <span class="text-[9.5px] font-bold uppercase text-slate-500">Complete Address (Zone/Purok, Barangay, Municipality/Province):</span>
+                <span class="font-semibold text-slate-900 ml-1.5">${escapeHTML(completeAddress)}</span>
               </div>
             </div>
           </div>
@@ -346,42 +376,43 @@ export function buildA4IndividualTreatmentRecordHTML(doc: any, p: any): string {
 
         <!-- SECTION 2: MEDICAL, FAMILY & SOCIAL HISTORY -->
         <div class="border border-slate-300 rounded-lg overflow-hidden bg-white">
-          <div class="bg-slate-900 text-white px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider">
+          <div class="bg-teal-900 text-white px-3.5 py-1.5 text-[10.5px] font-extrabold uppercase tracking-wider">
             II. Medical, Family, Personal/Social &amp; OB-GYN History
           </div>
-          <div class="p-2.5 space-y-2">
-            <div class="grid grid-cols-2 gap-2">
-              <div class="p-2 rounded bg-slate-50 border border-slate-200 space-y-1">
-                <span class="text-[9px] font-extrabold uppercase text-teal-900 block">Past Medical History (PMH)</span>
-                <p><strong>Known Allergies:</strong> <span class="text-rose-700 font-bold">${escapeHTML(p.allergies || 'No Known Drug Allergies (NKDA)')}</span></p>
-                <p><strong>Chronic Conditions:</strong> ${escapeHTML(p.comorbidities || 'None reported')}</p>
-                <p><strong>Previous Surgeries:</strong> ${escapeHTML(p.previousSurgeries || 'None')}</p>
-                <p><strong>Previous Hospitalizations:</strong> ${escapeHTML(p.previousHospitalizations || 'None')}</p>
+          <div class="p-3.5 space-y-3">
+            <div class="grid grid-cols-2 gap-3.5">
+              <div class="p-3 rounded-md bg-slate-50 border border-slate-200 space-y-1.5 leading-relaxed">
+                <span class="text-[9.5px] font-extrabold uppercase text-teal-900 block pb-1 border-b border-slate-200">Past Medical History (PMH)</span>
+                <p class="leading-relaxed"><strong>Known Allergies:</strong> <span class="text-rose-700 font-bold">${escapeHTML(p.allergies || 'No Known Drug Allergies (NKDA)')}</span></p>
+                <p class="leading-relaxed"><strong>Chronic Conditions:</strong> ${escapeHTML(p.comorbidities || 'None reported')}</p>
+                <p class="leading-relaxed"><strong>Previous Surgeries:</strong> ${escapeHTML(p.previousSurgeries || 'None')}</p>
+                <p class="leading-relaxed"><strong>Previous Hospitalizations:</strong> ${escapeHTML(p.previousHospitalizations || 'None')}</p>
               </div>
-              <div class="p-2 rounded bg-slate-50 border border-slate-200 space-y-1">
-                <span class="text-[9px] font-extrabold uppercase text-teal-900 block">Family &amp; Personal / Social History</span>
-                <p><strong>Family History (Hereditary):</strong> ${escapeHTML(p.familyHistory || 'No known hereditary illness reported')}</p>
-                <p><strong>Smoking Status:</strong> ${escapeHTML(p.smokingStatus || 'Non-Smoker')} • <strong>Alcohol Intake:</strong> ${escapeHTML(p.alcoholIntake || 'Non-Drinker')}</p>
-                <p><strong>Physical Activity:</strong> ${escapeHTML(p.physicalActivity || 'Moderate')} • <strong>PWD Status:</strong> ${escapeHTML(p.pwdStatus || 'Non-PWD')}</p>
+              <div class="p-3 rounded-md bg-slate-50 border border-slate-200 space-y-1.5 leading-relaxed">
+                <span class="text-[9.5px] font-extrabold uppercase text-teal-900 block pb-1 border-b border-slate-200">Family &amp; Personal / Social History</span>
+                <p class="leading-relaxed"><strong>Family History (Hereditary):</strong> ${escapeHTML(p.familyHistory || 'No known hereditary illness reported')}</p>
+                <p class="leading-relaxed"><strong>Smoking Status:</strong> ${escapeHTML(p.smokingStatus || 'Non-Smoker')} • <strong>Alcohol Intake:</strong> ${escapeHTML(p.alcoholIntake || 'Non-Drinker')}</p>
+                <p class="leading-relaxed"><strong>Physical Activity:</strong> ${escapeHTML(p.physicalActivity || 'Moderate')}</p>
+                <p class="leading-relaxed"><strong>PWD Status:</strong> ${escapeHTML(p.pwdStatus || 'Non-PWD')}</p>
               </div>
             </div>
 
             ${isFemale ? `
-              <div class="p-2 rounded bg-teal-50/50 border border-teal-200 grid grid-cols-4 gap-2">
+              <div class="p-2.5 rounded-md bg-teal-50/50 border border-teal-200 grid grid-cols-4 gap-3">
                 <div>
-                  <span class="text-[9px] font-extrabold uppercase text-teal-900 block">OB Score (Gravida/Para)</span>
+                  <span class="text-[9px] font-extrabold uppercase text-teal-900 block mb-0.5">OB Score (Gravida/Para)</span>
                   <span class="font-bold text-slate-900">${escapeHTML(obScoreText)}</span>
                 </div>
                 <div>
-                  <span class="text-[9px] font-extrabold uppercase text-teal-900 block">Menarche</span>
+                  <span class="text-[9px] font-extrabold uppercase text-teal-900 block mb-0.5">Menarche</span>
                   <span class="font-semibold text-slate-800">${escapeHTML(p.menarche || 'N/A')}</span>
                 </div>
                 <div>
-                  <span class="text-[9px] font-extrabold uppercase text-teal-900 block">Menstrual Cycle Regularity</span>
+                  <span class="text-[9px] font-extrabold uppercase text-teal-900 block mb-0.5">Menstrual Cycle Regularity</span>
                   <span class="font-semibold text-slate-800">${escapeHTML(p.menstrualRegularity || 'Regular')}</span>
                 </div>
                 <div>
-                  <span class="text-[9px] font-extrabold uppercase text-teal-900 block">Family Planning Method</span>
+                  <span class="text-[9px] font-extrabold uppercase text-teal-900 block mb-0.5">Family Planning Method</span>
                   <span class="font-semibold text-slate-800">${escapeHTML(p.familyPlanningMethod || 'None')}</span>
                 </div>
               </div>
@@ -391,56 +422,64 @@ export function buildA4IndividualTreatmentRecordHTML(doc: any, p: any): string {
 
         <!-- SECTION 3: CONSULTATION & CLINICAL ENCOUNTER LOG (SOAP FORMAT FROM SOAP TAB) -->
         <div class="border border-slate-300 rounded-lg overflow-hidden bg-white">
-          <div class="bg-slate-900 text-white px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider flex items-center justify-between">
+          <div class="bg-teal-900 text-white px-3.5 py-1.5 text-[10.5px] font-extrabold uppercase tracking-wider flex items-center justify-between">
             <span>III. Consultation &amp; Clinical Encounter Log (SOAP Format)</span>
             <span>Nature of Visit: ${escapeHTML(ds.natureOfVisit || p.natureOfVisit || 'New Consultation')} • Date: ${escapeHTML(visitDate)}</span>
           </div>
-          <div class="p-2.5 space-y-2">
+          <div class="p-3.5 space-y-3">
             <!-- S: Subjective (From SOAP Tab) -->
-            <div class="border border-slate-200 rounded p-2 bg-slate-50/50">
-              <div class="text-[9.5px] font-extrabold uppercase text-teal-900 mb-0.5">S — Subjective (Chief Complaint &amp; History of Present Illness)</div>
-              <p class="whitespace-pre-line text-slate-800">${escapeHTML(ds.subjective || p.chiefComplaint || 'Routine consultation')}</p>
+            <div class="border border-slate-200 rounded-md p-3 bg-slate-50/50">
+              <div class="text-[10px] font-extrabold uppercase text-teal-900 pb-1 mb-1.5 border-b border-slate-200">S — Subjective (Chief Complaint &amp; History of Present Illness)</div>
+              <div class="leading-relaxed text-slate-800">
+                ${formatOfficialParagraphsHTML(ds.subjective || p.chiefComplaint || 'Routine consultation')}
+              </div>
             </div>
 
             <!-- O: Objective (Vitals, Anthropometrics, PE from SOAP Tab) -->
-            <div class="border border-slate-200 rounded p-2 bg-white space-y-1.5">
-              <div class="text-[9.5px] font-extrabold uppercase text-teal-900">O — Objective (Vital Signs, Anthropometrics &amp; Physical Exam)</div>
-              <div class="grid grid-cols-9 gap-1.5 bg-slate-50 p-1.5 rounded border border-slate-200 text-[9.5px]">
-                <div><span class="text-slate-500 block">BP</span><strong>${escapeHTML(v.bp || '-')} mmHg</strong></div>
-                <div><span class="text-slate-500 block">HR</span><strong>${escapeHTML(v.hr || '-')} bpm</strong></div>
-                <div><span class="text-slate-500 block">RR</span><strong>${escapeHTML(v.rr || '-')} cpm</strong></div>
-                <div><span class="text-slate-500 block">Temp</span><strong>${escapeHTML(v.temp || '-')} °C</strong></div>
-                <div><span class="text-slate-500 block">SpO₂</span><strong>${escapeHTML(v.spo2 || '-')} %</strong></div>
-                <div><span class="text-slate-500 block">Height</span><strong>${escapeHTML(v.height || '-')} cm</strong></div>
-                <div><span class="text-slate-500 block">Weight</span><strong>${escapeHTML(v.weight || '-')} kg</strong></div>
-                <div><span class="text-slate-500 block">BMI</span><strong>${escapeHTML(v.bmi || '-')} kg/m²</strong></div>
-                <div><span class="text-slate-500 block">Waist</span><strong>${escapeHTML(v.waistCircumference || p.waistCircumference || '-')} cm</strong></div>
+            <div class="border border-slate-200 rounded-md p-3 bg-white space-y-2">
+              <div class="text-[10px] font-extrabold uppercase text-teal-900 pb-1 border-b border-slate-200">O — Objective (Vital Signs, Anthropometrics &amp; Physical Exam)</div>
+              <div class="grid grid-cols-9 gap-2 bg-slate-50 p-2 rounded border border-slate-200 text-[10px]">
+                <div><span class="text-slate-500 block mb-0.5">BP</span><strong>${escapeHTML(v.bp || '-')} mmHg</strong></div>
+                <div><span class="text-slate-500 block mb-0.5">HR</span><strong>${escapeHTML(v.hr || '-')} bpm</strong></div>
+                <div><span class="text-slate-500 block mb-0.5">RR</span><strong>${escapeHTML(v.rr || '-')} cpm</strong></div>
+                <div><span class="text-slate-500 block mb-0.5">Temp</span><strong>${escapeHTML(v.temp || '-')} °C</strong></div>
+                <div><span class="text-slate-500 block mb-0.5">SpO₂</span><strong>${escapeHTML(v.spo2 || '-')} %</strong></div>
+                <div><span class="text-slate-500 block mb-0.5">Height</span><strong>${escapeHTML(v.height || '-')} cm</strong></div>
+                <div><span class="text-slate-500 block mb-0.5">Weight</span><strong>${escapeHTML(v.weight || '-')} kg</strong></div>
+                <div><span class="text-slate-500 block mb-0.5">BMI</span><strong>${escapeHTML(v.bmi || '-')} kg/m²</strong></div>
+                <div><span class="text-slate-500 block mb-0.5">Waist</span><strong>${escapeHTML(v.waistCircumference || p.waistCircumference || '-')} cm</strong></div>
               </div>
-              <p class="whitespace-pre-line text-slate-800"><strong>Objective / Physical Exam Findings:</strong> ${escapeHTML(ds.objective || p.peFindings || 'Conscious, coherent, not in cardiorespiratory distress.')}</p>
+              <div class="leading-relaxed text-slate-800 pt-0.5">
+                ${formatOfficialParagraphsHTML(ds.objective || p.peFindings || 'Conscious, coherent, not in cardiorespiratory distress.')}
+              </div>
             </div>
 
             <!-- A: Assessment (From SOAP Tab) -->
-            <div class="border border-slate-200 rounded p-2 bg-slate-50/50">
-              <div class="text-[9.5px] font-extrabold uppercase text-teal-900 mb-0.5">A — Assessment / Clinical Impression</div>
-              <p class="font-extrabold text-slate-900 whitespace-pre-line">${escapeHTML(ds.assessment || p.chiefComplaint || 'Pending Clinical Impression')}</p>
+            <div class="border border-slate-200 rounded-md p-3 bg-slate-50/50">
+              <div class="text-[10px] font-extrabold uppercase text-teal-900 pb-1 mb-1.5 border-b border-slate-200">A — Assessment / Clinical Impression</div>
+              <div class="font-extrabold text-slate-900 leading-relaxed">
+                ${formatOfficialParagraphsHTML(ds.assessment || p.chiefComplaint || 'Pending Clinical Impression', '', 'font-extrabold text-slate-900')}
+              </div>
             </div>
 
             <!-- P: Plan (From SOAP Tab) -->
-            <div class="border border-slate-200 rounded p-2 bg-white space-y-1.5">
-              <div class="text-[9.5px] font-extrabold uppercase text-teal-900">P — Plan (Medications, Diagnostics &amp; Follow-Up)</div>
-              <p class="whitespace-pre-line text-slate-800">${escapeHTML(ds.plan || '')}</p>
+            <div class="border border-slate-200 rounded-md p-3 bg-white space-y-2">
+              <div class="text-[10px] font-extrabold uppercase text-teal-900 pb-1 border-b border-slate-200">P — Plan (Medications, Diagnostics &amp; Follow-Up)</div>
+              <div class="leading-relaxed text-slate-800">
+                ${formatOfficialParagraphsHTML(ds.plan || '')}
+              </div>
               ${meds.length > 0 ? `
-                <div class="pt-1 border-t border-slate-100">
-                  <span class="font-bold text-slate-900">Medications Prescribed (Generic, Dosage &amp; Duration):</span>
-                  <ol class="list-decimal list-inside space-y-0.5 mt-0.5">
-                    ${meds.map((m: any) => `<li><strong>${escapeHTML(m.genericName)}</strong>${m.brandExample ? ` (${escapeHTML(m.brandExample)})` : ''} ${escapeHTML(m.quantity || '')} — Sig: ${escapeHTML(m.sig || '')}</li>`).join('')}
+                <div class="pt-2 border-t border-slate-200">
+                  <span class="font-bold text-slate-900 block mb-1">Medications Prescribed (Generic, Dosage &amp; Duration):</span>
+                  <ol class="list-decimal list-inside space-y-1 leading-relaxed text-slate-800">
+                    ${meds.map((m: any) => `<li class="leading-relaxed"><strong>${escapeHTML(m.genericName)}</strong>${m.brandExample ? ` (${escapeHTML(m.brandExample)})` : ''} ${escapeHTML(m.quantity || '')} — Sig: ${escapeHTML(m.sig || '')}</li>`).join('')}
                   </ol>
                 </div>
               ` : ''}
               ${allDiagnosticsWithCategory.length > 0 ? `
-                <p class="pt-1 border-t border-slate-100"><strong>Laboratory &amp; Imaging Requests:</strong> ${escapeHTML(allDiagnosticsWithCategory.join(', '))}</p>
+                <p class="pt-2 border-t border-slate-200 leading-relaxed"><strong>Laboratory &amp; Imaging Requests:</strong> ${escapeHTML(allDiagnosticsWithCategory.join(', '))}</p>
               ` : ''}
-              <div class="pt-1 border-t border-slate-100 text-[9.5px]">
+              <div class="pt-2 border-t border-slate-200 text-[10px] leading-relaxed">
                 <strong>Follow-Up Schedule:</strong> ${escapeHTML(ds.followUpDate || 'As advised / PRN')}
               </div>
             </div>
@@ -449,14 +488,14 @@ export function buildA4IndividualTreatmentRecordHTML(doc: any, p: any): string {
       </div>
 
       <!-- Bottom Signature Footer -->
-      <div class="pt-4 mt-4 border-t border-slate-300 flex flex-row items-end justify-between gap-4 text-[10px]">
-        <div class="text-slate-500 space-y-0.5">
+      <div class="pt-5 mt-5 border-t border-slate-300 flex flex-row items-end justify-between gap-4 text-[10.5px] leading-relaxed">
+        <div class="text-slate-500 space-y-1">
           <p class="font-bold text-slate-700">Standard DOH-Aligned Individual Treatment Record (ITR) • MedFlow PH</p>
           <p>Confidential Medical Record • Generated on ${escapeHTML(visitDate)}</p>
         </div>
-        <div class="text-right min-w-[230px] border-t-[1.5px] border-slate-900 pt-1">
+        <div class="text-right min-w-[235px] border-t-[1.5px] border-slate-900 pt-1.5 space-y-0.5">
           <p class="font-extrabold text-xs text-slate-900">${escapeHTML(doc.name)}</p>
-          <p class="text-[10px] text-slate-600">
+          <p class="text-[10.5px] text-slate-600">
             ${isTrainee ? `${escapeHTML(doc.role)}${doc.school ? ` (${escapeHTML(doc.school)})` : ''}` : `Licensed Physician${doc.specialty ? ` (${escapeHTML(doc.specialty)})` : ''}`}
           </p>
           <p class="text-[10px] text-slate-700">PRC Lic. No.: <strong>${escapeHTML(doc.prc || 'N/A')}</strong> • PTR No.: <strong>${escapeHTML(doc.ptr || 'N/A')}</strong></p>
@@ -559,7 +598,7 @@ export function buildDualLabImagingRequestSheetHTML(doc: any, p: any): string {
           </div>
 
           <!-- Patient & Impression Block -->
-          <div class="border-b border-slate-300 pb-2.5 mb-3 text-[11px] space-y-0.5">
+          <div class="border-b border-slate-300 pb-3 mb-3.5 text-[11px] space-y-1 leading-relaxed">
             <div class="flex justify-between gap-2">
               <span><strong>Patient:</strong> ${escapeHTML(p.name)}</span>
               <span><strong>Date:</strong> ${escapeHTML(visitDate)}</span>
@@ -568,13 +607,14 @@ export function buildDualLabImagingRequestSheetHTML(doc: any, p: any): string {
               <span><strong>Age/Sex:</strong> ${escapeHTML(p.age)}/${escapeHTML((p.sex || 'U').charAt(0).toUpperCase())}</span>
               <span><strong>Priority:</strong> ${escapeHTML(priority)}</span>
             </div>
-            <div class="pt-0.5 leading-snug">
-              <strong>Impression:</strong> ${escapeHTML(impression)}
+            <div class="pt-1 leading-relaxed">
+              <strong>Clinical Impression:</strong> ${escapeHTML(impression)}
             </div>
+            ${diag.notes ? `<div class="pt-0.5 leading-relaxed text-[10.5px] text-slate-700"><strong>Clinical Notes / Instructions:</strong> ${escapeHTML(diag.notes)}</div>` : ''}
           </div>
 
           <!-- Categorized Checkboxes -->
-          <div>
+          <div class="leading-relaxed">
             ${groupsContentHTML || `<p class="text-xs text-slate-400 italic py-4">${escapeHTML(emptyLabel)}</p>`}
           </div>
         </div>
@@ -586,7 +626,7 @@ export function buildDualLabImagingRequestSheetHTML(doc: any, p: any): string {
             <p>A6 Request Sheet</p>
           </div>
           <div class="text-right min-w-[165px]">
-            <div class="border-t-[1.5px] border-slate-900 pt-1">
+            <div class="border-t-[1.5px] border-slate-900 pt-1.5 space-y-0.5">
               <p class="font-extrabold text-[11px] text-slate-900">${escapeHTML(doc.name)}</p>
               <p class="text-[10px] text-slate-600">PRC Lic. No.: <strong>${escapeHTML(doc.prc || 'N/A')}</strong></p>
               ${isTrainee && doc.supervisingDoctor ? `<p class="text-[9.5px] text-slate-700">Supv. MD: <strong>${escapeHTML(doc.supervisingDoctor)}</strong></p>` : ''}
@@ -941,58 +981,58 @@ export function buildRekordNiNanayHalfBondHTML(doc: any, p: any): string {
   const combinedWorkup = [...orderedLabs, ...orderedImaging];
 
   return `
-    <div class="flex flex-col justify-between h-full text-slate-900 text-[10px] leading-snug">
-      <div class="space-y-2">
+    <div class="flex flex-col justify-between h-full text-slate-900 text-[10px] leading-relaxed">
+      <div class="space-y-2.5">
         <!-- Top Half-Bond Header -->
-        <div class="border-b-2 border-teal-800 pb-2 flex items-start justify-between gap-3">
+        <div class="border-b-2 border-teal-800 pb-2.5 flex items-start justify-between gap-3">
           <div>
             <div class="flex items-center gap-2">
               <span class="px-2 py-0.5 rounded bg-teal-700 text-white text-[9px] font-extrabold uppercase tracking-wider">DOH Maternal Tracker</span>
               <span class="text-[9.5px] font-bold text-slate-600">${escapeHTML(doc.facility || doc.clinic || 'Maternal & Child Health Clinic')}</span>
             </div>
-            <h3 class="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight mt-0.5">
-              Rekord ni Nanay ${escapeHTML(p.name)}
+            <h3 class="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight mt-1">
+              Rekord ni Nanay — ${escapeHTML(p.name)}
             </h3>
-            <p class="text-[9.5px] text-slate-500">
+            <p class="text-[9.5px] text-slate-600 mt-0.5 leading-normal">
               Age: ${escapeHTML(p.age)} y/o • Address: ${escapeHTML(p.address || 'N/A')} • Contact: ${escapeHTML(p.contact || 'N/A')} • PhilHealth: ${escapeHTML(anc.philhealthStatus || p.philhealth || 'Active')}
             </p>
           </div>
-          <div class="text-right shrink-0 bg-teal-50 border border-teal-300 rounded-xl px-3 py-1.5">
+          <div class="text-right shrink-0 bg-teal-50 border border-teal-300 rounded-xl px-3 py-1.5 space-y-0.5">
             <span class="block text-[8.5px] font-extrabold uppercase tracking-wider text-teal-800">Prenatal Visits</span>
-            <span class="block text-base font-extrabold text-teal-950">${escapeHTML(visitCount)} Visit${Number(visitCount) === 1 ? '' : 's'}</span>
+            <span class="block text-base font-extrabold text-teal-950 leading-tight">${escapeHTML(visitCount)} Visit${Number(visitCount) === 1 ? '' : 's'}</span>
             <span class="block text-[8.5px] font-semibold text-teal-700">Next Visit: ${escapeHTML(followUpDate)}</span>
           </div>
         </div>
 
         <!-- ANC Step 1 & Step 2 Summary Strip: OB Scoring, Dating, Maternal Vitals & Fetal PE -->
-        <div class="bg-slate-50 border border-slate-300 rounded-lg p-2 space-y-1.5">
-          <div class="grid grid-cols-6 gap-1.5">
+        <div class="bg-slate-50 border border-slate-300 rounded-lg p-2.5 space-y-1.5">
+          <div class="grid grid-cols-6 gap-2">
             <div>
-              <span class="text-[8.5px] font-bold uppercase text-slate-500 block">OB Score (GPTPAL)</span>
+              <span class="text-[8.5px] font-bold uppercase text-slate-500 block mb-0.5">OB Score (GPTPAL)</span>
               <span class="font-extrabold text-teal-900">${escapeHTML(obScore)}</span>
             </div>
             <div>
-              <span class="text-[8.5px] font-bold uppercase text-slate-500 block">LMP Date</span>
+              <span class="text-[8.5px] font-bold uppercase text-slate-500 block mb-0.5">LMP Date</span>
               <span class="font-extrabold text-slate-900">${escapeHTML(anc.lmp || 'Not set')}</span>
             </div>
             <div>
-              <span class="text-[8.5px] font-bold uppercase text-slate-500 block">Current AOG / Tri</span>
+              <span class="text-[8.5px] font-bold uppercase text-slate-500 block mb-0.5">Current AOG / Tri</span>
               <span class="font-extrabold text-teal-800">${escapeHTML(anc.aogWeeks || '-')} (${escapeHTML(anc.trimester || '1st')} Tri)</span>
             </div>
             <div>
-              <span class="text-[8.5px] font-bold uppercase text-slate-500 block">Expected Delivery (EDC)</span>
+              <span class="text-[8.5px] font-bold uppercase text-slate-500 block mb-0.5">Expected Delivery (EDC)</span>
               <span class="font-extrabold text-rose-700">${escapeHTML(anc.edc || 'Pending LMP')}</span>
             </div>
             <div>
-              <span class="text-[8.5px] font-bold uppercase text-slate-500 block">BP / Weight / Blood Type</span>
+              <span class="text-[8.5px] font-bold uppercase text-slate-500 block mb-0.5">BP / Weight / Blood Type</span>
               <span class="font-extrabold text-slate-900">${escapeHTML(p.vitals?.bp || '-')} mmHg • ${escapeHTML(p.vitals?.weight || '-')} kg • ${escapeHTML(anc.bloodType || 'Pending')}</span>
             </div>
             <div>
-              <span class="text-[8.5px] font-bold uppercase text-slate-500 block">FH / FHT / Lie</span>
+              <span class="text-[8.5px] font-bold uppercase text-slate-500 block mb-0.5">FH / FHT / Lie</span>
               <span class="font-extrabold text-slate-900">FH ${escapeHTML(anc.fundicHeight || '-')}cm • FHT ${escapeHTML(anc.fht || '-')}bpm • ${escapeHTML(anc.presentation || 'Cephalic')}</span>
             </div>
           </div>
-          <div class="pt-1 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-[9px]">
+          <div class="pt-1.5 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-[9.5px] leading-relaxed">
             <span><strong>Fetal Movement:</strong> ${escapeHTML(anc.fetalMovement || 'Present / Active')} • <strong>Maternal Edema:</strong> ${escapeHTML(anc.edema || 'None')}</span>
             <span class="${dangerSignsList.length > 0 ? 'text-rose-700 font-extrabold' : 'text-teal-800 font-semibold'}">
               <strong>Danger Signs:</strong> ${dangerSignsList.length > 0 ? escapeHTML(dangerSignsList.join(', ')) : 'None reported (No vaginal bleeding, severe headache, or visual blurring)'}
@@ -1002,32 +1042,32 @@ export function buildRekordNiNanayHalfBondHTML(doc: any, p: any): string {
 
         <!-- Chronological Prenatal Visits Table Until Delivery -->
         <div>
-          <div class="flex items-center justify-between mb-1">
+          <div class="flex items-center justify-between mb-1.5">
             <span class="text-[9px] font-extrabold uppercase tracking-wider text-teal-900">Chronological Prenatal Visits &amp; Maternal Monitoring Until Delivery</span>
             <span class="text-[8.5px] text-slate-500 font-semibold">Latest Consult Date: ${escapeHTML(p.consultationDate || '-')}</span>
           </div>
-          <table class="w-full border-collapse border border-slate-300 text-[9px]">
+          <table class="w-full border-collapse border border-slate-300 text-[9.5px] leading-normal">
             <thead>
               <tr class="bg-slate-100 text-slate-800 font-extrabold uppercase">
-                <th class="border border-slate-300 px-1.5 py-1 text-center w-10">Visit</th>
-                <th class="border border-slate-300 px-2 py-1 text-left w-20">Date</th>
-                <th class="border border-slate-300 px-2 py-1 text-left w-28">AOG / Trimester</th>
-                <th class="border border-slate-300 px-2 py-1 text-left w-28">BP &amp; Weight</th>
-                <th class="border border-slate-300 px-2 py-1 text-left w-36">FH / FHT / Lie</th>
-                <th class="border border-slate-300 px-2 py-1 text-left">Supplementation, Vaccines &amp; Lab Workup</th>
-                <th class="border border-slate-300 px-2 py-1 text-left w-20">Next Visit</th>
+                <th class="border border-slate-300 px-1.5 py-1.5 text-center w-10">Visit</th>
+                <th class="border border-slate-300 px-2 py-1.5 text-left w-20">Date</th>
+                <th class="border border-slate-300 px-2 py-1.5 text-left w-28">AOG / Trimester</th>
+                <th class="border border-slate-300 px-2 py-1.5 text-left w-28">BP &amp; Weight</th>
+                <th class="border border-slate-300 px-2 py-1.5 text-left w-36">FH / FHT / Lie</th>
+                <th class="border border-slate-300 px-2 py-1.5 text-left">Supplementation, Vaccines &amp; Lab Workup</th>
+                <th class="border border-slate-300 px-2 py-1.5 text-left w-20">Next Visit</th>
               </tr>
             </thead>
             <tbody>
               ${visits.map((v: any, idx: number) => `
                 <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}">
-                  <td class="border border-slate-300 px-1.5 py-1 text-center font-extrabold text-teal-900">#${escapeHTML(v.visitNo || idx + 1)}</td>
-                  <td class="border border-slate-300 px-2 py-1 font-semibold text-slate-900">${escapeHTML(v.date || '-')}</td>
-                  <td class="border border-slate-300 px-2 py-1 font-bold text-slate-800">${escapeHTML(v.aog || '-')}</td>
-                  <td class="border border-slate-300 px-2 py-1 text-slate-800">${escapeHTML(v.bpWeight || '-')}</td>
-                  <td class="border border-slate-300 px-2 py-1 text-slate-800">${escapeHTML(v.obExam || '-')}</td>
-                  <td class="border border-slate-300 px-2 py-1 text-slate-800">${escapeHTML(v.careSummary || '-')}</td>
-                  <td class="border border-slate-300 px-2 py-1 font-semibold text-teal-800">${escapeHTML(v.nextVisit || '-')}</td>
+                  <td class="border border-slate-300 px-1.5 py-1.5 text-center font-extrabold text-teal-900">#${escapeHTML(v.visitNo || idx + 1)}</td>
+                  <td class="border border-slate-300 px-2 py-1.5 font-semibold text-slate-900">${escapeHTML(v.date || '-')}</td>
+                  <td class="border border-slate-300 px-2 py-1.5 font-bold text-slate-800">${escapeHTML(v.aog || '-')}</td>
+                  <td class="border border-slate-300 px-2 py-1.5 text-slate-800">${escapeHTML(v.bpWeight || '-')}</td>
+                  <td class="border border-slate-300 px-2 py-1.5 text-slate-800">${escapeHTML(v.obExam || '-')}</td>
+                  <td class="border border-slate-300 px-2 py-1.5 text-slate-800 leading-relaxed">${escapeHTML(v.careSummary || '-')}</td>
+                  <td class="border border-slate-300 px-2 py-1.5 font-semibold text-teal-800">${escapeHTML(v.nextVisit || '-')}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -1035,9 +1075,9 @@ export function buildRekordNiNanayHalfBondHTML(doc: any, p: any): string {
         </div>
 
         <!-- Three-Column Summary from ANC Inputs: (1) Screening Workup, (2) Supplementation & Vaccines, (3) Birth & Emergency Plan -->
-        <div class="grid grid-cols-3 gap-2">
-          <div class="border border-slate-300 rounded-lg p-2 bg-white space-y-0.5">
-            <span class="text-[8.5px] font-extrabold uppercase tracking-wider text-teal-900 block border-b border-slate-200 pb-0.5 mb-1">
+        <div class="grid grid-cols-3 gap-2.5">
+          <div class="border border-slate-300 rounded-lg p-2.5 bg-white space-y-1 leading-relaxed">
+            <span class="text-[8.5px] font-extrabold uppercase tracking-wider text-teal-900 block border-b border-slate-200 pb-1 mb-1">
               Trimester Screening Workup (${escapeHTML(anc.trimester || '1st')} Tri)
             </span>
             <p><strong>Labs (${orderedLabs.length}):</strong> ${orderedLabs.length > 0 ? escapeHTML(orderedLabs.join(', ')) : 'None selected'}</p>
@@ -1045,8 +1085,8 @@ export function buildRekordNiNanayHalfBondHTML(doc: any, p: any): string {
             ${combinedWorkup.length === 0 ? `<p class="text-slate-400 italic">Select tests in Trimester Screening Workup tab.</p>` : ''}
           </div>
 
-          <div class="border border-slate-300 rounded-lg p-2 bg-white space-y-0.5">
-            <span class="text-[8.5px] font-extrabold uppercase tracking-wider text-teal-900 block border-b border-slate-200 pb-0.5 mb-1">
+          <div class="border border-slate-300 rounded-lg p-2.5 bg-white space-y-1 leading-relaxed">
+            <span class="text-[8.5px] font-extrabold uppercase tracking-wider text-teal-900 block border-b border-slate-200 pb-1 mb-1">
               Supplementation &amp; Immunization
             </span>
             <p><strong>Iron + Folate:</strong> ${escapeHTML(anc.ironFolate || 'Ferrous Sulfate 60mg + Folic Acid 400mcg OD')}</p>
@@ -1055,8 +1095,8 @@ export function buildRekordNiNanayHalfBondHTML(doc: any, p: any): string {
             ${anc.otherVaccine ? `<p><strong>Other Vaccine:</strong> ${escapeHTML(anc.otherVaccine)}</p>` : ''}
           </div>
 
-          <div class="border border-slate-300 rounded-lg p-2 bg-white space-y-0.5">
-            <span class="text-[8.5px] font-extrabold uppercase tracking-wider text-teal-900 block border-b border-slate-200 pb-0.5 mb-1">
+          <div class="border border-slate-300 rounded-lg p-2.5 bg-white space-y-1 leading-relaxed">
+            <span class="text-[8.5px] font-extrabold uppercase tracking-wider text-teal-900 block border-b border-slate-200 pb-1 mb-1">
               Birth &amp; Emergency Plan (EDC: ${escapeHTML(anc.edc || 'TBA')})
             </span>
             <p><strong>Birthing Facility:</strong> ${escapeHTML(anc.facilityBirthPlan || 'Accredited Birthing Facility / Hospital')}</p>
@@ -1068,12 +1108,12 @@ export function buildRekordNiNanayHalfBondHTML(doc: any, p: any): string {
       </div>
 
       <!-- Footer Signature -->
-      <div class="pt-2 mt-2 border-t border-slate-300 flex items-end justify-between text-[9px]">
-        <div class="text-slate-500">
-          <p class="font-bold text-slate-700">Rekord ni Nanay ${escapeHTML(p.name)} • Half-Bond Maternal Tracker</p>
+      <div class="pt-2.5 mt-2.5 border-t border-slate-300 flex items-end justify-between text-[9px] leading-normal">
+        <div class="text-slate-500 space-y-0.5">
+          <p class="font-bold text-slate-700">Rekord ni Nanay — ${escapeHTML(p.name)} • Half-Bond Maternal Tracker</p>
           <p>Bring this card on every prenatal visit and upon admission for delivery.</p>
         </div>
-        <div class="text-right min-w-[170px] border-t border-slate-900 pt-0.5">
+        <div class="text-right min-w-[175px] border-t border-slate-900 pt-1 space-y-0.5">
           <p class="font-extrabold text-slate-900 text-[9.5px]">${escapeHTML(doc.name)}</p>
           <p class="text-[8.5px] text-slate-600">PRC Lic. No.: <strong>${escapeHTML(doc.prc || 'N/A')}</strong>${isTrainee && doc.supervisingDoctor ? ` • Supv: ${escapeHTML(doc.supervisingDoctor)}` : ''}</p>
         </div>
@@ -2659,18 +2699,18 @@ export function buildSoapWorkspaceHTML(appState: any, p: any, aiLeftHTML: string
 export function buildSingleA6RxPadHTML(doc: any, p: any, meds: any[]): string {
   const isTrainee = doc.role === 'Medical Clerk' || doc.role === 'Medical Intern';
   return `
-    <div>
+    <div class="leading-relaxed">
       <!-- Clinic / Facility Header -->
-      <div class="border-b-2 border-slate-900 pb-2 mb-2 text-center">
-        <h3 class="text-xs font-extrabold uppercase tracking-tight text-slate-900">${escapeHTML(doc.facility || doc.clinic || 'Assigned Healthcare Facility')}</h3>
-        <p class="text-[9px] text-slate-600 leading-tight">${escapeHTML(doc.address || '')}</p>
-        <p class="text-[9px] font-semibold text-slate-800 mt-0.5">${escapeHTML(doc.name)} • ${escapeHTML(doc.specialty || doc.role || '')}</p>
-        ${doc.phone ? `<p class="text-[8.5px] text-slate-600">Tel/Mobile: ${escapeHTML(doc.phone)}</p>` : ''}
-        ${isTrainee && doc.school ? `<p class="text-[8.5px] text-teal-800 font-semibold">School: ${escapeHTML(doc.school)}</p>` : ''}
+      <div class="border-b-2 border-slate-900 pb-2.5 mb-2.5 text-center space-y-0.5">
+        <h3 class="text-xs font-extrabold uppercase tracking-tight text-slate-900 leading-snug">${escapeHTML(doc.facility || doc.clinic || 'Assigned Healthcare Facility')}</h3>
+        <p class="text-[9.5px] text-slate-600 leading-normal">${escapeHTML(doc.address || '')}</p>
+        <p class="text-[9.5px] font-semibold text-slate-800">${escapeHTML(doc.name)} • ${escapeHTML(doc.specialty || doc.role || '')}</p>
+        ${doc.phone ? `<p class="text-[9px] text-slate-600">Tel/Mobile: ${escapeHTML(doc.phone)}</p>` : ''}
+        ${isTrainee && doc.school ? `<p class="text-[9px] text-teal-800 font-semibold">School: ${escapeHTML(doc.school)}</p>` : ''}
       </div>
 
       <!-- Patient Info -->
-      <div class="text-[9.5px] border-b border-slate-300 pb-1.5 mb-2 space-y-0.5">
+      <div class="text-[10px] border-b border-slate-300 pb-2 mb-2.5 space-y-1 leading-relaxed">
         <div class="flex justify-between gap-2">
           <span><strong>Patient:</strong> ${escapeHTML(p.name)}</span>
           <span><strong>Date:</strong> ${escapeHTML(p.consultationDate || new Date().toISOString().split('T')[0])}</span>
@@ -2679,41 +2719,41 @@ export function buildSingleA6RxPadHTML(doc: any, p: any, meds: any[]): string {
           <span><strong>Age/Sex:</strong> ${escapeHTML(p.age)}y / ${escapeHTML(p.sex)}</span>
           <span><strong>Wt:</strong> ${escapeHTML(p.vitals?.weight || '-')} kg</span>
         </div>
-        ${p.address ? `<div class="truncate"><strong>Address:</strong> ${escapeHTML(p.address)}</div>` : ''}
+        ${p.address ? `<div class="leading-normal"><strong>Address:</strong> ${escapeHTML(p.address)}</div>` : ''}
       </div>
 
       <!-- Rx Symbol & Meds -->
-      <div class="my-1">
+      <div class="my-1.5">
         <span class="text-2xl font-extrabold text-slate-900 tracking-tighter">℞</span>
       </div>
-      <ol class="list-decimal list-inside space-y-2 text-[10px] text-slate-900">
+      <ol class="list-decimal list-inside space-y-2.5 text-[10.5px] text-slate-900 leading-relaxed">
         ${meds.length === 0 ? `<li class="list-none italic text-slate-400">No medications added yet.</li>` : ''}
         ${meds.map((m: any) => `
-          <li class="leading-snug">
+          <li class="leading-relaxed">
             <span class="font-bold uppercase">${escapeHTML(m.genericName)}</span>
             ${m.brandExample ? ` <span class="text-slate-600">(${escapeHTML(m.brandExample)})</span>` : ''}
             <span class="float-right font-bold">${escapeHTML(m.quantity)}</span>
-            <div class="pl-3 text-[9.5px] text-slate-700 mt-0.5">Sig: ${escapeHTML(m.sig)}</div>
+            <div class="pl-3.5 text-[10px] text-slate-700 mt-1 leading-relaxed">Sig: ${escapeHTML(m.sig)}</div>
           </li>
         `).join('')}
       </ol>
     </div>
 
-    <div>
+    <div class="leading-relaxed">
       ${p.doctorSoap?.followUpDate ? `
-        <p class="text-[9px] font-semibold text-slate-700 mb-1">Next Follow-Up: <span class="font-bold">${escapeHTML(p.doctorSoap.followUpDate)}</span></p>
+        <p class="text-[9.5px] font-semibold text-slate-700 mb-1.5">Next Follow-Up: <span class="font-bold">${escapeHTML(p.doctorSoap.followUpDate)}</span></p>
       ` : ''}
-      <div class="pt-2 border-t border-slate-300 mt-3 text-[10px] leading-tight text-slate-800">
+      <div class="pt-2.5 border-t border-slate-300 mt-3 text-[10px] leading-relaxed text-slate-800">
         <div class="flex justify-between items-end gap-2">
-          <div class="text-slate-400 text-[9px]">
+          <div class="text-slate-400 text-[9px] space-y-0.5">
             <p>ID: ${escapeHTML(p.id)}</p>
-            <p>A6 Prescription</p>
+            <p>Official Prescription</p>
           </div>
-          <div class="text-right min-w-[140px] border-t-[1.5px] border-slate-900 pt-1">
+          <div class="text-right min-w-[145px] border-t-[1.5px] border-slate-900 pt-1 space-y-0.5">
             <p class="font-extrabold text-slate-900 text-[10.5px]">${escapeHTML(doc.name)}</p>
-            <p class="text-[9px] text-slate-700">PRC Lic. No.: <strong>${escapeHTML(doc.prc || 'N/A')}</strong></p>
-            ${doc.ptr ? `<p class="text-[9px] text-slate-700">PTR No.: <strong>${escapeHTML(doc.ptr)}</strong></p>` : ''}
-            ${isTrainee && doc.supervisingDoctor ? `<p class="text-[8.5px] text-slate-800">Supv. MD: <strong>${escapeHTML(doc.supervisingDoctor)}</strong></p>` : ''}
+            <p class="text-[9.5px] text-slate-700">PRC Lic. No.: <strong>${escapeHTML(doc.prc || 'N/A')}</strong></p>
+            ${doc.ptr ? `<p class="text-[9.5px] text-slate-700">PTR No.: <strong>${escapeHTML(doc.ptr)}</strong></p>` : ''}
+            ${isTrainee && doc.supervisingDoctor ? `<p class="text-[9px] text-slate-800">Supv. MD: <strong>${escapeHTML(doc.supervisingDoctor)}</strong></p>` : ''}
           </div>
         </div>
       </div>
@@ -3320,10 +3360,10 @@ export function buildPatientRecordsHTML(appState: any): string {
     let sheetPaperClass = 'paper-a4';
 
     if (activeFile.type === 'epi-itr') {
-      sheetPaperClass = '';
+      sheetPaperClass = 'paper-a4';
       sheetBodyHTML = buildBakuNxtItrSheetHTML(p);
     } else if (activeFile.type === 'epi-card') {
-      sheetPaperClass = '';
+      sheetPaperClass = 'paper-a4';
       sheetBodyHTML = buildBakuNxtPassportSheetHTML(p);
     } else if (activeFile.type === 'opt-card') {
       sheetPaperClass = 'paper-a4';

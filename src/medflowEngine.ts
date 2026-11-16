@@ -9,6 +9,7 @@ import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas-pro';
 import {
   escapeHTML,
+  formatOfficialParagraphsHTML,
   resolveAncTrimesterBundle,
   getPatientPrenatalVisits,
   buildAntenatalMedsFromDropdowns,
@@ -2080,7 +2081,13 @@ service cloud.firestore {
     const el = document.getElementById('doctor-soap-assessment') as HTMLTextAreaElement;
     if (el) el.value = p.doctorSoap.assessment;
     const printEl = document.getElementById('print-soap-assessment');
-    if (printEl) printEl.textContent = p.doctorSoap.assessment;
+    if (printEl) {
+      printEl.innerHTML = formatOfficialParagraphsHTML(
+        p.doctorSoap.assessment,
+        'No diagnosis recorded.',
+        'text-xs font-extrabold text-slate-900'
+      );
+    }
     showToast('Adopted Assessment into Official SOAP Note');
   };
 
@@ -2094,7 +2101,13 @@ service cloud.firestore {
     const el = document.getElementById('doctor-soap-plan') as HTMLTextAreaElement;
     if (el) el.value = p.doctorSoap.plan;
     const printEl = document.getElementById('print-soap-plan');
-    if (printEl) printEl.textContent = p.doctorSoap.plan;
+    if (printEl) {
+      printEl.innerHTML = formatOfficialParagraphsHTML(
+        p.doctorSoap.plan,
+        'No non-pharmacologic plan recorded.',
+        'text-xs text-slate-800'
+      );
+    }
     showToast('Appended Plan into Official SOAP Note');
   };
 
@@ -2128,7 +2141,14 @@ service cloud.firestore {
     p.doctorSoap[field] = value;
     saveState();
     const printEl = document.getElementById(`print-soap-${field}`);
-    if (printEl) printEl.textContent = value;
+    if (printEl) {
+      if (field === 'followUpDate') {
+        printEl.textContent = value;
+      } else {
+        const extraCls = field === 'assessment' ? 'text-xs font-extrabold text-slate-900' : 'text-xs text-slate-800';
+        printEl.innerHTML = formatOfficialParagraphsHTML(value, '—', extraCls);
+      }
+    }
     const ancPreviewEl = document.getElementById('anc-printable-a4');
     if (ancPreviewEl && appState.currentView === 'anc') {
       ancPreviewEl.innerHTML = buildA4SoapRecordSheetHTML(appState.doctor, p, 'ANC');
@@ -3724,6 +3744,24 @@ service cloud.firestore {
         'max-inline-size',
         'min-block-size',
         'max-block-size',
+        'margin-block-start',
+        'margin-block-end',
+        'margin-inline-start',
+        'margin-inline-end',
+        'padding-block-start',
+        'padding-block-end',
+        'padding-inline-start',
+        'padding-inline-end',
+        'letter-spacing',
+        'word-spacing',
+        'font-variant',
+        'font-variant-ligatures',
+        'font-variant-numeric',
+        'font-feature-settings',
+        'font-kerning',
+        'text-rendering',
+        'line-break',
+        'hyphens',
         'height'
       ]);
 
@@ -3772,6 +3810,9 @@ service cloud.firestore {
                 parts.push(`${prop}:${val}`);
               }
             }
+            parts.push('letter-spacing:normal');
+            parts.push('word-spacing:normal');
+            parts.push('font-variant-numeric:normal');
             if (parts.length > 0) {
               computedEntries.push({ node, cssText: parts.join(';') + ';' });
             }
@@ -3811,7 +3852,14 @@ service cloud.firestore {
         clone.style.boxSizing = 'border-box';
         stageContainer.appendChild(clone);
 
-        // Wait two frames for layout and font metrics to settle in the real DOM
+        // Wait for fonts and two animation frames so layout and paragraph metrics settle cleanly
+        if (document.fonts && document.fonts.ready) {
+          try {
+            await document.fonts.ready;
+          } catch {
+            // ignore font readiness error
+          }
+        }
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
         // Bake exact computed styles from the real DOM onto every node in the cloned paper sheet
@@ -3848,6 +3896,8 @@ service cloud.firestore {
               clonedDoc.body.style.padding = '0';
               clonedDoc.body.style.backgroundColor = '#ffffff';
               clonedDoc.body.style.fontFamily = "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif";
+              clonedDoc.body.style.letterSpacing = 'normal';
+              clonedDoc.body.style.wordSpacing = 'normal';
             }
             if (clonedEl?.parentElement) {
               clonedEl.parentElement.style.left = '0px';
@@ -3859,16 +3909,18 @@ service cloud.firestore {
         const imgWidthMm = pageWidthMm;
         const imgHeightMm = (canvas.height * imgWidthMm) / canvas.width;
 
-        // If the content fits on one page (or within 12% tolerance of the physical sheet height), fit cleanly onto 1 page
-        if (imgHeightMm <= pageHeightMm * 1.12) {
+        // If the content is a single-page clinical record (within 40% of physical sheet height), fit cleanly onto 1 page so signature blocks are never orphaned
+        if (imgHeightMm <= pageHeightMm * 1.4) {
           const finalH = Math.min(imgHeightMm, pageHeightMm);
           const finalW = imgHeightMm > pageHeightMm ? (canvas.width * finalH) / canvas.height : imgWidthMm;
           const offsetX = (pageWidthMm - finalW) / 2;
           const imgData = canvas.toDataURL('image/jpeg', 0.96);
           pdf.addImage(imgData, 'JPEG', offsetX, 0, finalW, finalH);
         } else {
-          // Multi-page vertical slicing for extra-long clinical records
-          const pageCanvasHeightPx = Math.floor((pageHeightMm * canvas.width) / imgWidthMm);
+          // Multi-page vertical slicing for extra-long clinical masterlists with clean top/bottom page margins
+          const topBottomMarginMm = 6;
+          const usablePageHeightMm = pageHeightMm - topBottomMarginMm * 2;
+          const pageCanvasHeightPx = Math.floor((usablePageHeightMm * canvas.width) / imgWidthMm);
           let renderedHeightPx = 0;
           let sliceIndex = 0;
 
@@ -3895,7 +3947,7 @@ service cloud.firestore {
               );
               const sliceData = sliceCanvas.toDataURL('image/jpeg', 0.96);
               const sliceHeightMm = (sliceHeightPx * imgWidthMm) / canvas.width;
-              pdf.addImage(sliceData, 'JPEG', 0, 0, imgWidthMm, sliceHeightMm);
+              pdf.addImage(sliceData, 'JPEG', 0, sliceIndex === 0 ? 0 : topBottomMarginMm, imgWidthMm, sliceHeightMm);
             }
             renderedHeightPx += sliceHeightPx;
             sliceIndex++;

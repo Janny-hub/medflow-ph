@@ -51,7 +51,7 @@ body {
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-/* Printable Paper Previews — Locked Physical Aspect Ratios & Structure */
+/* Printable Paper Previews — Locked Physical Aspect Ratios & Official Document Typography */
 .paper-a4 {
   width: 210mm;
   min-width: 210mm;
@@ -64,6 +64,10 @@ body {
   box-sizing: border-box;
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
   border: 1px solid #e2e8f0;
+  line-height: 1.5;
+  letter-spacing: normal;
+  word-spacing: normal;
+  font-variant-numeric: normal;
 }
 
 /* 1/4 Bond Paper / A6 Prescription Pad Size (105mm x 148mm) */
@@ -82,6 +86,10 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  line-height: 1.5;
+  letter-spacing: normal;
+  word-spacing: normal;
+  font-variant-numeric: normal;
 }
 
 /* 2-in-1 Dual A6 Sheet (Half-Bond Landscape: 210mm x 148mm) */
@@ -99,6 +107,10 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   position: relative;
+  line-height: 1.5;
+  letter-spacing: normal;
+  word-spacing: normal;
+  font-variant-numeric: normal;
 }
 
 .paper-dual-a6-half {
@@ -131,9 +143,59 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  line-height: 1.5;
+  letter-spacing: normal;
+  word-spacing: normal;
+  font-variant-numeric: normal;
 }
 
-/* Offscreen PDF Capture Stage — removes screen shadows/borders so PDF matches exact paper structure */
+/* Official Document Paragraph, Label & Table Spacing Rules for All Printable Sheets */
+.paper-a4 p,
+.paper-a6 p,
+.paper-dual-a6 p,
+.paper-half-bond p,
+.print-only-target p {
+  line-height: 1.55;
+  letter-spacing: normal !important;
+  word-spacing: normal !important;
+}
+
+.paper-a4 p + p,
+.paper-a6 p + p,
+.paper-dual-a6 p + p,
+.paper-half-bond p + p,
+.print-only-target p + p {
+  margin-top: 0.35rem;
+}
+
+.paper-a4 li,
+.paper-a6 li,
+.paper-dual-a6 li,
+.paper-half-bond li,
+.print-only-target li {
+  line-height: 1.5;
+  letter-spacing: normal !important;
+  word-spacing: normal !important;
+}
+
+.paper-a4 span.block,
+.paper-a6 span.block,
+.paper-dual-a6 span.block,
+.paper-half-bond span.block,
+.print-only-target span.block {
+  margin-bottom: 2px;
+  line-height: 1.35;
+}
+
+/* Offscreen PDF Capture Stage — removes screen shadows/borders and normalizes text metrics */
+.pdf-capture-clean,
+.pdf-capture-clean * {
+  letter-spacing: normal !important;
+  word-spacing: normal !important;
+  font-variant-numeric: normal !important;
+  text-shadow: none !important;
+}
+
 .pdf-capture-clean,
 .pdf-capture-clean .paper-a4,
 .pdf-capture-clean .paper-a6,

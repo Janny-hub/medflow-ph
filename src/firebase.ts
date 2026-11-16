@@ -4,6 +4,8 @@ import {
   initializeFirestore,
   getFirestore,
   setLogLevel,
+  disableNetwork,
+  enableNetwork,
   doc,
   getDoc,
   getDocFromServer,
@@ -15,17 +17,17 @@ import {
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
-const app = initializeApp(firebaseConfig);
+// Silence internal @firebase/firestore 10-second WebChannel timeout console errors
+setLogLevel('silent');
 
-// Suppress noisy internal WebChannel timeout console.errors while keeping offline resilience
-setLogLevel('warn');
+const app = initializeApp(firebaseConfig);
 
 let firestoreInstance: Firestore;
 try {
   firestoreInstance = initializeFirestore(
     app,
     {
-      experimentalForceLongPolling: true
+      experimentalAutoDetectLongPolling: true
     },
     firebaseConfig.firestoreDatabaseId
   );
@@ -36,6 +38,8 @@ try {
 export const db = firestoreInstance;
 export const auth = getAuth(app);
 export { firebaseConfig };
+
+let firestoreSdkOnline = false;
 
 export enum OperationType {
   CREATE = 'create',
@@ -85,14 +89,14 @@ export function handleFirestoreError(
     operationType,
     path
   };
-  console.warn('Firestore Notice: ', JSON.stringify(errInfo));
+  void errInfo;
 }
 
 const FIRESTORE_REST_BASE = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${encodeURIComponent(
   firebaseConfig.firestoreDatabaseId || '(default)'
 )}/documents`;
 
-function withTimeout<T>(promise: Promise<T>, ms = 4500): Promise<T> {
+function withTimeout<T>(promise: Promise<T>, ms = 3500): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Firestore SDK timeout')), ms);
     promise
@@ -105,6 +109,16 @@ function withTimeout<T>(promise: Promise<T>, ms = 4500): Promise<T> {
         reject(err);
       });
   });
+}
+
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 3500): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function toFirestoreValue(val: unknown): Record<string, unknown> {
@@ -131,11 +145,21 @@ function fromFirestoreFields<T>(fields: Record<string, Record<string, unknown>> 
 
 async function testConnection(): Promise<void> {
   try {
-    await withTimeout(getDocFromServer(doc(db, 'test', 'connection')), 4000);
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn('Firestore operating in offline/REST fallback mode.');
+    // Keep SDK network disabled initially so it never opens a 10s hanging WebChannel before REST verification
+    await disableNetwork(db).catch(() => {});
+    const probeUrl = `${FIRESTORE_REST_BASE}/test/connection?key=${encodeURIComponent(firebaseConfig.apiKey)}`;
+    const res = await fetchWithTimeout(probeUrl, { method: 'GET' }, 3000);
+    if (res.ok || res.status === 404) {
+      firestoreSdkOnline = true;
+      await enableNetwork(db).catch(() => {});
+      await withTimeout(getDocFromServer(doc(db, 'test', 'connection')), 3000).catch(() => {});
+    } else {
+      firestoreSdkOnline = false;
+      await disableNetwork(db).catch(() => {});
     }
+  } catch {
+    firestoreSdkOnline = false;
+    await disableNetwork(db).catch(() => {});
   }
 }
 testConnection();
@@ -209,18 +233,22 @@ async function restUpsertDoc(collectionName: string, docId: string, data: Record
   const url = `${FIRESTORE_REST_BASE}/${collectionName}/${encodeURIComponent(docId)}?key=${encodeURIComponent(
     firebaseConfig.apiKey
   )}`;
-  const res = await fetch(url, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fields })
-  });
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields })
+    },
+    3500
+  );
   if (!res.ok) {
     throw new Error(`Firestore REST PATCH failed (${res.status})`);
   }
 }
 
 export async function flushOfflineSyncQueue(): Promise<void> {
-  if (!isBrowserOnline()) return;
+  if (!isBrowserOnline() || !firestoreSdkOnline) return;
 
   try {
     const rawClinicians = localStorage.getItem(PENDING_CLINICIANS_SYNC_KEY);
@@ -265,8 +293,12 @@ export async function syncClinicianToFirestore(account: ClinicianAccount): Promi
   try {
     await restUpsertDoc('clinicians', account.id, account as unknown as Record<string, unknown>);
   } catch {
+    if (!firestoreSdkOnline) {
+      queuePendingClinicianSync(account);
+      return;
+    }
     try {
-      await withTimeout(setDoc(doc(db, 'clinicians', account.id), account, { merge: true }), 4000);
+      await withTimeout(setDoc(doc(db, 'clinicians', account.id), account, { merge: true }), 3500);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `clinicians/${account.id}`);
       queuePendingClinicianSync(account);
@@ -280,9 +312,9 @@ export async function deleteClinicianFromFirestore(clinicianId: string): Promise
     const url = `${FIRESTORE_REST_BASE}/clinicians/${encodeURIComponent(clinicianId)}?key=${encodeURIComponent(
       firebaseConfig.apiKey
     )}`;
-    const res = await fetch(url, { method: 'DELETE' });
-    if (!res.ok) {
-      await withTimeout(deleteDoc(doc(db, 'clinicians', clinicianId)), 4000);
+    const res = await fetchWithTimeout(url, { method: 'DELETE' }, 3500);
+    if (!res.ok && firestoreSdkOnline) {
+      await withTimeout(deleteDoc(doc(db, 'clinicians', clinicianId)), 3500);
     }
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, `clinicians/${clinicianId}`);
@@ -296,7 +328,7 @@ export async function fetchAllCliniciansFromFirestore(): Promise<ClinicianAccoun
   try {
     await flushOfflineSyncQueue();
     const url = `${FIRESTORE_REST_BASE}/clinicians?pageSize=200&key=${encodeURIComponent(firebaseConfig.apiKey)}`;
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url, { method: 'GET' }, 3500);
     if (res.ok) {
       const json = (await res.json()) as {
         documents?: Array<{ fields?: Record<string, Record<string, unknown>> }>;
@@ -310,7 +342,10 @@ export async function fetchAllCliniciansFromFirestore(): Promise<ClinicianAccoun
       }
       return list;
     }
-    const snap = await withTimeout(getDocs(collection(db, 'clinicians')), 4000);
+    if (!firestoreSdkOnline) {
+      return [];
+    }
+    const snap = await withTimeout(getDocs(collection(db, 'clinicians')), 3500);
     const list: ClinicianAccount[] = [];
     snap.forEach((d) => {
       list.push(d.data() as ClinicianAccount);
@@ -344,8 +379,12 @@ export async function syncWorkspaceToFirestore(clinicianId: string, patients: un
   try {
     await restUpsertDoc('workspaces', clinicianId, payload);
   } catch {
+    if (!firestoreSdkOnline) {
+      queuePendingWorkspaceSync(clinicianId, patients, updatedAt);
+      return;
+    }
     try {
-      await withTimeout(setDoc(doc(db, 'workspaces', clinicianId), payload, { merge: true }), 4000);
+      await withTimeout(setDoc(doc(db, 'workspaces', clinicianId), payload, { merge: true }), 3500);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `workspaces/${clinicianId}`);
       queuePendingWorkspaceSync(clinicianId, patients, updatedAt);
@@ -364,7 +403,7 @@ export async function fetchWorkspaceFromFirestore(
     const url = `${FIRESTORE_REST_BASE}/workspaces/${encodeURIComponent(clinicianId)}?key=${encodeURIComponent(
       firebaseConfig.apiKey
     )}`;
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url, { method: 'GET' }, 3500);
     if (res.ok) {
       const json = (await res.json()) as { fields?: Record<string, Record<string, unknown>> };
       const data = fromFirestoreFields<{ clinicianId?: string; patientsJson?: string; updatedAt?: string }>(
@@ -380,7 +419,11 @@ export async function fetchWorkspaceFromFirestore(
       return null;
     }
 
-    const snap = await withTimeout(getDoc(doc(db, 'workspaces', clinicianId)), 4000);
+    if (!firestoreSdkOnline) {
+      return null;
+    }
+
+    const snap = await withTimeout(getDoc(doc(db, 'workspaces', clinicianId)), 3500);
     if (snap.exists()) {
       const data = snap.data();
       if (data && typeof data.patientsJson === 'string') {

@@ -1,0 +1,1847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BakuNxt PH | Philippine EPI Intake, ITR & Baby Vaccine Passport</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Plus Jakarta Sans & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <!-- jsPDF & html2canvas for true client-side PDF generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            display: ['Plus Jakarta Sans', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#f0fdfa',
+              100: '#ccfbf1',
+              200: '#99f6e4',
+              500: '#14b8a6',
+              600: '#0d9488',
+              700: '#0f766e',
+              800: '#115e59',
+              900: '#134e4a',
+            },
+            navy: {
+              800: '#1e293b',
+              900: '#0f172a',
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+    h1, h2, h3, .font-display {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    /* Custom subtle scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    /* Print sheet styling for crisp PDF captures */
+    .a4-sheet {
+      width: 210mm;
+      min-height: 297mm;
+      background: #ffffff;
+      box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12);
+      margin: 0 auto;
+    }
+    @media (max-width: 840px) {
+      .a4-sheet-wrapper {
+        overflow-x: auto;
+        padding-bottom: 1rem;
+      }
+    }
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #itr-document-sheet, #itr-document-sheet *,
+      #baby-passport-card, #baby-passport-card * {
+        visibility: visible;
+      }
+      #itr-document-sheet, #baby-passport-card {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        box-shadow: none !important;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Custom Confirmation / Info Modal (No browser alert/confirm) -->
+  <div id="custom-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+      <div class="flex items-start gap-3">
+        <div id="modal-icon-box" class="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+          <i class="fa-solid fa-triangle-exclamation text-lg"></i>
+        </div>
+        <div class="flex-1">
+          <h3 id="modal-title" class="text-lg font-bold text-slate-900">Confirm Action</h3>
+          <p id="modal-message" class="text-sm text-slate-600 mt-1">Are you sure you want to proceed?</p>
+        </div>
+      </div>
+      <div class="mt-6 flex justify-end gap-2.5">
+        <button id="modal-cancel-btn" class="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition">Cancel</button>
+        <button id="modal-confirm-btn" class="px-4 py-2 text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top Navigation Header -->
+  <header class="bg-navy-900 text-white sticky top-0 z-40 shadow-md border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between py-3.5 gap-3">
+        <!-- Brand Logo -->
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-brand-500/20">
+              <i class="fa-solid fa-shield-heart text-white text-xl"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="font-display font-extrabold text-xl tracking-tight text-white">BakuNxt <span class="text-brand-400">PH</span></span>
+                <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-300 border border-brand-500/30">DOH NIP / FHSIS</span>
+              </div>
+              <p class="text-xs text-slate-400">Expanded Program on Immunization &amp; Baby Vaccine Passport</p>
+            </div>
+          </div>
+          <!-- Status Pill on Mobile -->
+          <span id="storage-badge-mobile" class="md:hidden text-[11px] font-medium px-2.5 py-1 rounded-full bg-slate-800 text-emerald-400 border border-slate-700">
+            <i class="fa-solid fa-circle text-[7px] mr-1"></i>Ready
+          </span>
+        </div>
+
+        <!-- Primary Navigation Tabs -->
+        <nav class="flex flex-wrap items-center gap-1.5 bg-slate-800/80 p-1 rounded-xl border border-slate-700/70">
+          <button onclick="switchTab('intake')" id="tab-btn-intake" class="nav-tab flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition bg-brand-600 text-white shadow-xs">
+            <i class="fa-solid fa-file-medical"></i>
+            <span>1. Patient Intake</span>
+          </button>
+          <button onclick="switchTab('registry')" id="tab-btn-registry" class="nav-tab flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition text-slate-300 hover:text-white hover:bg-slate-700/60">
+            <i class="fa-solid fa-users-rectangle"></i>
+            <span>2. Saved Registry (TCL)</span>
+            <span id="registry-count-badge" class="ml-0.5 px-1.5 py-0.2 text-[11px] rounded-full bg-slate-700 text-brand-300">0</span>
+          </button>
+          <button onclick="switchTab('itr')" id="tab-btn-itr" class="nav-tab flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition text-slate-300 hover:text-white hover:bg-slate-700/60">
+            <i class="fa-solid fa-file-pdf"></i>
+            <span>3. Official ITR PDF</span>
+          </button>
+          <button onclick="switchTab('passport')" id="tab-btn-passport" class="nav-tab flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition text-slate-300 hover:text-white hover:bg-slate-700/60">
+            <i class="fa-solid fa-baby"></i>
+            <span>4. Baby Vaccine Card</span>
+          </button>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+    <!-- ===================================================================== -->
+    <!-- TAB 1: INTERACTIVE FHSIS / EPI PATIENT INTAKE FORM                    -->
+    <!-- ===================================================================== -->
+    <section id="view-intake" class="space-y-6">
+      <!-- Action & Quick Toolbar -->
+      <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200/80 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <h1 class="text-lg sm:text-xl font-bold text-slate-900">EPI / NIP Patient Encounter &amp; FHSIS Log</h1>
+            <span id="editing-indicator" class="hidden text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+              <i class="fa-solid fa-pen-to-square mr-1"></i>Editing Saved Record
+            </span>
+          </div>
+          <p class="text-xs sm:text-sm text-slate-500 mt-0.5">Complete all encounter sections below to save to the Barangay TCL, export an ITR PDF, or issue a Baby Vaccine Card.</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" onclick="loadSampleData()" class="px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition flex items-center gap-1.5">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span>Load Sample Baby</span>
+          </button>
+          <button type="button" onclick="confirmClearForm()" class="px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition flex items-center gap-1.5">
+            <i class="fa-solid fa-rotate-left"></i>
+            <span>New / Clear</span>
+          </button>
+          <button type="button" onclick="saveCurrentPatient()" class="px-4 py-2 text-xs sm:text-sm font-bold rounded-xl bg-brand-600 text-white hover:bg-brand-700 shadow-sm shadow-brand-600/20 transition flex items-center gap-1.5">
+            <i class="fa-solid fa-floppy-disk"></i>
+            <span>Save Patient Record</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Milestone & Age Summary Banner -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex items-center gap-3.5">
+          <div class="w-11 h-11 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-cake-candles text-lg"></i>
+          </div>
+          <div>
+            <p class="text-xs font-medium text-slate-500">Calculated Age Today</p>
+            <p id="live-age-display" class="text-base font-bold text-slate-900">Enter DOB</p>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex items-center gap-3.5">
+          <div class="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-syringe text-lg"></i>
+          </div>
+          <div>
+            <p class="text-xs font-medium text-slate-500">Doses Administered</p>
+            <p id="live-doses-count" class="text-base font-bold text-slate-900">0 / 15 Doses</p>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex items-center gap-3.5">
+          <div class="w-11 h-11 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-award text-lg"></i>
+          </div>
+          <div>
+            <p class="text-xs font-medium text-slate-500">DOH Milestone Status</p>
+            <div id="live-fic-badge" class="mt-0.5">
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600">In Progress</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex items-center gap-3.5">
+          <div class="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-shield-virus text-lg"></i>
+          </div>
+          <div>
+            <p class="text-xs font-medium text-slate-500">Maternal Tetanus (CPAB)</p>
+            <div id="live-cpab-badge" class="mt-0.5">
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600">Unverified</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <form id="epi-form" class="space-y-6" onsubmit="event.preventDefault(); saveCurrentPatient();">
+        <input type="hidden" id="patient-id" value="" />
+
+        <!-- SECTION 1: CLIENT & FAMILY IDENTIFICATION -->
+        <div class="bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden">
+          <div class="bg-slate-50 px-5 py-3.5 border-b border-slate-200/80 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <span class="w-7 h-7 rounded-lg bg-brand-600 text-white text-xs font-bold flex items-center justify-center">1</span>
+              <h2 class="font-bold text-slate-800 text-sm sm:text-base">Client &amp; Family Identification (FHSIS Baseline)</h2>
+            </div>
+            <span class="text-xs text-slate-400 hidden sm:inline">ITR &amp; TCL Part I</span>
+          </div>
+
+          <div class="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Date of Registration *</label>
+              <input type="date" id="regDate" required class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Family Serial Number *</label>
+              <input type="text" id="familySerial" placeholder="e.g., FSN-2026-0418" required class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">PhilHealth (PHIC) ID No.</label>
+              <input type="text" id="philhealthId" placeholder="XX-XXXXXXXXX-X" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">4Ps / NHTS Status</label>
+              <select id="nhtsStatus" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500">
+                <option value="Non-NHTS">Non-NHTS / Regular</option>
+                <option value="4Ps Beneficiary">4Ps (Pantawid Pamilya) Member</option>
+                <option value="NHTS-PR Poor">NHTS-PR Indigent (Non-4Ps)</option>
+              </select>
+            </div>
+
+            <div class="sm:col-span-2">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Child's Full Name (First, Middle, Last) *</label>
+              <input type="text" id="childName" placeholder="e.g., Mateo Gabriel Santos Reyes" required oninput="updateLiveSummary()" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Date of Birth *</label>
+              <input type="date" id="dob" required onchange="updateLiveSummary()" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Sex *</label>
+              <select id="sex" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500">
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </div>
+
+            <div class="sm:col-span-2">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Mother's / Primary Caregiver's Full Name *</label>
+              <input type="text" id="motherName" placeholder="e.g., Clarissa Mae Santos-Reyes" required class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Contact Number</label>
+              <input type="text" id="contactNo" placeholder="09XX-XXX-XXXX" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Place of Delivery</label>
+              <select id="deliveryPlace" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500">
+                <option value="RHU / Birthing Home">RHU / Lying-In / Birthing Home</option>
+                <option value="Government Hospital">Government Hospital</option>
+                <option value="Private Hospital">Private Hospital</option>
+                <option value="Home Delivery">Home Delivery</option>
+              </select>
+            </div>
+
+            <div class="sm:col-span-2 lg:col-span-4">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Complete Address (Purok / Sitio, Barangay, Municipality / City, Province) *</label>
+              <input type="text" id="address" placeholder="e.g., Purok 4, Brgy. Lahug, Cebu City, Cebu" required class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 2: BIRTH & MATERNAL PROTECTION BASELINE -->
+        <div class="bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden">
+          <div class="bg-slate-50 px-5 py-3.5 border-b border-slate-200/80 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <span class="w-7 h-7 rounded-lg bg-brand-600 text-white text-xs font-bold flex items-center justify-center">2</span>
+              <h2 class="font-bold text-slate-800 text-sm sm:text-base">Birth &amp; Maternal Protection Baseline (CPAB &amp; Newborn Care)</h2>
+            </div>
+            <span id="birth-weight-badge" class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700">Weight Pending</span>
+          </div>
+
+          <div class="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Birth Weight (kg) *</label>
+              <input type="number" step="0.01" min="0.5" max="7" id="birthWeight" placeholder="e.g., 3.15" oninput="updateLiveSummary()" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Birth Length (cm)</label>
+              <input type="number" step="0.1" min="30" max="65" id="birthLength" placeholder="e.g., 50.0" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Mother's TT / Td Immunization Status</label>
+              <select id="ttStatus" onchange="updateLiveSummary()" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500">
+                <option value="None / Unknown">None / Unknown</option>
+                <option value="TT1 / Td1 Only">TT1 / Td1 Only (Not Protected)</option>
+                <option value="TT2 / Td2">TT2 / Td2 (Protected - CPAB)</option>
+                <option value="TT3 / Td3">TT3 / Td3 (Protected - CPAB)</option>
+                <option value="TT4 / Td4">TT4 / Td4 (Protected - CPAB)</option>
+                <option value="TT5 / Td5 (FIM)">TT5 / Td5 - Fully Immunized Mother</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Initiated Breastfeeding Within 1 Hr?</label>
+              <select id="bfInitiated" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500">
+                <option value="Yes (Within 1 Hour)">Yes (Unang Yakap / Within 1 hr)</option>
+                <option value="No">No / Delayed</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Newborn Screening (NBS) Status</label>
+              <select id="nbsStatus" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500">
+                <option value="Done - Normal">Done - Normal</option>
+                <option value="Done - For Repeat / Confirmatory">Done - For Repeat / Confirmatory</option>
+                <option value="Pending / Scheduled">Pending / Scheduled</option>
+                <option value="Not Done">Not Done</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Newborn Screening Date</label>
+              <input type="date" id="nbsDate" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Newborn Hearing Screening</label>
+              <select id="hearingStatus" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500">
+                <option value="Passed">Passed</option>
+                <option value="Referred">Referred for Diagnostic</option>
+                <option value="Pending">Pending</option>
+                <option value="Not Done">Not Done</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Attendant at Birth</label>
+              <select id="birthAttendant" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500">
+                <option value="Midwife">Registered Midwife (RHM)</option>
+                <option value="Physician">Physician (MD)</option>
+                <option value="Nurse">Public Health Nurse (PHN)</option>
+                <option value="Hilot / TBA">Traditional Birth Attendant</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 3: PRE-VACCINATION CLINICAL & GROWTH ASSESSMENT -->
+        <div class="bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden">
+          <div class="bg-slate-50 px-5 py-3.5 border-b border-slate-200/80 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <span class="w-7 h-7 rounded-lg bg-brand-600 text-white text-xs font-bold flex items-center justify-center">3</span>
+              <h2 class="font-bold text-slate-800 text-sm sm:text-base">Pre-Vaccination Clinical, Growth &amp; Nutrition Assessment</h2>
+            </div>
+            <span class="text-xs text-slate-500">Current Encounter</span>
+          </div>
+
+          <div class="p-5 space-y-5">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Encounter / Visit Date *</label>
+                <input type="date" id="visitDate" required onchange="updateLiveSummary()" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Current Weight (kg)</label>
+                <input type="number" step="0.01" min="1" max="30" id="currentWeight" placeholder="e.g., 6.40" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Current Length / Height (cm)</label>
+                <input type="number" step="0.1" min="40" max="120" id="currentLength" placeholder="e.g., 63.5" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Nutritional Status (OPT Plus)</label>
+                <select id="nutritionStatus" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500">
+                  <option value="Normal">Normal</option>
+                  <option value="Underweight">Underweight (UW)</option>
+                  <option value="Severely Underweight">Severely Underweight (SUW)</option>
+                  <option value="Stunted">Stunted (ST)</option>
+                  <option value="Wasted / MAM">Wasted / Moderate Acute Malnutrition</option>
+                  <option value="SAM">Severely Wasted (SAM)</option>
+                  <option value="Overweight">Overweight</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Clinical Screening & Integrated Nutrition Checkboxes -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
+              <div class="bg-slate-50/90 rounded-xl p-4 border border-slate-200/70">
+                <p class="text-xs font-bold uppercase tracking-wider text-slate-700 mb-2.5 flex items-center gap-1.5">
+                  <i class="fa-solid fa-stethoscope text-brand-600"></i>
+                  Pre-Vaccination Clinical Screening
+                </p>
+                <div class="space-y-2 text-xs sm:text-sm text-slate-700">
+                  <label class="flex items-start gap-2.5 cursor-pointer">
+                    <input type="checkbox" id="screenWell" checked class="mt-0.5 rounded text-brand-600 focus:ring-brand-500" />
+                    <span>Child assessed &amp; clinically cleared for vaccination today (no severe acute illness or anaphylaxis history).</span>
+                  </label>
+                  <label class="flex items-start gap-2.5 cursor-pointer">
+                    <input type="checkbox" id="screenMildIllness" class="mt-0.5 rounded text-brand-600 focus:ring-brand-500" />
+                    <span>Mild cough/colds, low-grade fever (&lt;38.5°C), or mild diarrhea present <em>(Not a contraindication — proceed with vaccine)</em>.</span>
+                  </label>
+                  <label class="flex items-start gap-2.5 cursor-pointer">
+                    <input type="checkbox" id="screenDeferred" class="mt-0.5 rounded text-rose-600 focus:ring-rose-500" />
+                    <span class="text-rose-700 font-medium">Deferred due to high fever / severe illness / absolute contraindication (specify in remarks).</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="bg-emerald-50/50 rounded-xl p-4 border border-emerald-200/70">
+                <p class="text-xs font-bold uppercase tracking-wider text-emerald-900 mb-2.5 flex items-center gap-1.5">
+                  <i class="fa-solid fa-bowl-food text-emerald-600"></i>
+                  Integrated Micronutrient &amp; Feeding Services
+                </p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs sm:text-sm text-slate-700">
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="ebfCheck" class="rounded text-emerald-600 focus:ring-emerald-500" />
+                    <span>Exclusive Breastfeeding (0–5 mos)</span>
+                  </label>
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="vitACheck" class="rounded text-emerald-600 focus:ring-emerald-500" />
+                    <span>Vitamin A (100,000 IU at 6–11 mos)</span>
+                  </label>
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="ironCheck" class="rounded text-emerald-600 focus:ring-emerald-500" />
+                    <span>Iron Drops (Low Birth Weight)</span>
+                  </label>
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="mnpCheck" class="rounded text-emerald-600 focus:ring-emerald-500" />
+                    <span>Micronutrient Powder (MNP 6–23 mos)</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 4: ACTUAL VACCINATION & LOGISTICS LOGGING -->
+        <div class="bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden">
+          <div class="bg-slate-50 px-5 py-3.5 border-b border-slate-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div class="flex items-center gap-2.5">
+              <span class="w-7 h-7 rounded-lg bg-brand-600 text-white text-xs font-bold flex items-center justify-center">4</span>
+              <div>
+                <h2 class="font-bold text-slate-800 text-sm sm:text-base">Actual Vaccination &amp; Cold-Chain Logistics Log</h2>
+                <p class="text-[11px] text-slate-500">Check or enter Date Administered to log a dose. Lot/Batch numbers are recorded for AEFI traceability.</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button type="button" onclick="autoFillTodayForEligible()" class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-50 text-brand-700 hover:bg-brand-100 border border-brand-200 transition">
+                <i class="fa-solid fa-bolt mr-1"></i>Quick-Fill Sample Lots
+              </button>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-100/80 text-slate-600 text-[11px] font-bold uppercase tracking-wider border-b border-slate-200">
+                  <th class="py-3 px-4 w-10 text-center">Given</th>
+                  <th class="py-3 px-3">Target Age</th>
+                  <th class="py-3 px-3">Antigen / Vaccine</th>
+                  <th class="py-3 px-3">Route &amp; Site</th>
+                  <th class="py-3 px-3">Date Administered</th>
+                  <th class="py-3 px-3">Lot / Batch No.</th>
+                  <th class="py-3 px-3">Manufacturer</th>
+                  <th class="py-3 px-3">Expiry Date</th>
+                </tr>
+              </thead>
+              <tbody id="vaccine-table-body" class="divide-y divide-slate-100 text-xs sm:text-sm">
+                <!-- Populated dynamically via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- SECTION 5: POST-VACCINATION COUNSELING & NEXT-VISIT SCHEDULING -->
+        <div class="bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden">
+          <div class="bg-slate-50 px-5 py-3.5 border-b border-slate-200/80 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <span class="w-7 h-7 rounded-lg bg-brand-600 text-white text-xs font-bold flex items-center justify-center">5</span>
+              <h2 class="font-bold text-slate-800 text-sm sm:text-base">Post-Vaccination Counseling, AEFI &amp; Next-Visit Schedule</h2>
+            </div>
+          </div>
+
+          <div class="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Next Scheduled Return Date *</label>
+              <input type="date" id="nextVisitDate" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-amber-50/40 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              <p class="text-[11px] text-slate-500 mt-1">Printed prominently on the Baby Vaccine Card.</p>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Administering Health Worker</label>
+              <input type="text" id="healthWorker" placeholder="e.g., Ma. Teresa Villanueva, RHM" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">BHS / Rural Health Unit Facility</label>
+              <input type="text" id="facilityName" placeholder="e.g., Brgy. Lahug Health Center, Cebu City" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+
+            <div class="sm:col-span-2 lg:col-span-3 flex flex-wrap gap-5 pt-1">
+              <label class="flex items-center gap-2 text-xs sm:text-sm font-medium text-slate-700 cursor-pointer">
+                <input type="checkbox" id="isTransIn" class="rounded text-brand-600 focus:ring-brand-500" />
+                <span>Trans-in Client (Started immunization in another Barangay/Municipality)</span>
+              </label>
+              <label class="flex items-center gap-2 text-xs sm:text-sm font-medium text-slate-700 cursor-pointer">
+                <input type="checkbox" id="aefiObserved" class="rounded text-rose-600 focus:ring-rose-500" />
+                <span class="text-rose-700">AEFI Observed / Reported from Previous Dose</span>
+              </label>
+            </div>
+
+            <div class="sm:col-span-2 lg:col-span-3">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Clinical Remarks / Counseling Notes / AEFI Details</label>
+              <textarea id="remarks" rows="2" placeholder="e.g., Mother counseled on paracetamol dose for post-Penta fever, warm/cold compress, and danger signs. Return on scheduled date." class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"></textarea>
+            </div>
+          </div>
+
+          <!-- Bottom Save & Export Bar -->
+          <div class="bg-slate-50 px-5 py-4 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
+            <span class="text-xs text-slate-500"><i class="fa-solid fa-lock text-brand-600 mr-1"></i>All patient entries are saved locally in your browser registry for instant ITR &amp; Card generation.</span>
+            <div class="flex flex-wrap items-center gap-2.5">
+              <button type="button" onclick="saveAndOpenITR()" class="px-4 py-2.5 text-xs sm:text-sm font-semibold rounded-xl bg-navy-900 text-white hover:bg-slate-800 transition flex items-center gap-2">
+                <i class="fa-solid fa-file-pdf text-rose-400"></i>
+                <span>Save &amp; Generate ITR PDF</span>
+              </button>
+              <button type="button" onclick="saveAndOpenPassport()" class="px-4 py-2.5 text-xs sm:text-sm font-semibold rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition flex items-center gap-2">
+                <i class="fa-solid fa-id-card-clip"></i>
+                <span>Save &amp; View Baby Vaccine Card</span>
+              </button>
+              <button type="submit" class="px-5 py-2.5 text-xs sm:text-sm font-bold rounded-xl bg-brand-600 text-white hover:bg-brand-700 shadow-md shadow-brand-600/20 transition flex items-center gap-2">
+                <i class="fa-solid fa-check"></i>
+                <span>Save to TCL Registry</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- TAB 2: SAVED PATIENT REGISTRY (TARGET CLIENT LIST - TCL VIEW)         -->
+    <!-- ===================================================================== -->
+    <section id="view-registry" class="hidden space-y-5">
+      <div class="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/80 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h2 class="text-lg sm:text-xl font-bold text-slate-900">Target Client List (TCL) — Saved Immunization Registry</h2>
+          <p class="text-xs sm:text-sm text-slate-500 mt-0.5">Manage saved infant records, track FIC/CIC coverage milestones, and generate official ITR or Baby Vaccine Cards.</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2.5">
+          <div class="relative">
+            <i class="fa-solid fa-magnifying-glass text-slate-400 text-xs absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+            <input type="text" id="registry-search" oninput="renderRegistry()" placeholder="Search child, mother, FSN..." class="pl-9 pr-4 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500 w-60" />
+          </div>
+          <button onclick="switchTab('intake')" class="px-4 py-2 text-xs sm:text-sm font-bold rounded-xl bg-brand-600 text-white hover:bg-brand-700 transition flex items-center gap-1.5">
+            <i class="fa-solid fa-plus"></i>
+            <span>Add New Patient</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Registry Table / Cards -->
+      <div id="registry-empty-state" class="hidden bg-white rounded-2xl p-12 text-center border border-slate-200/80 shadow-xs">
+        <div class="w-16 h-16 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mx-auto mb-4">
+          <i class="fa-solid fa-baby-carriage text-2xl"></i>
+        </div>
+        <h3 class="text-lg font-bold text-slate-900">No Patient Records Saved Yet</h3>
+        <p class="text-sm text-slate-500 max-w-md mx-auto mt-1">Start logging an infant immunization encounter or load a sample Philippine EPI record to preview the registry.</p>
+        <div class="mt-5 flex justify-center gap-3">
+          <button onclick="loadSampleData(); switchTab('intake');" class="px-4 py-2 text-sm font-semibold rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition">
+            Load Sample Patient
+          </button>
+          <button onclick="switchTab('intake')" class="px-4 py-2 text-sm font-semibold rounded-xl bg-brand-600 text-white hover:bg-brand-700 transition">
+            Go to Intake Form
+          </button>
+        </div>
+      </div>
+
+      <div id="registry-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Populated dynamically -->
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- TAB 3: OFFICIAL INDIVIDUAL TREATMENT RECORD (ITR) PDF GENERATOR       -->
+    <!-- ===================================================================== -->
+    <section id="view-itr" class="hidden space-y-5">
+      <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-slate-900">Individual Treatment Record (ITR) — Official PDF Export</h2>
+          <p class="text-xs sm:text-sm text-slate-500">FHSIS-compliant clinical encounter sheet ready for facility filing or digital download.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2.5">
+          <button onclick="window.print()" class="px-4 py-2 text-xs sm:text-sm font-semibold rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition flex items-center gap-2">
+            <i class="fa-solid fa-print"></i>
+            <span>Print</span>
+          </button>
+          <button onclick="downloadElementAsPDF('itr-document-sheet', 'ITR_Record')" id="btn-download-itr" class="px-4 py-2.5 text-xs sm:text-sm font-bold rounded-xl bg-rose-600 text-white hover:bg-rose-700 shadow-sm transition flex items-center gap-2">
+            <i class="fa-solid fa-file-arrow-down"></i>
+            <span>Download Official ITR (.PDF)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- A4 Printable ITR Sheet -->
+      <div class="a4-sheet-wrapper">
+        <div id="itr-document-sheet" class="a4-sheet p-8 sm:p-10 text-slate-900 border border-slate-300">
+          <!-- DOH Style Header -->
+          <div class="border-b-2 border-slate-900 pb-4 flex items-start justify-between gap-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-full border-2 border-brand-700 bg-brand-50 flex items-center justify-center text-brand-700 shrink-0">
+                <i class="fa-solid fa-staff-snake text-xl"></i>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Republic of the Philippines • Department of Health</p>
+                <h1 class="text-lg font-extrabold tracking-tight text-slate-900 uppercase">Individual Treatment Record (ITR)</h1>
+                <p class="text-xs font-semibold text-brand-700">National Immunization Program (NIP / EPI) — FHSIS Encounter Form</p>
+              </div>
+            </div>
+            <div class="text-right text-xs">
+              <p class="font-bold text-slate-800" id="itr-facility-header">Barangay Health Station</p>
+              <p class="text-slate-500">Family Serial No.: <span id="itr-fsn" class="font-bold text-slate-900">—</span></p>
+              <p class="text-slate-500">Date Recorded: <span id="itr-reg-date" class="font-semibold text-slate-800">—</span></p>
+            </div>
+          </div>
+
+          <!-- Part I: Patient Demographics -->
+          <div class="mt-4">
+            <div class="bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider px-3 py-1.5">
+              I. Client &amp; Family Identification
+            </div>
+            <table class="w-full border-collapse border border-slate-300 text-xs">
+              <tbody>
+                <tr>
+                  <td class="border border-slate-300 p-2 bg-slate-50 font-semibold w-1/4">Child's Full Name:</td>
+                  <td class="border border-slate-300 p-2 font-bold text-slate-900 w-1/4" id="itr-child-name">—</td>
+                  <td class="border border-slate-300 p-2 bg-slate-50 font-semibold w-1/4">Date of Birth / Age:</td>
+                  <td class="border border-slate-300 p-2 w-1/4" id="itr-dob-age">—</td>
+                </tr>
+                <tr>
+                  <td class="border border-slate-300 p-2 bg-slate-50 font-semibold">Sex:</td>
+                  <td class="border border-slate-300 p-2" id="itr-sex">—</td>
+                  <td class="border border-slate-300 p-2 bg-slate-50 font-semibold">PhilHealth / 4Ps Status:</td>
+                  <td class="border border-slate-300 p-2" id="itr-phic-nhts">—</td>
+                </tr>
+                <tr>
+                  <td class="border border-slate-300 p-2 bg-slate-50 font-semibold">Mother / Caregiver:</td>
+                  <td class="border border-slate-300 p-2 font-semibold" id="itr-mother">—</td>
+                  <td class="border border-slate-300 p-2 bg-slate-50 font-semibold">Contact Number:</td>
+                  <td class="border border-slate-300 p-2" id="itr-contact">—</td>
+                </tr>
+                <tr>
+                  <td class="border border-slate-300 p-2 bg-slate-50 font-semibold">Complete Address:</td>
+                  <td class="border border-slate-300 p-2" colspan="3" id="itr-address">—</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Part II: Birth & Maternal Baseline + Clinical Assessment -->
+          <div class="mt-4 grid grid-cols-2 gap-3">
+            <div>
+              <div class="bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider px-3 py-1.5">
+                II. Birth &amp; Maternal Baseline (CPAB)
+              </div>
+              <table class="w-full border-collapse border border-slate-300 text-xs">
+                <tbody>
+                  <tr>
+                    <td class="border border-slate-300 p-1.5 bg-slate-50 font-semibold">Birth Weight / Length:</td>
+                    <td class="border border-slate-300 p-1.5 font-semibold" id="itr-birth-anthro">—</td>
+                  </tr>
+                  <tr>
+                    <td class="border border-slate-300 p-1.5 bg-slate-50 font-semibold">Maternal TT/Td &amp; CPAB:</td>
+                    <td class="border border-slate-300 p-1.5" id="itr-cpab">—</td>
+                  </tr>
+                  <tr>
+                    <td class="border border-slate-300 p-1.5 bg-slate-50 font-semibold">Place / Attendant:</td>
+                    <td class="border border-slate-300 p-1.5" id="itr-delivery">—</td>
+                  </tr>
+                  <tr>
+                    <td class="border border-slate-300 p-1.5 bg-slate-50 font-semibold">NBS / Hearing Screen:</td>
+                    <td class="border border-slate-300 p-1.5" id="itr-screenings">—</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div>
+              <div class="bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider px-3 py-1.5">
+                III. Clinical &amp; Nutrition Assessment
+              </div>
+              <table class="w-full border-collapse border border-slate-300 text-xs">
+                <tbody>
+                  <tr>
+                    <td class="border border-slate-300 p-1.5 bg-slate-50 font-semibold">Encounter Date:</td>
+                    <td class="border border-slate-300 p-1.5 font-semibold" id="itr-visit-date">—</td>
+                  </tr>
+                  <tr>
+                    <td class="border border-slate-300 p-1.5 bg-slate-50 font-semibold">Current Wt / Ht:</td>
+                    <td class="border border-slate-300 p-1.5" id="itr-curr-anthro">—</td>
+                  </tr>
+                  <tr>
+                    <td class="border border-slate-300 p-1.5 bg-slate-50 font-semibold">Nutritional Status:</td>
+                    <td class="border border-slate-300 p-1.5 font-semibold" id="itr-nutrition">—</td>
+                  </tr>
+                  <tr>
+                    <td class="border border-slate-300 p-1.5 bg-slate-50 font-semibold">Supplements / EBF:</td>
+                    <td class="border border-slate-300 p-1.5" id="itr-supplements">—</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Part IV: Immunization Record Table -->
+          <div class="mt-4">
+            <div class="bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 flex justify-between items-center">
+              <span>IV. Routine Infant Immunization Log</span>
+              <span id="itr-milestone-status" class="bg-white text-slate-900 px-2 py-0.5 rounded text-[10px]">STATUS: IN PROGRESS</span>
+            </div>
+            <table class="w-full border-collapse border border-slate-300 text-[11px]">
+              <thead>
+                <tr class="bg-slate-100 font-bold text-slate-700">
+                  <th class="border border-slate-300 p-1.5 text-left">Target Age</th>
+                  <th class="border border-slate-300 p-1.5 text-left">Antigen / Dose</th>
+                  <th class="border border-slate-300 p-1.5 text-center">Date Given</th>
+                  <th class="border border-slate-300 p-1.5 text-left">Lot / Batch No.</th>
+                  <th class="border border-slate-300 p-1.5 text-left">Manufacturer</th>
+                  <th class="border border-slate-300 p-1.5 text-center">Expiry</th>
+                </tr>
+              </thead>
+              <tbody id="itr-vaccine-rows">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Part V: Counseling, Next Return Date & Sign-off -->
+          <div class="mt-4">
+            <div class="bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider px-3 py-1.5">
+              V. Post-Vaccination Remarks, AEFI &amp; Next Visit
+            </div>
+            <div class="border border-slate-300 p-3 text-xs space-y-2">
+              <div class="flex justify-between">
+                <span><strong>Next Scheduled Return Date:</strong> <span id="itr-next-visit" class="text-brand-800 font-bold underline">—</span></span>
+                <span><strong>Client Classification:</strong> <span id="itr-client-flags">Resident</span></span>
+              </div>
+              <p><strong>Clinical Remarks / Counseling:</strong> <span id="itr-remarks">—</span></p>
+            </div>
+          </div>
+
+          <!-- Signatures -->
+          <div class="mt-8 grid grid-cols-2 gap-10 text-xs pt-4">
+            <div class="text-center">
+              <div class="border-b border-slate-800 pb-1 font-bold uppercase" id="itr-caregiver-sign">—</div>
+              <p class="text-[11px] text-slate-500 mt-1">Mother / Parent / Caregiver Signature</p>
+            </div>
+            <div class="text-center">
+              <div class="border-b border-slate-800 pb-1 font-bold uppercase" id="itr-worker-sign">—</div>
+              <p class="text-[11px] text-slate-500 mt-1">Administering Health Worker (RHM / PHN / MD)</p>
+            </div>
+          </div>
+
+          <div class="mt-6 pt-3 border-t border-slate-200 flex justify-between text-[10px] text-slate-400">
+            <span>Generated via BakuNxt PH • Philippine EPI Electronic Intake</span>
+            <span>Confidential Patient Medical Record</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- TAB 4: BABY VACCINE RECORD CARD ("BAKUNXT BABY IMMUNIZATION PASSPORT") -->
+    <!-- ===================================================================== -->
+    <section id="view-passport" class="hidden space-y-5">
+      <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-slate-900">BakuNxt Baby Immunization Passport (Home-Based Record)</h2>
+          <p class="text-xs sm:text-sm text-slate-500">Parent-friendly ECCD-style vaccine card showing milestone progress, growth, and next return date.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2.5">
+          <button type="button" onclick="printSingleCard('baby-passport-card')" class="px-4 py-2 text-xs sm:text-sm font-semibold rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition flex items-center gap-2">
+            <i class="fa-solid fa-print"></i>
+            <span>Print Card</span>
+          </button>
+          <button type="button" id="btn-download-passport" onclick="downloadBabyVaccineCardPDF()" class="px-4 py-2.5 text-xs sm:text-sm font-bold rounded-xl bg-brand-600 text-white hover:bg-brand-700 shadow-sm shadow-brand-600/20 transition flex items-center gap-2">
+            <i class="fa-solid fa-file-arrow-down"></i>
+            <span>Download Baby Vaccine Card (.PDF)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Printable Baby Passport Card -->
+      <div class="max-w-4xl mx-auto">
+        <div id="baby-passport-card" class="bg-white rounded-3xl shadow-xl border-2 border-brand-200 overflow-hidden">
+          <!-- Top Banner -->
+          <div class="bg-gradient-to-r from-brand-700 via-teal-600 to-emerald-600 p-6 sm:p-7 text-white relative overflow-hidden">
+            <div class="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div class="flex items-center gap-3.5">
+                <div class="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-xs border border-white/25 flex items-center justify-center text-2xl">
+                  <i class="fa-solid fa-baby"></i>
+                </div>
+                <div>
+                  <span class="text-[11px] font-bold uppercase tracking-widest text-brand-100">Republic of the Philippines • Child Health Record</span>
+                  <h1 class="font-display text-2xl font-extrabold tracking-tight">BakuNxt Baby Vaccine Passport</h1>
+                  <p class="text-xs text-brand-100 mt-0.5" id="card-facility">Barangay Health Station</p>
+                </div>
+              </div>
+              <div class="bg-white/15 backdrop-blur-xs rounded-2xl px-4 py-2.5 border border-white/25 text-left sm:text-right">
+                <p class="text-[10px] uppercase tracking-wider text-brand-100 font-semibold">Family Serial No.</p>
+                <p class="font-mono font-bold text-base" id="card-fsn">FSN-0000</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Baby Profile Strip -->
+          <div class="p-6 bg-brand-50/50 border-b border-brand-100 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="sm:col-span-2 space-y-2">
+              <div class="flex flex-wrap items-center gap-2">
+                <h2 class="text-xl font-extrabold text-slate-900" id="card-child-name">Baby's Full Name</h2>
+                <span id="card-sex-pill" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-100 text-sky-800">Male</span>
+                <span id="card-fic-pill" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">In Progress</span>
+              </div>
+              <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs text-slate-600 pt-1">
+                <div><span class="text-slate-400 block">Date of Birth</span><strong class="text-slate-800" id="card-dob">—</strong></div>
+                <div><span class="text-slate-400 block">Birth Weight / Length</span><strong class="text-slate-800" id="card-birth-stats">—</strong></div>
+                <div><span class="text-slate-400 block">Mother / Caregiver</span><strong class="text-slate-800" id="card-mother">—</strong></div>
+              </div>
+              <p class="text-xs text-slate-500"><i class="fa-solid fa-location-dot text-brand-600 mr-1"></i><span id="card-address">—</span></p>
+            </div>
+
+            <!-- Next Visit Highlight Box -->
+            <div class="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 flex flex-col justify-center items-center text-center">
+              <span class="text-[10px] font-extrabold uppercase tracking-wider text-amber-700"><i class="fa-solid fa-calendar-check mr-1"></i>Next Bakuna Visit</span>
+              <p class="text-lg font-extrabold text-slate-900 mt-1" id="card-next-visit">Not Scheduled</p>
+              <p class="text-[11px] text-amber-800 mt-1">Bring this passport on every visit!</p>
+            </div>
+          </div>
+
+          <!-- Visual Vaccine Milestone Timeline -->
+          <div class="p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-2">
+                <i class="fa-solid fa-shield-heart text-brand-600"></i>
+                <span>DOH Routine Infant Immunization Checklist</span>
+              </h3>
+              <span id="card-progress-text" class="text-xs font-bold text-brand-700 bg-brand-50 px-3 py-1 rounded-full border border-brand-200">0 of 15 Completed</span>
+            </div>
+
+            <div id="card-vaccine-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <!-- Caregiver Reminders Footer -->
+          <div class="bg-slate-900 text-slate-300 px-6 py-4 text-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-circle-info text-brand-400"></i>
+              <span><strong>Paalala kay Nanay/Tatay:</strong> Ang bakuna ay libre at ligtas sa lahat ng Barangay Health Center.</span>
+            </div>
+            <span class="text-slate-400 font-semibold">BakuNxt PH • DOH NIP</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // =========================================================================
+    // 1. PHILIPPINE DOH EPI / NIP ANTIGEN DEFINITIONS
+    // =========================================================================
+    const DOH_VACCINES = [
+      { id: 'bcg', ageGroup: 'At Birth', name: 'BCG', fullName: 'Bacillus Calmette-Guérin', route: 'ID • Right Deltoid', ficCore: true, defaultMfg: 'Serum Institute' },
+      { id: 'hepb_bd', ageGroup: 'At Birth', name: 'HepaB-BD', fullName: 'Hepatitis B Birth Dose (within 24h)', route: 'IM • Anterolateral Thigh', ficCore: false, defaultMfg: 'LG Chem' },
+      { id: 'penta1', ageGroup: '6 Weeks', name: 'Pentavalent 1', fullName: 'DPT-HepB-Hib Dose 1', route: 'IM • Left Thigh', ficCore: true, defaultMfg: 'Biological E' },
+      { id: 'opv1', ageGroup: '6 Weeks', name: 'OPV 1', fullName: 'Oral Polio Vaccine Dose 1', route: 'Oral • 2 Drops', ficCore: true, defaultMfg: 'Sanofi Pasteur' },
+      { id: 'pcv1', ageGroup: '6 Weeks', name: 'PCV 1', fullName: 'Pneumococcal Conjugate Dose 1', route: 'IM • Right Thigh', ficCore: false, defaultMfg: 'Pfizer' },
+      { id: 'penta2', ageGroup: '10 Weeks', name: 'Pentavalent 2', fullName: 'DPT-HepB-Hib Dose 2', route: 'IM • Left Thigh', ficCore: true, defaultMfg: 'Biological E' },
+      { id: 'opv2', ageGroup: '10 Weeks', name: 'OPV 2', fullName: 'Oral Polio Vaccine Dose 2', route: 'Oral • 2 Drops', ficCore: true, defaultMfg: 'Sanofi Pasteur' },
+      { id: 'pcv2', ageGroup: '10 Weeks', name: 'PCV 2', fullName: 'Pneumococcal Conjugate Dose 2', route: 'IM • Right Thigh', ficCore: false, defaultMfg: 'Pfizer' },
+      { id: 'penta3', ageGroup: '14 Weeks', name: 'Pentavalent 3', fullName: 'DPT-HepB-Hib Dose 3', route: 'IM • Left Thigh', ficCore: true, defaultMfg: 'Biological E' },
+      { id: 'opv3', ageGroup: '14 Weeks', name: 'OPV 3', fullName: 'Oral Polio Vaccine Dose 3', route: 'Oral • 2 Drops', ficCore: true, defaultMfg: 'Sanofi Pasteur' },
+      { id: 'pcv3', ageGroup: '14 Weeks', name: 'PCV 3', fullName: 'Pneumococcal Conjugate Dose 3', route: 'IM • Right Thigh', ficCore: false, defaultMfg: 'Pfizer' },
+      { id: 'ipv1', ageGroup: '14 Weeks', name: 'IPV 1', fullName: 'Inactivated Polio Vaccine Dose 1', route: 'IM • Right Thigh', ficCore: false, defaultMfg: 'Sanofi Pasteur' },
+      { id: 'ipv2', ageGroup: '9 Months', name: 'IPV 2', fullName: 'Inactivated Polio Vaccine Dose 2', route: 'IM • Right Thigh', ficCore: false, defaultMfg: 'Sanofi Pasteur' },
+      { id: 'mcv1', ageGroup: '9 Months', name: 'MCV1 / MMR1', fullName: 'Measles-Containing Vaccine 1', route: 'SC • Upper Arm', ficCore: true, defaultMfg: 'Serum Institute' },
+      { id: 'mcv2', ageGroup: '12 Months', name: 'MCV2 / MMR2', fullName: 'Measles-Containing Vaccine 2', route: 'SC • Upper Arm', ficCore: false, defaultMfg: 'Serum Institute' }
+    ];
+
+    const STORAGE_KEY = 'bakunxt_ph_patients_v1';
+    let savedPatients = [];
+
+    // =========================================================================
+    // 2. INITIALIZATION & TABLE RENDERING
+    // =========================================================================
+    window.addEventListener('DOMContentLoaded', () => {
+      buildVaccineTable();
+      setDefaultDates();
+      loadRegistryFromStorage();
+      updateLiveSummary();
+      syncPreviewsFromForm();
+    });
+
+    function setDefaultDates() {
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('regDate').value = today;
+      document.getElementById('visitDate').value = today;
+    }
+
+    function buildVaccineTable() {
+      const tbody = document.getElementById('vaccine-table-body');
+      tbody.innerHTML = DOH_VACCINES.map((vax, idx) => {
+        const ageBadgeColor =
+          vax.ageGroup === 'At Birth' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+          vax.ageGroup.includes('Weeks') ? 'bg-sky-50 text-sky-700 border-sky-200' :
+          'bg-amber-50 text-amber-700 border-amber-200';
+
+        return `
+          <tr id="vax-row-${vax.id}" class="hover:bg-slate-50/90 transition">
+            <td class="py-2.5 px-4 text-center">
+              <input type="checkbox" id="vax-check-${vax.id}" onchange="toggleVaccineCheck('${vax.id}')" class="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 cursor-pointer" />
+            </td>
+            <td class="py-2.5 px-3 whitespace-nowrap">
+              <span class="px-2 py-0.5 rounded-md text-[11px] font-bold border ${ageBadgeColor}">${vax.ageGroup}</span>
+            </td>
+            <td class="py-2.5 px-3">
+              <div class="font-bold text-slate-900">${vax.name} ${vax.ficCore ? '<span title="Core FIC Antigen" class="text-[10px] text-brand-600 font-semibold">★</span>' : ''}</div>
+              <div class="text-[11px] text-slate-500">${vax.fullName}</div>
+            </td>
+            <td class="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">${vax.route}</td>
+            <td class="py-2.5 px-3">
+              <input type="date" id="vax-date-${vax.id}" onchange="onVaccineDateChange('${vax.id}')" class="rounded-lg border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </td>
+            <td class="py-2.5 px-3">
+              <input type="text" id="vax-lot-${vax.id}" placeholder="Lot #" class="w-28 rounded-lg border border-slate-300 px-2 py-1 text-xs uppercase focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </td>
+            <td class="py-2.5 px-3">
+              <input type="text" id="vax-mfg-${vax.id}" placeholder="${vax.defaultMfg}" class="w-32 rounded-lg border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </td>
+            <td class="py-2.5 px-3">
+              <input type="date" id="vax-exp-${vax.id}" class="rounded-lg border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function toggleVaccineCheck(vaxId) {
+      const checked = document.getElementById(`vax-check-${vaxId}`).checked;
+      const dateInput = document.getElementById(`vax-date-${vaxId}`);
+      const row = document.getElementById(`vax-row-${vaxId}`);
+      if (checked) {
+        if (!dateInput.value) {
+          dateInput.value = document.getElementById('visitDate').value || new Date().toISOString().split('T')[0];
+        }
+        row.classList.add('bg-emerald-50/40');
+      } else {
+        dateInput.value = '';
+        row.classList.remove('bg-emerald-50/40');
+      }
+      updateLiveSummary();
+    }
+
+    function onVaccineDateChange(vaxId) {
+      const dateInput = document.getElementById(`vax-date-${vaxId}`);
+      const checkInput = document.getElementById(`vax-check-${vaxId}`);
+      const row = document.getElementById(`vax-row-${vaxId}`);
+      if (dateInput.value) {
+        checkInput.checked = true;
+        row.classList.add('bg-emerald-50/40');
+      } else {
+        checkInput.checked = false;
+        row.classList.remove('bg-emerald-50/40');
+      }
+      updateLiveSummary();
+    }
+
+    function autoFillTodayForEligible() {
+      const defLots = {
+        bcg: ['BCG-26A1', 'Serum Institute', '2027-08-30'],
+        hepb_bd: ['HB-904K', 'LG Chem', '2027-06-15'],
+        penta1: ['PV-4410', 'Biological E', '2027-09-20'],
+        opv1: ['OP-8821', 'Sanofi Pasteur', '2027-05-12'],
+        pcv1: ['PCV-119X', 'Pfizer', '2027-11-01'],
+        penta2: ['PV-4412', 'Biological E', '2027-09-20'],
+        opv2: ['OP-8825', 'Sanofi Pasteur', '2027-05-12'],
+        pcv2: ['PCV-120X', 'Pfizer', '2027-11-01'],
+        penta3: ['PV-4419', 'Biological E', '2027-10-15'],
+        opv3: ['OP-8830', 'Sanofi Pasteur', '2027-07-19'],
+        pcv3: ['PCV-125X', 'Pfizer', '2027-12-10'],
+        ipv1: ['IPV-771B', 'Sanofi Pasteur', '2027-08-05'],
+        ipv2: ['IPV-775B', 'Sanofi Pasteur', '2027-08-05'],
+        mcv1: ['MR-3302', 'Serum Institute', '2027-09-01'],
+        mcv2: ['MR-3309', 'Serum Institute', '2027-10-01']
+      };
+      let filledCount = 0;
+      DOH_VACCINES.forEach(v => {
+        const isChecked = document.getElementById(`vax-check-${v.id}`).checked;
+        if (isChecked) {
+          const [lot, mfg, exp] = defLots[v.id];
+          if (!document.getElementById(`vax-lot-${v.id}`).value) document.getElementById(`vax-lot-${v.id}`).value = lot;
+          if (!document.getElementById(`vax-mfg-${v.id}`).value) document.getElementById(`vax-mfg-${v.id}`).value = mfg;
+          if (!document.getElementById(`vax-exp-${v.id}`).value) document.getElementById(`vax-exp-${v.id}`).value = exp;
+          filledCount++;
+        }
+      });
+      if (filledCount === 0) {
+        showToast('Check at least one vaccine dose first, then click Quick-Fill Sample Lots.', 'amber');
+      } else {
+        showToast(`Populated lot numbers & expiry dates for ${filledCount} checked dose(s).`, 'teal');
+      }
+    }
+
+    // =========================================================================
+    // 3. REAL-TIME AGE, CPAB & FIC/CIC MILESTONE CALCULATIONS
+    // =========================================================================
+    function calculateAgeText(dobStr, refDateStr) {
+      if (!dobStr) return 'Enter DOB';
+      const dob = new Date(dobStr);
+      const ref = refDateStr ? new Date(refDateStr) : new Date();
+      const diffMs = ref - dob;
+      if (diffMs < 0) return 'Invalid DOB';
+      const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      const weeks = Math.floor(days / 7);
+      const months = Math.floor(days / 30.4375);
+      if (months < 3) {
+        return `${weeks} wk${weeks !== 1 ? 's' : ''} (${days} days)`;
+      }
+      return `${months} mo${months !== 1 ? 's' : ''} (${weeks} wks)`;
+    }
+
+    function evaluateMilestones(dobStr, vaccinesMap) {
+      let totalGiven = 0;
+      DOH_VACCINES.forEach(v => {
+        if (vaccinesMap[v.id] && vaccinesMap[v.id].given && vaccinesMap[v.id].date) {
+          totalGiven++;
+        }
+      });
+
+      // DOH FIC Core Antigens: BCG + Penta 1,2,3 + OPV 1,2,3 + MCV1
+      const coreIds = ['bcg', 'penta1', 'penta2', 'penta3', 'opv1', 'opv2', 'opv3', 'mcv1'];
+      const hasAllCore = coreIds.every(id => vaccinesMap[id] && vaccinesMap[id].given && vaccinesMap[id].date);
+
+      let status = 'In Progress';
+      if (hasAllCore && dobStr) {
+        const dob = new Date(dobStr);
+        let latestCoreDate = dob;
+        coreIds.forEach(id => {
+          const d = new Date(vaccinesMap[id].date);
+          if (d > latestCoreDate) latestCoreDate = d;
+        });
+        const ageMonthsAtCompletion = (latestCoreDate - dob) / (1000 * 60 * 60 * 24 * 30.4375);
+        status = ageMonthsAtCompletion <= 12.1 ? 'FIC (Fully Immunized Child)' : 'CIC (Completely Immunized)';
+      } else if (hasAllCore) {
+        status = 'FIC (Fully Immunized Child)';
+      }
+
+      return { totalGiven, totalPossible: DOH_VACCINES.length, status, hasAllCore };
+    }
+
+    function updateLiveSummary() {
+      const dob = document.getElementById('dob').value;
+      const visitDate = document.getElementById('visitDate').value;
+      document.getElementById('live-age-display').textContent = calculateAgeText(dob, visitDate);
+
+      // Birth weight badge
+      const bw = parseFloat(document.getElementById('birthWeight').value);
+      const bwBadge = document.getElementById('birth-weight-badge');
+      if (!isNaN(bw)) {
+        if (bw >= 2.5) {
+          bwBadge.textContent = `Normal Birth Weight (${bw.toFixed(2)} kg)`;
+          bwBadge.className = 'text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800';
+        } else {
+          bwBadge.textContent = `Low Birth Weight (<2.5 kg: ${bw.toFixed(2)} kg)`;
+          bwBadge.className = 'text-xs font-semibold px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800';
+        }
+      } else {
+        bwBadge.textContent = 'Weight Pending';
+        bwBadge.className = 'text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700';
+      }
+
+      // CPAB status
+      const tt = document.getElementById('ttStatus').value;
+      const cpabBox = document.getElementById('live-cpab-badge');
+      if (tt.includes('Protected') || tt.includes('TT5')) {
+        cpabBox.innerHTML = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800"><i class="fa-solid fa-check-circle mr-1"></i>CPAB Protected</span>`;
+      } else if (tt === 'TT1 / Td1 Only') {
+        cpabBox.innerHTML = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">Not Protected (TT1)</span>`;
+      } else {
+        cpabBox.innerHTML = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600">Unverified</span>`;
+      }
+
+      // Vaccines & FIC/CIC
+      const vaxMap = collectVaccinesFromForm();
+      const milestone = evaluateMilestones(dob, vaxMap);
+      document.getElementById('live-doses-count').textContent = `${milestone.totalGiven} / ${milestone.totalPossible} Doses`;
+
+      const ficBox = document.getElementById('live-fic-badge');
+      if (milestone.status.startsWith('FIC')) {
+        ficBox.innerHTML = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800"><i class="fa-solid fa-medal mr-1"></i>FIC Achieved</span>`;
+      } else if (milestone.status.startsWith('CIC')) {
+        ficBox.innerHTML = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-100 text-sky-800"><i class="fa-solid fa-medal mr-1"></i>CIC Achieved</span>`;
+      } else {
+        ficBox.innerHTML = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">In Progress (${milestone.totalGiven}/${milestone.totalPossible})</span>`;
+      }
+    }
+
+    // =========================================================================
+    // 4. FORM SERIALIZATION, SAMPLE DATA & STORAGE
+    // =========================================================================
+    function collectVaccinesFromForm() {
+      const map = {};
+      DOH_VACCINES.forEach(v => {
+        map[v.id] = {
+          given: document.getElementById(`vax-check-${v.id}`).checked,
+          date: document.getElementById(`vax-date-${v.id}`).value,
+          lot: document.getElementById(`vax-lot-${v.id}`).value.trim(),
+          mfg: document.getElementById(`vax-mfg-${v.id}`).value.trim(),
+          exp: document.getElementById(`vax-exp-${v.id}`).value
+        };
+      });
+      return map;
+    }
+
+    function getFormDataObject() {
+      const id = document.getElementById('patient-id').value || ('PT-' + Date.now());
+      return {
+        id,
+        updatedAt: new Date().toISOString(),
+        regDate: document.getElementById('regDate').value,
+        familySerial: document.getElementById('familySerial').value.trim(),
+        philhealthId: document.getElementById('philhealthId').value.trim(),
+        nhtsStatus: document.getElementById('nhtsStatus').value,
+        childName: document.getElementById('childName').value.trim(),
+        dob: document.getElementById('dob').value,
+        sex: document.getElementById('sex').value,
+        motherName: document.getElementById('motherName').value.trim(),
+        contactNo: document.getElementById('contactNo').value.trim(),
+        deliveryPlace: document.getElementById('deliveryPlace').value,
+        address: document.getElementById('address').value.trim(),
+        birthWeight: document.getElementById('birthWeight').value,
+        birthLength: document.getElementById('birthLength').value,
+        ttStatus: document.getElementById('ttStatus').value,
+        bfInitiated: document.getElementById('bfInitiated').value,
+        nbsStatus: document.getElementById('nbsStatus').value,
+        nbsDate: document.getElementById('nbsDate').value,
+        hearingStatus: document.getElementById('hearingStatus').value,
+        birthAttendant: document.getElementById('birthAttendant').value,
+        visitDate: document.getElementById('visitDate').value,
+        currentWeight: document.getElementById('currentWeight').value,
+        currentLength: document.getElementById('currentLength').value,
+        nutritionStatus: document.getElementById('nutritionStatus').value,
+        screenWell: document.getElementById('screenWell').checked,
+        screenMildIllness: document.getElementById('screenMildIllness').checked,
+        screenDeferred: document.getElementById('screenDeferred').checked,
+        ebfCheck: document.getElementById('ebfCheck').checked,
+        vitACheck: document.getElementById('vitACheck').checked,
+        ironCheck: document.getElementById('ironCheck').checked,
+        mnpCheck: document.getElementById('mnpCheck').checked,
+        vaccines: collectVaccinesFromForm(),
+        nextVisitDate: document.getElementById('nextVisitDate').value,
+        healthWorker: document.getElementById('healthWorker').value.trim(),
+        facilityName: document.getElementById('facilityName').value.trim(),
+        isTransIn: document.getElementById('isTransIn').checked,
+        aefiObserved: document.getElementById('aefiObserved').checked,
+        remarks: document.getElementById('remarks').value.trim()
+      };
+    }
+
+    function populateFormFromObject(data) {
+      document.getElementById('patient-id').value = data.id || '';
+      document.getElementById('regDate').value = data.regDate || '';
+      document.getElementById('familySerial').value = data.familySerial || '';
+      document.getElementById('philhealthId').value = data.philhealthId || '';
+      document.getElementById('nhtsStatus').value = data.nhtsStatus || 'Non-NHTS';
+      document.getElementById('childName').value = data.childName || '';
+      document.getElementById('dob').value = data.dob || '';
+      document.getElementById('sex').value = data.sex || 'Male';
+      document.getElementById('motherName').value = data.motherName || '';
+      document.getElementById('contactNo').value = data.contactNo || '';
+      document.getElementById('deliveryPlace').value = data.deliveryPlace || 'RHU / Birthing Home';
+      document.getElementById('address').value = data.address || '';
+      document.getElementById('birthWeight').value = data.birthWeight || '';
+      document.getElementById('birthLength').value = data.birthLength || '';
+      document.getElementById('ttStatus').value = data.ttStatus || 'None / Unknown';
+      document.getElementById('bfInitiated').value = data.bfInitiated || 'Yes (Within 1 Hour)';
+      document.getElementById('nbsStatus').value = data.nbsStatus || 'Done - Normal';
+      document.getElementById('nbsDate').value = data.nbsDate || '';
+      document.getElementById('hearingStatus').value = data.hearingStatus || 'Passed';
+      document.getElementById('birthAttendant').value = data.birthAttendant || 'Midwife';
+      document.getElementById('visitDate').value = data.visitDate || '';
+      document.getElementById('currentWeight').value = data.currentWeight || '';
+      document.getElementById('currentLength').value = data.currentLength || '';
+      document.getElementById('nutritionStatus').value = data.nutritionStatus || 'Normal';
+      document.getElementById('screenWell').checked = !!data.screenWell;
+      document.getElementById('screenMildIllness').checked = !!data.screenMildIllness;
+      document.getElementById('screenDeferred').checked = !!data.screenDeferred;
+      document.getElementById('ebfCheck').checked = !!data.ebfCheck;
+      document.getElementById('vitACheck').checked = !!data.vitACheck;
+      document.getElementById('ironCheck').checked = !!data.ironCheck;
+      document.getElementById('mnpCheck').checked = !!data.mnpCheck;
+
+      DOH_VACCINES.forEach(v => {
+        const entry = (data.vaccines && data.vaccines[v.id]) || {};
+        const checkEl = document.getElementById(`vax-check-${v.id}`);
+        const rowEl = document.getElementById(`vax-row-${v.id}`);
+        checkEl.checked = !!entry.given;
+        document.getElementById(`vax-date-${v.id}`).value = entry.date || '';
+        document.getElementById(`vax-lot-${v.id}`).value = entry.lot || '';
+        document.getElementById(`vax-mfg-${v.id}`).value = entry.mfg || '';
+        document.getElementById(`vax-exp-${v.id}`).value = entry.exp || '';
+        if (entry.given) rowEl.classList.add('bg-emerald-50/40');
+        else rowEl.classList.remove('bg-emerald-50/40');
+      });
+
+      document.getElementById('nextVisitDate').value = data.nextVisitDate || '';
+      document.getElementById('healthWorker').value = data.healthWorker || '';
+      document.getElementById('facilityName').value = data.facilityName || '';
+      document.getElementById('isTransIn').checked = !!data.isTransIn;
+      document.getElementById('aefiObserved').checked = !!data.aefiObserved;
+      document.getElementById('remarks').value = data.remarks || '';
+
+      const editInd = document.getElementById('editing-indicator');
+      if (data.id && savedPatients.some(p => p.id === data.id)) {
+        editInd.classList.remove('hidden');
+      } else {
+        editInd.classList.add('hidden');
+      }
+
+      updateLiveSummary();
+      syncPreviewsFromForm();
+    }
+
+    function loadSampleData() {
+      const sample = {
+        id: '',
+        regDate: '2026-02-10',
+        familySerial: 'FSN-2026-0842',
+        philhealthId: '12-025894312-8',
+        nhtsStatus: '4Ps Beneficiary',
+        childName: 'Mateo Gabriel Santos Reyes',
+        dob: '2026-02-08',
+        sex: 'Male',
+        motherName: 'Clarissa Mae Santos-Reyes',
+        contactNo: '0917-845-2390',
+        deliveryPlace: 'RHU / Birthing Home',
+        address: 'Purok 4, Brgy. Lahug, Cebu City, Cebu',
+        birthWeight: '3.20',
+        birthLength: '50.5',
+        ttStatus: 'TT3 / Td3',
+        bfInitiated: 'Yes (Within 1 Hour)',
+        nbsStatus: 'Done - Normal',
+        nbsDate: '2026-02-10',
+        hearingStatus: 'Passed',
+        birthAttendant: 'Midwife',
+        visitDate: '2026-11-16',
+        currentWeight: '8.75',
+        currentLength: '72.0',
+        nutritionStatus: 'Normal',
+        screenWell: true,
+        screenMildIllness: false,
+        screenDeferred: false,
+        ebfCheck: true,
+        vitACheck: true,
+        ironCheck: false,
+        mnpCheck: true,
+        vaccines: {
+          bcg: { given: true, date: '2026-02-09', lot: 'BCG-26A1', mfg: 'Serum Institute', exp: '2027-08-30' },
+          hepb_bd: { given: true, date: '2026-02-08', lot: 'HB-904K', mfg: 'LG Chem', exp: '2027-06-15' },
+          penta1: { given: true, date: '2026-03-23', lot: 'PV-4410', mfg: 'Biological E', exp: '2027-09-20' },
+          opv1: { given: true, date: '2026-03-23', lot: 'OP-8821', mfg: 'Sanofi Pasteur', exp: '2027-05-12' },
+          pcv1: { given: true, date: '2026-03-23', lot: 'PCV-119X', mfg: 'Pfizer', exp: '2027-11-01' },
+          penta2: { given: true, date: '2026-04-21', lot: 'PV-4412', mfg: 'Biological E', exp: '2027-09-20' },
+          opv2: { given: true, date: '2026-04-21', lot: 'OP-8825', mfg: 'Sanofi Pasteur', exp: '2027-05-12' },
+          pcv2: { given: true, date: '2026-04-21', lot: 'PCV-120X', mfg: 'Pfizer', exp: '2027-11-01' },
+          penta3: { given: true, date: '2026-05-20', lot: 'PV-4419', mfg: 'Biological E', exp: '2027-10-15' },
+          opv3: { given: true, date: '2026-05-20', lot: 'OP-8830', mfg: 'Sanofi Pasteur', exp: '2027-07-19' },
+          pcv3: { given: true, date: '2026-05-20', lot: 'PCV-125X', mfg: 'Pfizer', exp: '2027-12-10' },
+          ipv1: { given: true, date: '2026-05-20', lot: 'IPV-771B', mfg: 'Sanofi Pasteur', exp: '2027-08-05' },
+          ipv2: { given: true, date: '2026-11-16', lot: 'IPV-775B', mfg: 'Sanofi Pasteur', exp: '2027-08-05' },
+          mcv1: { given: true, date: '2026-11-16', lot: 'MR-3302', mfg: 'Serum Institute', exp: '2027-09-01' },
+          mcv2: { given: false, date: '', lot: '', mfg: '', exp: '' }
+        },
+        nextVisitDate: '2027-02-08',
+        healthWorker: 'Ma. Teresa Villanueva, RHM',
+        facilityName: 'Brgy. Lahug Health Center, Cebu City',
+        isTransIn: false,
+        aefiObserved: false,
+        remarks: 'Child achieved Fully Immunized Child (FIC) status at 9 months. Vitamin A 100,000 IU given. Mother advised to return at 12 months for MMR2.'
+      };
+      populateFormFromObject(sample);
+      showToast('Loaded sample Philippine EPI patient record (Mateo Gabriel Reyes).', 'teal');
+    }
+
+    function saveCurrentPatient() {
+      const childName = document.getElementById('childName').value.trim();
+      const dob = document.getElementById('dob').value;
+      if (!childName || !dob) {
+        showToast('Please enter at least the Child’s Full Name and Date of Birth before saving.', 'amber');
+        document.getElementById('childName').focus();
+        return null;
+      }
+
+      const record = getFormDataObject();
+      document.getElementById('patient-id').value = record.id;
+
+      const existingIndex = savedPatients.findIndex(p => p.id === record.id);
+      if (existingIndex >= 0) {
+        savedPatients[existingIndex] = record;
+      } else {
+        savedPatients.unshift(record);
+      }
+
+      persistRegistryToStorage();
+      document.getElementById('editing-indicator').classList.remove('hidden');
+      syncPreviewsFromForm();
+      showToast(`Saved record for ${record.childName} to Barangay TCL Registry!`, 'teal');
+      return record;
+    }
+
+    function saveAndOpenITR() {
+      const saved = saveCurrentPatient();
+      if (saved) switchTab('itr');
+    }
+
+    function saveAndOpenPassport() {
+      const saved = saveCurrentPatient();
+      if (saved) switchTab('passport');
+    }
+
+    function loadRegistryFromStorage() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        savedPatients = raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        savedPatients = [];
+      }
+      renderRegistry();
+    }
+
+    function persistRegistryToStorage() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(savedPatients));
+      } catch (e) {
+        console.warn('Storage error:', e);
+      }
+      renderRegistry();
+    }
+
+    function renderRegistry() {
+      const badge = document.getElementById('registry-count-badge');
+      badge.textContent = savedPatients.length;
+
+      const search = (document.getElementById('registry-search')?.value || '').toLowerCase();
+      const filtered = savedPatients.filter(p =>
+        (p.childName || '').toLowerCase().includes(search) ||
+        (p.motherName || '').toLowerCase().includes(search) ||
+        (p.familySerial || '').toLowerCase().includes(search) ||
+        (p.address || '').toLowerCase().includes(search)
+      );
+
+      const emptyState = document.getElementById('registry-empty-state');
+      const listEl = document.getElementById('registry-list');
+
+      if (savedPatients.length === 0) {
+        emptyState.classList.remove('hidden');
+        listEl.innerHTML = '';
+        return;
+      }
+      emptyState.classList.add('hidden');
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = `<div class="col-span-full bg-white rounded-2xl p-8 text-center text-sm text-slate-500 border border-slate-200">No matching patient found for "<strong>${escapeHtml(search)}</strong>".</div>`;
+        return;
+      }
+
+      listEl.innerHTML = filtered.map(p => {
+        const ms = evaluateMilestones(p.dob, p.vaccines || {});
+        const pct = Math.round((ms.totalGiven / ms.totalPossible) * 100);
+        const badgeClass = ms.status.startsWith('FIC')
+          ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+          : ms.status.startsWith('CIC')
+          ? 'bg-sky-100 text-sky-800 border-sky-200'
+          : 'bg-amber-100 text-amber-800 border-amber-200';
+
+        return `
+          <div class="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs hover:shadow-md transition flex flex-col justify-between gap-4">
+            <div>
+              <div class="flex items-start justify-between gap-2">
+                <div>
+                  <span class="text-[11px] font-mono font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-md border border-brand-200">${escapeHtml(p.familySerial || 'NO-FSN')}</span>
+                  <h3 class="text-base font-bold text-slate-900 mt-1.5">${escapeHtml(p.childName)}</h3>
+                  <p class="text-xs text-slate-500">${escapeHtml(p.sex)} • DOB: ${formatDateDisplay(p.dob)} (${calculateAgeText(p.dob)})</p>
+                </div>
+                <span class="text-[11px] font-bold px-2.5 py-1 rounded-full border ${badgeClass}">${ms.status.split(' ')[0]}</span>
+              </div>
+
+              <div class="mt-3 text-xs text-slate-600 space-y-1">
+                <p><i class="fa-solid fa-person-breastfeeding text-slate-400 w-4"></i> Mother: <strong>${escapeHtml(p.motherName || '—')}</strong></p>
+                <p><i class="fa-solid fa-location-dot text-slate-400 w-4"></i> ${escapeHtml(p.address || '—')}</p>
+                <p><i class="fa-solid fa-calendar-day text-amber-500 w-4"></i> Next Visit: <strong class="text-slate-800">${formatDateDisplay(p.nextVisitDate)}</strong></p>
+              </div>
+
+              <div class="mt-3.5">
+                <div class="flex justify-between text-[11px] font-semibold text-slate-600 mb-1">
+                  <span>Immunization Progress</span>
+                  <span>${ms.totalGiven}/${ms.totalPossible} Doses (${pct}%)</span>
+                </div>
+                <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div class="h-full bg-brand-600 rounded-full transition-all" style="width: ${pct}%"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-1.5">
+                <button onclick="editPatient('${p.id}')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition">
+                  <i class="fa-solid fa-pen mr-1"></i>Edit
+                </button>
+                <button onclick="openPatientITR('${p.id}')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition">
+                  <i class="fa-solid fa-file-pdf mr-1"></i>ITR PDF
+                </button>
+                <button onclick="openPatientPassport('${p.id}')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition">
+                  <i class="fa-solid fa-id-card mr-1"></i>Vaccine Card
+                </button>
+              </div>
+              <button onclick="confirmDeletePatient('${p.id}')" title="Delete Record" class="p-1.5 text-xs text-slate-400 hover:text-rose-600 rounded-lg transition">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function editPatient(id) {
+      const p = savedPatients.find(item => item.id === id);
+      if (!p) return;
+      populateFormFromObject(p);
+      switchTab('intake');
+      showToast(`Loaded ${p.childName} for editing.`, 'teal');
+    }
+
+    function openPatientITR(id) {
+      const p = savedPatients.find(item => item.id === id);
+      if (!p) return;
+      populateFormFromObject(p);
+      switchTab('itr');
+    }
+
+    function openPatientPassport(id) {
+      const p = savedPatients.find(item => item.id === id);
+      if (!p) return;
+      populateFormFromObject(p);
+      switchTab('passport');
+    }
+
+    // =========================================================================
+    // 5. SYNC OFFICIAL ITR SHEET & BABY VACCINE PASSPORT CARD
+    // =========================================================================
+    function syncPreviewsFromForm() {
+      const data = getFormDataObject();
+      const ms = evaluateMilestones(data.dob, data.vaccines);
+
+      // --- A. Official ITR Sheet ---
+      document.getElementById('itr-facility-header').textContent = data.facilityName || 'Barangay Health Station / RHU';
+      document.getElementById('itr-fsn').textContent = data.familySerial || '—';
+      document.getElementById('itr-reg-date').textContent = formatDateDisplay(data.regDate);
+      document.getElementById('itr-child-name').textContent = data.childName || '—';
+      document.getElementById('itr-dob-age').textContent = `${formatDateDisplay(data.dob)} (${calculateAgeText(data.dob, data.visitDate)})`;
+      document.getElementById('itr-sex').textContent = data.sex || '—';
+      document.getElementById('itr-phic-nhts').textContent = `${data.philhealthId || 'No PHIC'} • ${data.nhtsStatus}`;
+      document.getElementById('itr-mother').textContent = data.motherName || '—';
+      document.getElementById('itr-contact').textContent = data.contactNo || '—';
+      document.getElementById('itr-address').textContent = data.address || '—';
+
+      const bwText = data.birthWeight ? `${data.birthWeight} kg (${parseFloat(data.birthWeight) >= 2.5 ? 'Normal' : 'LBW'})` : '—';
+      const blText = data.birthLength ? `${data.birthLength} cm` : '—';
+      document.getElementById('itr-birth-anthro').textContent = `${bwText} / ${blText}`;
+      document.getElementById('itr-cpab').textContent = data.ttStatus || '—';
+      document.getElementById('itr-delivery').textContent = `${data.deliveryPlace} (${data.birthAttendant})`;
+      document.getElementById('itr-screenings').textContent = `NBS: ${data.nbsStatus} | Hearing: ${data.hearingStatus}`;
+
+      document.getElementById('itr-visit-date').textContent = formatDateDisplay(data.visitDate);
+      document.getElementById('itr-curr-anthro').textContent = `${data.currentWeight ? data.currentWeight + ' kg' : '—'} / ${data.currentLength ? data.currentLength + ' cm' : '—'}`;
+      document.getElementById('itr-nutrition').textContent = data.nutritionStatus || 'Normal';
+
+      const supps = [];
+      if (data.ebfCheck) supps.push('EBF');
+      if (data.vitACheck) supps.push('Vit A');
+      if (data.ironCheck) supps.push('Iron');
+      if (data.mnpCheck) supps.push('MNP');
+      document.getElementById('itr-supplements').textContent = supps.length ? supps.join(', ') : 'None logged';
+
+      document.getElementById('itr-milestone-status').textContent = `STATUS: ${ms.status.toUpperCase()} (${ms.totalGiven}/${ms.totalPossible})`;
+
+      const itrRows = document.getElementById('itr-vaccine-rows');
+      itrRows.innerHTML = DOH_VACCINES.map(v => {
+        const entry = data.vaccines[v.id] || {};
+        const given = entry.given && entry.date;
+        return `
+          <tr class="${given ? 'bg-emerald-50/40' : ''}">
+            <td class="border border-slate-300 p-1.5 font-semibold">${v.ageGroup}</td>
+            <td class="border border-slate-300 p-1.5 font-bold">${v.name} <span class="font-normal text-slate-500">(${v.route})</span></td>
+            <td class="border border-slate-300 p-1.5 text-center font-bold ${given ? 'text-emerald-800' : 'text-slate-400'}">${given ? formatDateDisplay(entry.date) : 'Pending'}</td>
+            <td class="border border-slate-300 p-1.5 font-mono">${entry.lot || '—'}</td>
+            <td class="border border-slate-300 p-1.5">${entry.mfg || '—'}</td>
+            <td class="border border-slate-300 p-1.5 text-center">${entry.exp ? formatDateDisplay(entry.exp) : '—'}</td>
+          </tr>
+        `;
+      }).join('');
+
+      document.getElementById('itr-next-visit').textContent = formatDateDisplay(data.nextVisitDate);
+      const flags = [];
+      if (data.isTransIn) flags.push('Trans-In');
+      if (data.aefiObserved) flags.push('AEFI Noted');
+      if (data.screenDeferred) flags.push('Deferred');
+      document.getElementById('itr-client-flags').textContent = flags.length ? flags.join(' • ') : 'Regular Resident';
+      document.getElementById('itr-remarks').textContent = data.remarks || 'Routine immunization counseling provided.';
+      document.getElementById('itr-caregiver-sign').textContent = data.motherName || 'Parent / Caregiver';
+      document.getElementById('itr-worker-sign').textContent = data.healthWorker || 'Health Worker';
+
+      // --- B. Baby Vaccine Passport Card ---
+      document.getElementById('card-facility').textContent = data.facilityName || 'Barangay Health Station • Philippine DOH NIP';
+      document.getElementById('card-fsn').textContent = data.familySerial || 'FSN-PENDING';
+      document.getElementById('card-child-name').textContent = data.childName || 'Baby’s Full Name';
+      document.getElementById('card-sex-pill').textContent = data.sex || 'Male';
+      document.getElementById('card-fic-pill').textContent = ms.status;
+      document.getElementById('card-dob').textContent = formatDateDisplay(data.dob);
+      document.getElementById('card-birth-stats').textContent = `${data.birthWeight ? data.birthWeight + ' kg' : '—'} • ${data.birthLength ? data.birthLength + ' cm' : '—'}`;
+      document.getElementById('card-mother').textContent = data.motherName || '—';
+      document.getElementById('card-address').textContent = data.address || '—';
+      document.getElementById('card-next-visit').textContent = formatDateDisplay(data.nextVisitDate);
+      document.getElementById('card-progress-text').textContent = `${ms.totalGiven} of ${ms.totalPossible} Doses Completed`;
+
+      const cardGrid = document.getElementById('card-vaccine-grid');
+      cardGrid.innerHTML = DOH_VACCINES.map(v => {
+        const entry = data.vaccines[v.id] || {};
+        const done = entry.given && entry.date;
+        return `
+          <div class="rounded-2xl p-3.5 border ${done ? 'bg-emerald-50/70 border-emerald-300' : 'bg-slate-50 border-slate-200'} flex items-start justify-between gap-2">
+            <div>
+              <span class="text-[10px] font-bold uppercase tracking-wider ${done ? 'text-emerald-700' : 'text-slate-400'}">${v.ageGroup}</span>
+              <h4 class="font-bold text-sm text-slate-900">${v.name}</h4>
+              <p class="text-[11px] text-slate-500">${v.fullName}</p>
+              <p class="text-xs font-semibold mt-1.5 ${done ? 'text-emerald-800' : 'text-slate-400'}">
+                ${done ? `<i class="fa-solid fa-calendar-check mr-1"></i>${formatDateDisplay(entry.date)}` : 'Not yet given'}
+              </p>
+            </div>
+            <div class="w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${done ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-400'}">
+              <i class="fa-solid ${done ? 'fa-check' : 'fa-clock'} text-xs"></i>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // =========================================================================
+    // 6. CLIENT-SIDE PDF GENERATION (jsPDF + html2canvas)
+    // =========================================================================
+    function getCleanFilename(prefix) {
+      const rawName = (document.getElementById('childName').value || '').trim();
+      const safeName = rawName
+        ? rawName.replace(/[^a-zA-Z0-9\s-]/g, '').trim().replace(/\s+/g, '_')
+        : 'Patient';
+      return `${prefix}_${safeName}.pdf`;
+    }
+
+    function setButtonLoading(btnId, isLoading, defaultHtml) {
+      const btn = document.getElementById(btnId);
+      if (!btn) return;
+      if (isLoading) {
+        btn.disabled = true;
+        btn.classList.add('opacity-75', 'cursor-wait');
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i><span>Generating PDF...</span>`;
+      } else {
+        btn.disabled = false;
+        btn.classList.remove('opacity-75', 'cursor-wait');
+        btn.innerHTML = defaultHtml;
+      }
+    }
+
+    async function downloadBabyVaccineCardPDF() {
+      syncPreviewsFromForm();
+      const btnId = 'btn-download-passport';
+      const defaultBtnHtml = `<i class="fa-solid fa-file-arrow-down"></i><span>Download Baby Vaccine Card (.PDF)</span>`;
+      setButtonLoading(btnId, true, defaultBtnHtml);
+
+      try {
+        await downloadElementAsPDF('baby-passport-card', 'Baby_Vaccine_Card', {
+          fixedCaptureWidth: 920,
+          marginMm: 10
+        });
+      } finally {
+        setButtonLoading(btnId, false, defaultBtnHtml);
+      }
+    }
+
+    function printSingleCard(elementId) {
+      syncPreviewsFromForm();
+      window.print();
+    }
+
+    async function downloadElementAsPDF(elementId, prefix, options = {}) {
+      const target = document.getElementById(elementId);
+      if (!target) return;
+
+      if (!window.html2canvas || !window.jspdf) {
+        showToast('PDF engine still loading—opening browser print-to-PDF fallback.', 'amber');
+        window.print();
+        return;
+      }
+
+      showToast('Rendering high-resolution PDF, please wait...', 'teal');
+
+      // Allow UI paint frame before heavy canvas capture
+      await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 60)));
+
+      try {
+        const captureWidth = options.fixedCaptureWidth || target.scrollWidth || 820;
+        const marginMm = options.marginMm ?? 8;
+
+        const canvas = await window.html2canvas(target, {
+          scale: 2.2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+          windowWidth: Math.max(captureWidth, 960),
+          onclone: (clonedDoc) => {
+            const clonedEl = clonedDoc.getElementById(elementId);
+            if (clonedEl) {
+              clonedEl.style.width = `${captureWidth}px`;
+              clonedEl.style.maxWidth = 'none';
+              clonedEl.style.margin = '0';
+              clonedEl.style.boxShadow = 'none';
+              clonedEl.style.borderRadius = '16px';
+            }
+          }
+        });
+
+        const imgData = canvas.toDataURL('image/png', 1.0);
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4',
+          compress: true
+        });
+
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const usableWidth = pageWidth - marginMm * 2;
+        const usableHeight = pageHeight - marginMm * 2;
+
+        const imgProps = pdf.getImageProperties(imgData);
+        let renderWidth = usableWidth;
+        let renderHeight = (imgProps.height * renderWidth) / imgProps.width;
+
+        // Fit cleanly onto a single A4 page without clipping if slightly taller
+        if (renderHeight > usableHeight) {
+          const ratio = usableHeight / renderHeight;
+          renderHeight = usableHeight;
+          renderWidth = renderWidth * ratio;
+        }
+
+        const xOffset = (pageWidth - renderWidth) / 2;
+        const yOffset = marginMm;
+
+        pdf.addImage(imgData, 'PNG', xOffset, yOffset, renderWidth, renderHeight, undefined, 'FAST');
+
+        const filename = getCleanFilename(prefix);
+        pdf.save(filename);
+        showToast(`Downloaded ${filename} successfully!`, 'teal');
+      } catch (err) {
+        console.error('PDF export failed:', err);
+        showToast('Direct PDF download blocked by browser sandbox—opening Print-to-PDF dialog.', 'amber');
+        window.print();
+      }
+    }
+
+    // =========================================================================
+    // 7. NAVIGATION, MODALS & UTILITIES
+    // =========================================================================
+    function switchTab(tabName) {
+      syncPreviewsFromForm();
+      ['intake', 'registry', 'itr', 'passport'].forEach(name => {
+        const view = document.getElementById(`view-${name}`);
+        const btn = document.getElementById(`tab-btn-${name}`);
+        if (name === tabName) {
+          view.classList.remove('hidden');
+          btn.classList.remove('text-slate-300', 'hover:text-white', 'hover:bg-slate-700/60');
+          btn.classList.add('bg-brand-600', 'text-white', 'shadow-xs');
+        } else {
+          view.classList.add('hidden');
+          btn.classList.add('text-slate-300', 'hover:text-white', 'hover:bg-slate-700/60');
+          btn.classList.remove('bg-brand-600', 'text-white', 'shadow-xs');
+        }
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function openConfirmModal(title, message, onConfirm) {
+      const modal = document.getElementById('custom-modal');
+      document.getElementById('modal-title').textContent = title;
+      document.getElementById('modal-message').textContent = message;
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+
+      const cancelBtn = document.getElementById('modal-cancel-btn');
+      const confirmBtn = document.getElementById('modal-confirm-btn');
+
+      const close = () => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      };
+
+      cancelBtn.onclick = close;
+      confirmBtn.onclick = () => {
+        close();
+        onConfirm();
+      };
+    }
+
+    function confirmClearForm() {
+      openConfirmModal(
+        'Start New Patient Form?',
+        'This will clear the current intake form fields so you can enter a new child. Saved records in the TCL Registry will not be affected.',
+        () => {
+          document.getElementById('epi-form').reset();
+          document.getElementById('patient-id').value = '';
+          document.getElementById('editing-indicator').classList.add('hidden');
+          DOH_VACCINES.forEach(v => document.getElementById(`vax-row-${v.id}`).classList.remove('bg-emerald-50/40'));
+          setDefaultDates();
+          updateLiveSummary();
+          syncPreviewsFromForm();
+          showToast('Form cleared for a new patient encounter.', 'teal');
+        }
+      );
+    }
+
+    function confirmDeletePatient(id) {
+      const p = savedPatients.find(item => item.id === id);
+      if (!p) return;
+      openConfirmModal(
+        'Delete Patient Record?',
+        `Are you sure you want to permanently remove ${p.childName} from the saved TCL Registry?`,
+        () => {
+          savedPatients = savedPatients.filter(item => item.id !== id);
+          persistRegistryToStorage();
+          showToast(`Removed ${p.childName} from registry.`, 'amber');
+        }
+      );
+    }
+
+    function showToast(message, tone = 'teal') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      const colors = tone === 'amber'
+        ? 'bg-amber-900 text-amber-50 border-amber-700'
+        : 'bg-navy-900 text-white border-brand-500/40';
+      toast.className = `${colors} border px-4 py-3 rounded-xl shadow-xl text-xs sm:text-sm font-medium flex items-center gap-2.5 pointer-events-auto transition-all`;
+      toast.innerHTML = `<i class="fa-solid ${tone === 'amber' ? 'fa-circle-exclamation text-amber-400' : 'fa-circle-check text-brand-400'}"></i><span>${escapeHtml(message)}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+      }, 3400);
+    }
+
+    function formatDateDisplay(dateStr) {
+      if (!dateStr) return '—';
+      const parts = dateStr.split('-');
+      if (parts.length !== 3) return dateStr;
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const m = months[parseInt(parts[1], 10) - 1] || parts[1];
+      return `${m} ${parseInt(parts[2], 10)}, ${parts[0]}`;
+    }
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>

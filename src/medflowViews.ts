@@ -5,6 +5,15 @@ import {
   ANC_DANGER_SIGNS,
   PH_CPG_CATALOG
 } from './catalogs';
+import {
+  calculateBakuNxtAgeText,
+  buildBakuNxtItrSheetHTML,
+  buildBakuNxtPassportSheetHTML
+} from './bakunxtModule';
+import {
+  buildOptPlusChildCardPrintableHTML,
+  buildOptPlusForm1ASheetHTML
+} from './optplusModule';
 
 export function escapeHTML(str: any): string {
   if (!str && str !== 0) return '';
@@ -1211,13 +1220,20 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
       ${activeAncTab === 'ob-dating' ? `
         <div class="space-y-6 no-print">
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
-              <div class="flex items-center justify-between gap-2 mb-3">
-                <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                  Obstetric Score (G-P / T-P-A-L)
-                </h3>
-                ${renderClearFormIconButtonHTML('clearAncStep1Form()', 'Clear Form')}
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+              <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2.5">
+                  <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
+                  <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">
+                    Obstetric Score (G-P / T-P-A-L)
+                  </h3>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">DOH Safe Motherhood</span>
+                  ${renderClearFormIconButtonHTML('clearAncStep1Form()', 'Clear Form')}
+                </div>
               </div>
+              <div class="p-5">
               <div class="grid grid-cols-3 sm:grid-cols-6 gap-2.5">
                 ${[
                   { key: 'gravida', label: 'Gravida (G)' },
@@ -1251,13 +1267,20 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
                     class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold">
                 </div>
               </div>
+              </div>
             </div>
 
-            <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
-              <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                Menstrual Dating (Naegele's Rule Calculator)
-              </h3>
-
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+              <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2.5">
+                  <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">2</span>
+                  <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">
+                    Menstrual Dating (Naegele's Rule Calculator)
+                  </h3>
+                </div>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">AOG &amp; EDC Calculator</span>
+              </div>
+              <div class="p-5 space-y-4">
               <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
                 <label class="block text-xs font-bold text-slate-800">Last Menstrual Period (LMP) — Select Month, Day &amp; Year or Type Date</label>
                 <div class="grid grid-cols-3 gap-2">
@@ -1313,27 +1336,35 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
                     class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-bold text-slate-900 bg-slate-50">
                 </div>
               </div>
+              </div>
             </div>
           </div>
 
           <!-- DOH Maternal Danger Signs Checklist Inside Step 1 -->
-          <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
-            <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider mb-1">
-              DOH Maternal Danger Signs Screening
-            </h3>
-            <p class="text-xs text-slate-500 mb-4">Check any maternal danger sign present during this consultation.</p>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-              ${ANC_DANGER_SIGNS.map((sign: string) => {
-                const checked = (anc.dangerSigns || []).includes(sign);
-                return `
-                  <label class="flex items-start gap-2.5 p-3 rounded-xl border ${checked ? 'bg-teal-50 border-teal-500 text-teal-950 font-semibold' : 'bg-slate-50 border-slate-200 text-slate-700'} text-xs cursor-pointer">
-                    <input type="checkbox" ${checked ? 'checked' : ''}
-                      onchange="toggleAncDangerSign('${escapeHTML(sign)}')"
-                      class="mt-0.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500">
-                    <span>${escapeHTML(sign)}</span>
-                  </label>
-                `;
-              }).join('')}
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2.5">
+                <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">3</span>
+                <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">
+                  DOH Maternal Danger Signs Screening
+                </h3>
+              </div>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">Check Any Danger Sign Present</span>
+            </div>
+            <div class="p-6">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                ${ANC_DANGER_SIGNS.map((sign: string) => {
+                  const checked = (anc.dangerSigns || []).includes(sign);
+                  return `
+                    <label class="flex items-start gap-2.5 p-3 rounded-xl border ${checked ? 'bg-teal-50 border-teal-500 text-teal-950 font-semibold' : 'bg-slate-50 border-slate-200 text-slate-700'} text-xs cursor-pointer">
+                      <input type="checkbox" ${checked ? 'checked' : ''}
+                        onchange="toggleAncDangerSign('${escapeHTML(sign)}')"
+                        class="mt-0.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500">
+                      <span>${escapeHTML(sign)}</span>
+                    </label>
+                  `;
+                }).join('')}
+              </div>
             </div>
           </div>
 
@@ -1348,13 +1379,20 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
       <!-- OBSTETRIC PHYSICAL EXAMINATION & MATERNAL SOAP GENERATION -->
       ${activeAncTab === 'pe' ? `
         <div class="space-y-6">
-          <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs no-print">
-            <div class="flex items-center justify-between gap-2 mb-4">
-              <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                Obstetric Physical Examination (Leopold's Maneuvers &amp; FHT)
-              </h3>
-              ${renderClearFormIconButtonHTML('clearAncStep2Form()', 'Clear Form')}
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden no-print">
+            <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2.5">
+                <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
+                <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">
+                  Obstetric Physical Examination (Leopold's Maneuvers &amp; FHT)
+                </h3>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">Maternal &amp; Fetal Assessment</span>
+                ${renderClearFormIconButtonHTML('clearAncStep2Form()', 'Clear Form')}
+              </div>
             </div>
+            <div class="p-6">
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Fetal Heart Tone (bpm &amp; Location)</label>
@@ -1393,14 +1431,17 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
                 </select>
               </div>
             </div>
+            </div>
           </div>
 
           <!-- Maternal SOAP Note Editor & Live A4 Antenatal SOAP Preview -->
-          <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4 no-print">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
-              <div>
-                <span class="text-[10px] font-extrabold uppercase tracking-wider text-teal-700 block">Antenatal SOAP Note Generator</span>
-                <h3 class="text-base font-extrabold text-slate-900">Official Antenatal SOAP (Subjective, Objective, Assessment, Plan)</h3>
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden no-print">
+            <div class="bg-slate-900 px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div class="flex items-center gap-2.5">
+                <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">2</span>
+                <div>
+                  <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Official Antenatal SOAP (Subjective, Objective, Assessment, Plan)</h3>
+                </div>
               </div>
               <div class="flex flex-wrap items-center gap-2 shrink-0">
                 <div class="flex items-center gap-1.5 bg-teal-50/70 px-2.5 py-1.5 rounded-xl border border-teal-200">
@@ -1425,7 +1466,7 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
               </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label class="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">S — Maternal Subjective</label>
                 <textarea rows="3" oninput="handleSoapFieldInput('subjective', this.value)"
@@ -1477,7 +1518,20 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
       <!-- TRIMESTER SCREENING PACKAGE DROPDOWN + DIRECT LAB & IMAGING REQUEST GENERATION -->
       ${activeAncTab === 'screening' ? `
         <div class="space-y-6">
-          <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5 no-print">
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden no-print">
+            <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2.5">
+                <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
+                <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">
+                  Trimester Laboratory &amp; Imaging Request Builder
+                </h3>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">DOH / POGS Screening</span>
+                ${renderClearFormIconButtonHTML('clearAncStep3Form()', 'Clear Lab & Imaging Selection')}
+              </div>
+            </div>
+            <div class="p-6 space-y-5">
             <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4">
               <div class="flex flex-wrap items-center gap-2">
                 <select
@@ -1497,7 +1551,6 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
                   ✓ Apply Package &amp; Generate Request
                 </button>
               </div>
-              ${renderClearFormIconButtonHTML('clearAncStep3Form()', 'Clear Lab & Imaging Selection')}
             </div>
 
             <div class="space-y-4">
@@ -1541,6 +1594,7 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
                     </div>
                   </div>
                 `).join('')}
+            </div>
             </div>
           </div>
 
@@ -1590,11 +1644,21 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
         <div class="space-y-6">
           <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <!-- Left: DOH Micronutrient & Immunization Dropdowns + Medication List -->
-            <div class="lg:col-span-6 bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4 no-print">
-              <div class="flex items-center justify-end border-b border-slate-200 pb-2">
-                ${renderClearFormIconButtonHTML('clearAncStep4Form()', 'Clear Prescription Form')}
+            <div class="lg:col-span-6 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden no-print">
+              <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2.5">
+                  <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
+                  <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">
+                    Maternal Micronutrients &amp; Vaccine Rx Builder
+                  </h3>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">DOH Safe Motherhood</span>
+                  ${renderClearFormIconButtonHTML('clearAncStep4Form()', 'Clear Prescription Form')}
+                </div>
               </div>
 
+              <div class="p-6 space-y-4">
               <div class="space-y-3.5">
                 <div>
                   <label class="block text-xs font-bold text-slate-700 mb-1">Iron + Folic Acid Supplementation (DOH Protocol)</label>
@@ -1671,6 +1735,7 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
                   `).join('')}
                 </div>
               </div>
+              </div>
             </div>
 
             <!-- Right: Directly Generated Maternal Prescription (Rx Pad) Inside Step 4 -->
@@ -1743,19 +1808,26 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
       <!-- BIRTH & EMERGENCY PLAN + REKORD NI NANAY + SAVE PATIENT RECORD -->
       ${activeAncTab === 'birth-plan' ? `
         <div class="space-y-6">
-          <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5 no-print">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
-              <div class="flex items-center gap-2">
-                <label class="text-xs font-bold text-teal-900">Total Prenatal Visits:</label>
-                <input type="number" min="1" max="30" value="${escapeHTML(anc.prenatalVisitCount || getPatientPrenatalVisits(p).length)}"
-                  oninput="updateAncField('prenatalVisitCount', Number(this.value))"
-                  class="w-20 px-2.5 py-1.5 rounded-lg border border-teal-400 bg-teal-50 text-xs font-extrabold text-center text-teal-950">
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden no-print">
+            <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2.5">
+                <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
+                <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">
+                  Mother-Baby Birth &amp; Emergency Plan
+                </h3>
               </div>
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2.5">
+                <div class="flex items-center gap-1.5 bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700">
+                  <label class="text-[10px] font-bold uppercase tracking-wider text-teal-300">Total Prenatal Visits:</label>
+                  <input type="number" min="1" max="30" value="${escapeHTML(anc.prenatalVisitCount || getPatientPrenatalVisits(p).length)}"
+                    oninput="updateAncField('prenatalVisitCount', Number(this.value))"
+                    class="w-16 px-2 py-0.5 rounded bg-white text-xs font-extrabold text-center text-slate-900">
+                </div>
                 ${renderClearFormIconButtonHTML('clearAncStep5Form()', 'Clear Birth Plan Form')}
               </div>
             </div>
 
+            <div class="p-6 space-y-5">
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Planned Birthing Facility</label>
@@ -1819,6 +1891,7 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
                 `).join('')}
               </div>
             </div>
+            </div>
           </div>
 
           <!-- REKORD NI NANAY [PATIENT NAME] CARD & HALF-BONDPAPER PDF / PRINT -->
@@ -1877,6 +1950,311 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
   `;
 }
 
+export function buildCpgClinicalManagementFlashcardHTML(cpg: any, appState: any, compactMode = false): string {
+  const cm = cpg?.clinicalManagement;
+  if (!cm) return '';
+
+  const cpgId = String(cpg.id || '');
+  const activeCardStep: string =
+    (appState?.cpgFlashcardPillarMap && appState.cpgFlashcardPillarMap[cpgId]) || 'table';
+  const quizMode = Boolean(
+    (appState?.cpgFlashcardQuizMap && appState.cpgFlashcardQuizMap[cpgId]) ||
+    (appState?.cpgFlashcardQuizModeMap && appState.cpgFlashcardQuizModeMap[cpgId])
+  );
+  const revealedKeys: Record<string, boolean> =
+    (appState?.cpgFlashcardRevealedMap && appState.cpgFlashcardRevealedMap[cpgId]) || {};
+
+  const diagnostics = Array.isArray(cm.diagnostics) ? cm.diagnostics : [];
+  const situations = Array.isArray(cm.treatmentPerSituation) ? cm.treatmentPerSituation : [];
+  const counselingList = Array.isArray(cm.counselingAndRedFlags) ? cm.counselingAndRedFlags : [];
+  const standardCounseling = counselingList.filter((item: any) => !item.isRedFlag);
+  const redFlags = counselingList.filter((item: any) => item.isRedFlag);
+
+  const showDiagnostics = activeCardStep === 'table' || activeCardStep === 'diagnostics';
+  const showTreatment = activeCardStep === 'table' || activeCardStep === 'treatment';
+  const showCounseling = activeCardStep === 'table' || activeCardStep === 'counseling';
+
+  const stepOrder = ['table', 'diagnostics', 'treatment', 'counseling'];
+  const currentIdx = Math.max(0, stepOrder.indexOf(activeCardStep));
+  const prevStep = stepOrder[(currentIdx - 1 + stepOrder.length) % stepOrder.length];
+  const nextStep = stepOrder[(currentIdx + 1) % stepOrder.length];
+
+  return `
+    <div id="cpg-flashcard-${escapeHTML(cpgId)}" class="rounded-2xl border-2 border-teal-600/80 bg-white shadow-sm overflow-hidden transition-all">
+      <!-- Interactive Flashcard Header & Deck Controls -->
+      <div class="bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white px-4 sm:px-5 py-3.5">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-xl bg-teal-500/20 border border-teal-400/40 text-teal-300 flex items-center justify-center font-mono font-extrabold text-xs shrink-0">
+              #${escapeHTML(cm.conditionNumber)}
+            </div>
+            <div>
+              <h4 class="text-sm sm:text-base font-extrabold tracking-tight text-white">
+                Clinical Condition Management Flashcard
+              </h4>
+              <p class="text-[11px] text-teal-200/90 font-medium">
+                ${escapeHTML(cm.title)} • ${escapeHTML(cm.societySource)}
+              </p>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 shrink-0">
+            <!-- Interactive Flashcard Deck Stepper -->
+            <div class="inline-flex items-center rounded-lg bg-white/10 border border-white/15 p-0.5 text-[11px] font-bold">
+              <button
+                type="button"
+                onclick="event.stopPropagation(); setCpgFlashcardPillar('${escapeHTML(cpgId)}', '${prevStep}')"
+                class="px-2 py-1 rounded-md hover:bg-white/15 text-teal-200 transition cursor-pointer"
+                title="Previous Flashcard View"
+              >
+                ◀
+              </button>
+              <button
+                type="button"
+                onclick="event.stopPropagation(); setCpgFlashcardPillar('${escapeHTML(cpgId)}', 'table')"
+                class="px-2.5 py-1 rounded-md transition cursor-pointer ${
+                  activeCardStep === 'table' ? 'bg-teal-400 text-slate-950 font-extrabold' : 'text-slate-200 hover:bg-white/10'
+                }"
+              >
+                Full Table
+              </button>
+              <button
+                type="button"
+                onclick="event.stopPropagation(); setCpgFlashcardPillar('${escapeHTML(cpgId)}', 'diagnostics')"
+                class="px-2.5 py-1 rounded-md transition cursor-pointer ${
+                  activeCardStep === 'diagnostics' ? 'bg-teal-400 text-slate-950 font-extrabold' : 'text-slate-200 hover:bg-white/10'
+                }"
+              >
+                1. Diagnostics
+              </button>
+              <button
+                type="button"
+                onclick="event.stopPropagation(); setCpgFlashcardPillar('${escapeHTML(cpgId)}', 'treatment')"
+                class="px-2.5 py-1 rounded-md transition cursor-pointer ${
+                  activeCardStep === 'treatment' ? 'bg-teal-400 text-slate-950 font-extrabold' : 'text-slate-200 hover:bg-white/10'
+                }"
+              >
+                2. Treatment
+              </button>
+              <button
+                type="button"
+                onclick="event.stopPropagation(); setCpgFlashcardPillar('${escapeHTML(cpgId)}', 'counseling')"
+                class="px-2.5 py-1 rounded-md transition cursor-pointer ${
+                  activeCardStep === 'counseling' ? 'bg-teal-400 text-slate-950 font-extrabold' : 'text-slate-200 hover:bg-white/10'
+                }"
+              >
+                3. Counseling
+              </button>
+              <button
+                type="button"
+                onclick="event.stopPropagation(); setCpgFlashcardPillar('${escapeHTML(cpgId)}', '${nextStep}')"
+                class="px-2 py-1 rounded-md hover:bg-white/15 text-teal-200 transition cursor-pointer"
+                title="Next Flashcard View"
+              >
+                ▶
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onclick="event.stopPropagation(); toggleCpgFlashcardQuizMode('${escapeHTML(cpgId)}')"
+              class="px-3 py-1.5 rounded-lg border text-[11px] font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                quizMode
+                  ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-2xs'
+                  : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
+              }"
+              title="Flip cards to test clinical recall"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              ${quizMode ? 'Show All Answers' : 'Flip / Self-Test'}
+            </button>
+
+            <button
+              type="button"
+              onclick="event.stopPropagation(); applyFullClinicalManagementToSoap('${escapeHTML(cpgId)}')"
+              class="px-3 py-1.5 rounded-lg bg-teal-500 hover:bg-teal-400 text-slate-950 text-[11px] font-extrabold transition cursor-pointer shadow-2xs"
+            >
+              + Apply to SOAP
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Structured Clinical Management Flashcard Table -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-100 border-b-2 border-slate-300 text-[11px] font-extrabold uppercase tracking-wider text-slate-800">
+              <th class="py-2.5 px-4 ${compactMode ? 'w-36' : 'w-48'} border-r border-slate-200">Flashcard Section</th>
+              <th class="py-2.5 px-4">Structured Clinical Management Details</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y-2 divide-slate-200 text-xs sm:text-sm">
+            ${showDiagnostics ? `
+              <!-- 1. DIAGNOSTIC CRITERIA -->
+              <tr class="align-top bg-white">
+                <td class="p-4 bg-teal-50/50 border-r border-slate-200 align-top">
+                  <span class="inline-block px-2 py-0.5 rounded bg-teal-700 text-white text-[10px] font-extrabold uppercase tracking-wider mb-1">Card 01</span>
+                  <div class="font-extrabold text-slate-900 text-xs sm:text-sm">Diagnostic Criteria</div>
+                </td>
+                <td class="p-4">
+                  ${
+                    quizMode && !revealedKeys['diagnostics']
+                      ? `
+                        <button
+                          type="button"
+                          onclick="event.stopPropagation(); revealCpgFlashcardSection('${escapeHTML(cpgId)}', 'diagnostics')"
+                          class="w-full p-4 rounded-xl border-2 border-dashed border-teal-400 bg-teal-50/50 hover:bg-teal-50 text-teal-900 text-xs font-bold text-center cursor-pointer transition"
+                        >
+                          [Flashcard Hidden] Click to Flip &amp; Reveal Diagnostic Criteria (${diagnostics.length})
+                        </button>
+                      `
+                      : `
+                        <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                          <table class="w-full text-left border-collapse text-xs">
+                            <tbody class="divide-y divide-slate-200">
+                              ${diagnostics.map((d: any) => `
+                                <tr class="hover:bg-slate-50/80">
+                                  <td class="py-2.5 px-3.5 font-extrabold text-slate-900 bg-slate-50/70 w-1/3 sm:w-1/4 align-top border-r border-slate-200">
+                                    ${escapeHTML(d.label)}
+                                  </td>
+                                  <td class="py-2.5 px-3.5 text-slate-800 leading-relaxed align-top">
+                                    ${escapeHTML(d.detail)}
+                                  </td>
+                                </tr>
+                              `).join('')}
+                            </tbody>
+                          </table>
+                        </div>
+                      `
+                  }
+                </td>
+              </tr>
+            ` : ''}
+
+            ${showTreatment ? `
+              <!-- 2. TREATMENT STEPS -->
+              <tr class="align-top bg-white">
+                <td class="p-4 bg-slate-50 border-r border-slate-200 align-top">
+                  <span class="inline-block px-2 py-0.5 rounded bg-slate-900 text-white text-[10px] font-extrabold uppercase tracking-wider mb-1">Card 02</span>
+                  <div class="font-extrabold text-slate-900 text-xs sm:text-sm">Treatment Steps</div>
+                </td>
+                <td class="p-4">
+                  <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                    <table class="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr class="bg-teal-950 text-white text-[10px] font-extrabold uppercase tracking-wider">
+                          <th class="py-2 px-3 w-12 text-center border-r border-teal-800">Step</th>
+                          <th class="py-2 px-3.5 w-1/3 border-r border-teal-800">Clinical Situation</th>
+                          <th class="py-2 px-3.5">Regimen, Dosing &amp; Action</th>
+                          <th class="py-2 px-3 w-24 text-center">SOAP</th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-slate-200">
+                        ${situations.map((sit: any) => {
+                          const sitKey = `sit_${sit.number}`;
+                          const isHiddenInQuiz = quizMode && !revealedKeys[sitKey];
+                          return `
+                            <tr class="hover:bg-teal-50/30 align-top">
+                              <td class="py-3 px-3 text-center font-mono font-extrabold text-teal-900 bg-teal-50/50 border-r border-slate-200">
+                                ${escapeHTML(sit.number)}
+                              </td>
+                              <td class="py-3 px-3.5 font-extrabold text-slate-900 border-r border-slate-200">
+                                ${escapeHTML(sit.situation)}
+                              </td>
+                              <td class="py-3 px-3.5 text-slate-800 leading-relaxed">
+                                ${
+                                  isHiddenInQuiz
+                                    ? `
+                                      <button
+                                        type="button"
+                                        onclick="event.stopPropagation(); revealCpgFlashcardSection('${escapeHTML(cpgId)}', '${sitKey}')"
+                                        class="w-full py-2 px-3 rounded-lg border border-dashed border-teal-400 bg-teal-50/50 hover:bg-teal-100/60 text-teal-900 text-[11px] font-bold text-center cursor-pointer transition"
+                                      >
+                                        Click to Flip &amp; Reveal Step ${escapeHTML(sit.number)} Regimen
+                                      </button>
+                                    `
+                                    : escapeHTML(sit.protocol)
+                                }
+                              </td>
+                              <td class="py-3 px-2.5 text-center align-middle">
+                                <button
+                                  type="button"
+                                  onclick="event.stopPropagation(); applySingleCpgSituationToSoap('${escapeHTML(cpgId)}', ${Number(sit.number)})"
+                                  class="px-2 py-1 rounded-md bg-teal-600 hover:bg-teal-700 text-white text-[10px] font-bold transition cursor-pointer"
+                                  title="Add this treatment step to SOAP Plan"
+                                >
+                                  + Add
+                                </button>
+                              </td>
+                            </tr>
+                          `;
+                        }).join('')}
+                      </tbody>
+                    </table>
+                  </div>
+                </td>
+              </tr>
+            ` : ''}
+
+            ${showCounseling ? `
+              <!-- 3. COUNSELING & REFERRAL TRIGGERS -->
+              <tr class="align-top bg-white">
+                <td class="p-4 bg-rose-50/40 border-r border-slate-200 align-top">
+                  <span class="inline-block px-2 py-0.5 rounded bg-rose-700 text-white text-[10px] font-extrabold uppercase tracking-wider mb-1">Card 03</span>
+                  <div class="font-extrabold text-slate-900 text-xs sm:text-sm">Counseling &amp; Triggers</div>
+                </td>
+                <td class="p-4">
+                  ${
+                    quizMode && !revealedKeys['counseling']
+                      ? `
+                        <button
+                          type="button"
+                          onclick="event.stopPropagation(); revealCpgFlashcardSection('${escapeHTML(cpgId)}', 'counseling')"
+                          class="w-full p-4 rounded-xl border-2 border-dashed border-rose-400 bg-rose-50/50 hover:bg-rose-50 text-rose-900 text-xs font-bold text-center cursor-pointer transition"
+                        >
+                          [Flashcard Hidden] Click to Flip &amp; Reveal Counseling &amp; Referral Triggers
+                        </button>
+                      `
+                      : `
+                        <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                          <table class="w-full text-left border-collapse text-xs">
+                            <tbody class="divide-y divide-slate-200">
+                              ${standardCounseling.map((c: any) => `
+                                <tr class="hover:bg-slate-50/80 align-top">
+                                  <td class="py-2.5 px-3.5 font-extrabold text-teal-950 bg-teal-50/40 w-1/3 sm:w-1/4 border-r border-slate-200">
+                                    ${escapeHTML(c.label)}
+                                  </td>
+                                  <td class="py-2.5 px-3.5 text-slate-800 leading-relaxed">
+                                    ${escapeHTML(c.detail)}
+                                  </td>
+                                </tr>
+                              `).join('')}
+                              ${redFlags.map((rf: any) => `
+                                <tr class="bg-rose-50/80 align-top">
+                                  <td class="py-2.5 px-3.5 font-extrabold text-rose-900 bg-rose-100/70 w-1/3 sm:w-1/4 border-r border-rose-200">
+                                    ⚠ ${escapeHTML(rf.label)}
+                                  </td>
+                                  <td class="py-2.5 px-3.5 text-rose-950 font-semibold leading-relaxed">
+                                    ${escapeHTML(rf.detail)}
+                                  </td>
+                                </tr>
+                              `).join('')}
+                            </tbody>
+                          </table>
+                        </div>
+                      `
+                  }
+                </td>
+              </tr>
+            ` : ''}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
 export function buildOfflineCpgReferencePanelHTML(appState: any, p: any): string {
   const q = (appState.soapCpgSearchQuery || '').trim().toLowerCase();
   const ccWords = (p?.chiefComplaint || '')
@@ -1894,7 +2272,6 @@ export function buildOfflineCpgReferencePanelHTML(appState: any, p: any): string
     );
   });
 
-  // Sort CPGs matching the patient's Chief Complaint to the top when no manual query is entered
   const sorted = [...filtered].sort((a: any, b: any) => {
     if (q) return 0;
     const aMatch = ccWords.some(
@@ -1916,27 +2293,26 @@ export function buildOfflineCpgReferencePanelHTML(appState: any, p: any): string
   const selectedCpg = PH_CPG_CATALOG.find((c: any) => c.id === selectedId) || sorted[0] || null;
   const hasThreeColSnapshot = Array.isArray(selectedCpg?.snapshotHeaders) && selectedCpg.snapshotHeaders.length === 3;
   const snapshotRows = Array.isArray(selectedCpg?.snapshot) ? selectedCpg.snapshot : [];
-  const strongRecs = Array.isArray(selectedCpg?.recommendations?.strong) ? selectedCpg.recommendations.strong : [];
-  const conditionalRecs = Array.isArray(selectedCpg?.recommendations?.conditional) ? selectedCpg.recommendations.conditional : [];
 
   return `
-    <div class="flex items-center justify-between border-b border-slate-200 pb-3 mb-3">
+    <div class="-mx-5 -mt-5 mb-4 bg-slate-900 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
       <div class="flex items-center gap-2.5">
-        <div class="px-2.5 py-1.5 rounded-lg bg-slate-800 text-white flex items-center justify-center font-bold text-xs shadow-xs">CPG</div>
+        <span class="px-2 py-1 rounded-lg bg-teal-600 text-white font-extrabold text-[10px] uppercase">CPG</span>
         <div>
-          <h3 class="text-sm font-extrabold text-slate-900">Offline CPG Decision Support</h3>
+          <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">41-Condition Philippine CPG Flashcards</h3>
         </div>
       </div>
+      <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">Offline Reference</span>
     </div>
 
-    <div class="space-y-3 text-xs">
-      <!-- Offline CPG Search Input -->
+    <div class="space-y-3.5 text-xs">
+      <!-- 41-Condition CPG Search Input -->
       <div class="relative">
         <input
           type="text"
           value="${escapeHTML(appState.soapCpgSearchQuery || '')}"
           oninput="updateSoapCpgSearch(this.value)"
-          placeholder="Search 39 offline CPGs (e.g., Hypertension, Dengue, PTB, GDM, Asthma)..."
+          placeholder="Search all 41 Philippine CPGs (e.g., Hypertension, Dengue, PTB, GDM, Asthma, Rabies)..."
           class="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-teal-500"
         >
         <svg class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -1944,11 +2320,12 @@ export function buildOfflineCpgReferencePanelHTML(appState: any, p: any): string
         </svg>
       </div>
 
-      <!-- Quick Disease Selector Pills / List -->
+      <!-- Quick Disease Selector List -->
       <div class="max-h-36 overflow-y-auto space-y-1.5 pr-1 border border-slate-200 rounded-xl p-2 bg-slate-50">
         ${sorted.length === 0 ? `<p class="text-xs text-slate-400 italic py-2 text-center">No CPG matched "${escapeHTML(appState.soapCpgSearchQuery)}"</p>` : ''}
         ${sorted.map((c: any) => {
           const isSelected = selectedCpg && selectedCpg.id === c.id;
+          const condNum = c.clinicalManagement?.conditionNumber;
           return `
             <button
               type="button"
@@ -1960,23 +2337,22 @@ export function buildOfflineCpgReferencePanelHTML(appState: any, p: any): string
               }"
             >
               <div class="min-w-0">
-                <div class="truncate">${escapeHTML(c.title)}</div>
-                <div class="text-[10px] truncate ${isSelected ? 'text-teal-100' : 'text-slate-500'}">${escapeHTML(c.category)} • ${escapeHTML(c.source || 'PH CPG')}</div>
+                <div class="truncate">${condNum ? `#${condNum}. ` : ''}${escapeHTML(c.title)}</div>
+                <div class="text-[10px] truncate ${isSelected ? 'text-teal-100' : 'text-slate-500'}">${escapeHTML(c.category)} • ${escapeHTML(c.clinicalManagement?.societySource || c.source || 'PH CPG')}</div>
               </div>
-              <span class="text-[10px] font-bold shrink-0 ${isSelected ? 'text-white' : 'text-teal-700'}">View →</span>
+              <span class="text-[10px] font-bold shrink-0 ${isSelected ? 'text-white' : 'text-teal-700'}">Flashcard →</span>
             </button>
           `;
         }).join('')}
       </div>
 
-      <!-- Selected CPG Detailed Reference Card -->
+      <!-- Selected CPG Detailed Reference & Bedside Flashcard Table -->
       ${selectedCpg ? `
-        <div class="p-3.5 rounded-xl bg-teal-50/50 border border-teal-200 space-y-3 max-h-[420px] overflow-y-auto">
+        <div class="p-3.5 rounded-xl bg-teal-50/50 border border-teal-200 space-y-3 max-h-[540px] overflow-y-auto">
           <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-2 border-b border-teal-200/70 pb-2.5">
             <div>
               <span class="inline-block px-2 py-0.5 rounded bg-white text-teal-800 border border-teal-200 text-[10px] font-bold uppercase">${escapeHTML(selectedCpg.category)}</span>
               <h4 class="font-extrabold text-slate-900 text-xs sm:text-sm mt-1">${escapeHTML(selectedCpg.title)}</h4>
-              <p class="text-[11px] text-slate-600">${escapeHTML(selectedCpg.source || '')}</p>
             </div>
             <div class="flex flex-wrap gap-1.5 shrink-0">
               <button
@@ -1988,17 +2364,17 @@ export function buildOfflineCpgReferencePanelHTML(appState: any, p: any): string
               </button>
               <button
                 type="button"
-                onclick="applyCpgToSoapPlan('${escapeHTML(selectedCpg.id)}')"
+                onclick="applyFullClinicalManagementToSoap('${escapeHTML(selectedCpg.id)}')"
                 class="px-2.5 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-[11px] font-bold shadow-2xs cursor-pointer"
               >
-                + Apply Plan to SOAP
+                + Apply Protocol to SOAP
               </button>
             </div>
           </div>
 
           ${snapshotRows.length > 0 ? `
             <div>
-              <span class="text-[10px] font-extrabold uppercase tracking-wider text-teal-900 block mb-1.5">Quick Snapshot & Diagnostic Criteria</span>
+              <span class="text-[10px] font-extrabold uppercase tracking-wider text-teal-900 block mb-1.5">Quick Snapshot</span>
               <div class="overflow-x-auto rounded-lg border border-slate-200 bg-white">
                 <table class="w-full text-left border-collapse text-[11px]">
                   <thead>
@@ -2032,27 +2408,25 @@ export function buildOfflineCpgReferencePanelHTML(appState: any, p: any): string
             </div>
           ` : ''}
 
-          ${(selectedCpg.soapPlanSummary || []).length > 0 ? `
-            <div class="p-2.5 rounded-lg bg-white border border-slate-200">
-              <div class="flex items-center justify-between mb-1">
-                <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-800">Standard CPG Management Protocol</span>
-                <button type="button" onclick="applyCpgToSoapPlan('${escapeHTML(selectedCpg.id)}')" class="text-[10px] font-bold text-teal-700 hover:underline cursor-pointer">Insert into Plan →</button>
+          ${((Array.isArray(selectedCpg.scope?.included) && selectedCpg.scope.included.length > 0) || (Array.isArray(selectedCpg.scope?.excluded) && selectedCpg.scope.excluded.length > 0)) ? `
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div class="p-3 rounded-lg bg-white border border-teal-200 space-y-1">
+                <h5 class="text-[10px] font-bold uppercase tracking-wider text-teal-900">Included Populations</h5>
+                <ul class="list-disc pl-4 space-y-0.5 text-[11px] text-slate-800">
+                  ${(selectedCpg.scope?.included || []).map((inc: string) => `<li>${escapeHTML(inc)}</li>`).join('')}
+                </ul>
               </div>
-              <ol class="list-decimal list-inside space-y-1 text-[11px] text-slate-700">
-                ${(selectedCpg.soapPlanSummary || []).map((line: string) => `<li>${escapeHTML(line)}</li>`).join('')}
-              </ol>
+              <div class="p-3 rounded-lg bg-slate-100 border border-slate-300 space-y-1">
+                <h5 class="text-[10px] font-bold uppercase tracking-wider text-slate-900">Excluded / Switch Protocol</h5>
+                <ul class="space-y-0.5 text-[11px] text-slate-800">
+                  ${(selectedCpg.scope?.excluded || []).map((exc: any) => `<li><strong class="text-slate-900">${escapeHTML(exc.label)}:</strong> ${escapeHTML(exc.action)}</li>`).join('')}
+                </ul>
+              </div>
             </div>
           ` : ''}
 
-          ${strongRecs.length > 0 || conditionalRecs.length > 0 ? `
-            <div class="p-2.5 rounded-lg bg-white border border-slate-200 space-y-2">
-              <span class="text-[10px] font-extrabold uppercase tracking-wider text-teal-800 block">Key Guideline Recommendations</span>
-              <ul class="space-y-1 text-[11px] text-slate-700">
-                ${strongRecs.map((r: any) => `<li><strong class="text-slate-900">[Strong] ${escapeHTML(r.title)}:</strong> ${escapeHTML(r.detail)}</li>`).join('')}
-                ${conditionalRecs.map((r: any) => `<li><strong class="text-slate-800">[Conditional] ${escapeHTML(r.title)}:</strong> ${escapeHTML(r.detail)}</li>`).join('')}
-              </ul>
-            </div>
-          ` : ''}
+          <!-- Interactive Clinical Condition Management Flashcard -->
+          ${buildCpgClinicalManagementFlashcardHTML(selectedCpg, appState, true)}
         </div>
       ` : ''}
     </div>
@@ -2122,7 +2496,7 @@ export function buildSoapWorkspaceHTML(appState: any, p: any, aiLeftHTML: string
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 no-print">
       <!-- Left Column: Either AI SOAP Assistant OR Offline CPG Reference -->
-      <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-xs p-5 flex flex-col justify-between">
+      <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-xs p-5 overflow-hidden flex flex-col justify-between">
         <div>
           <div id="ai-soap-left-container">
             ${aiEnabled ? aiLeftHTML : buildOfflineCpgReferencePanelHTML(appState, p)}
@@ -2144,19 +2518,20 @@ export function buildSoapWorkspaceHTML(appState: any, p: any, aiLeftHTML: string
       </div>
 
       <!-- Right Column: Official SOAP -->
-      <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200">
-          <div>
-            <h3 class="text-base font-extrabold text-slate-900">Official SOAP</h3>
+      <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+        <div class="bg-slate-900 px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div class="flex items-center gap-2.5">
+            <span class="px-2 py-1 rounded-lg bg-teal-600 text-white font-extrabold text-[10px] uppercase">SOAP</span>
+            <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Official Consultation SOAP Note</h3>
           </div>
           <div class="flex flex-wrap items-center gap-2">
-            <div class="flex items-center gap-1.5 bg-teal-50/70 px-2.5 py-1.5 rounded-lg border border-teal-200">
-              <label class="text-[10px] font-extrabold uppercase text-teal-800">Consultation Date:</label>
+            <div class="flex items-center gap-1.5 bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700">
+              <label class="text-[10px] font-extrabold uppercase text-teal-300">Date:</label>
               <input
                 type="date"
                 value="${escapeHTML(p.consultationDate || visitDate)}"
                 onchange="handleConsultationDateChange(this.value)"
-                class="px-2 py-0.5 rounded border border-teal-300 bg-white text-xs font-bold text-slate-900"
+                class="px-2 py-0.5 rounded bg-white text-xs font-bold text-slate-900"
               >
             </div>
             <select
@@ -2168,6 +2543,10 @@ export function buildSoapWorkspaceHTML(appState: any, p: any, aiLeftHTML: string
               <option value="Referral" ${p.natureOfVisit === 'Referral' ? 'selected' : ''}>Referral</option>
             </select>
             ${renderClearFormIconButtonHTML('clearOfficialSoapForm()', 'Clear Official SOAP Form')}
+          </div>
+        </div>
+        <div class="p-5 space-y-4">
+        <div class="flex flex-wrap items-center justify-end gap-2 pb-2 border-b border-slate-100">
             <button onclick="savePatientConsultationSnapshot()" class="px-3 py-2 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-900 border border-teal-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer" title="Save Record">
               <svg class="w-3.5 h-3.5 text-teal-700" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
               Save SOAP Draft
@@ -2180,7 +2559,6 @@ export function buildSoapWorkspaceHTML(appState: any, p: any, aiLeftHTML: string
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
               Print A4 SOAP
             </button>
-          </div>
         </div>
 
         <div class="grid grid-cols-1 gap-3.5">
@@ -2243,6 +2621,7 @@ export function buildSoapWorkspaceHTML(appState: any, p: any, aiLeftHTML: string
               </div>
             `).join('')}
           </div>
+        </div>
         </div>
       </div>
     </div>
@@ -2381,19 +2760,22 @@ export function buildPrescriptionWorkspaceHTML(appState: any, p: any): string {
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
       <!-- Left: Rx Medication Editor -->
-      <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-5 shadow-xs no-print space-y-4">
-        <div class="flex items-center justify-between border-b border-slate-200 pb-3">
-          <div>
-            <h3 class="text-base font-extrabold text-slate-900">Generics Act Rx Pad Builder</h3>
-            <p class="text-xs text-slate-500">RA 6675 compliant (Generic name prominent, brand optional).</p>
+      <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden no-print">
+        <div class="bg-slate-900 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2.5">
+            <span class="px-2 py-1 rounded-lg bg-teal-600 text-white font-extrabold text-[10px] uppercase">Rx</span>
+            <div>
+              <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Generics Act Rx Pad Builder</h3>
+            </div>
           </div>
           <div class="flex items-center gap-2">
             ${renderClearFormIconButtonHTML('clearPrescriptionForm()', 'Clear Prescription Form')}
-            <button onclick="addBlankDoctorMed()" class="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold cursor-pointer">
+            <button onclick="addBlankDoctorMed()" class="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold cursor-pointer">
               + Add Medication
             </button>
           </div>
         </div>
+        <div class="p-5 space-y-4">
 
         <div class="space-y-3 max-h-[420px] overflow-y-auto pr-1">
           ${meds.length === 0 ? `<p class="text-xs text-slate-400 italic py-4 text-center">No medications in prescription yet. Click "+ Add Medication" to add one.</p>` : ''}
@@ -2440,6 +2822,7 @@ export function buildPrescriptionWorkspaceHTML(appState: any, p: any): string {
               Print Rx
             </button>
           </div>
+        </div>
         </div>
       </div>
 
@@ -2530,21 +2913,24 @@ export function buildDiagnosticsWorkspaceHTML(appState: any, p: any): string {
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 no-print">
       <!-- Left: Philippine Lab & Imaging Catalog Selector -->
-      <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
-          <div>
-            <h3 class="text-base font-extrabold text-slate-900">Philippine Hospital Lab & Imaging Catalog</h3>
-            <p class="text-xs text-slate-500">Select tests to include in the dual Laboratory & Imaging Request Sheet.</p>
+      <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+        <div class="bg-slate-900 px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div class="flex items-center gap-2.5">
+            <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
+            <div>
+              <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Philippine Hospital Lab &amp; Imaging Catalog</h3>
+            </div>
           </div>
-          <div class="flex rounded-xl bg-slate-100 p-1">
-            <button onclick="setDiagActiveTab('labs')" class="px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer ${activeTab === 'labs' ? 'bg-white text-teal-800 shadow-xs' : 'text-slate-600'}">
+          <div class="flex rounded-xl bg-slate-800 p-1">
+            <button onclick="setDiagActiveTab('labs')" class="px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer ${activeTab === 'labs' ? 'bg-teal-600 text-white shadow-xs' : 'text-slate-300 hover:text-white'}">
               Laboratory (${selectedLabs.length})
             </button>
-            <button onclick="setDiagActiveTab('imaging')" class="px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer ${activeTab === 'imaging' ? 'bg-white text-teal-800 shadow-xs' : 'text-slate-600'}">
+            <button onclick="setDiagActiveTab('imaging')" class="px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer ${activeTab === 'imaging' ? 'bg-teal-600 text-white shadow-xs' : 'text-slate-300 hover:text-white'}">
               Imaging (${selectedImaging.length})
             </button>
           </div>
         </div>
+        <div class="p-5 space-y-4">
 
         <div class="space-y-4 max-h-[520px] overflow-y-auto pr-1">
           ${Object.entries(activeTab === 'labs' ? PH_LAB_CATALOG : PH_IMAGING_CATALOG).map(([categoryName, items]: [string, string[]]) => `
@@ -2566,22 +2952,27 @@ export function buildDiagnosticsWorkspaceHTML(appState: any, p: any): string {
             </div>
           `).join('')}
         </div>
+        </div>
       </div>
 
       <!-- Right: Selected Orders & Request Metadata -->
-      <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
-        <div class="flex items-center justify-between border-b border-slate-200 pb-3">
-          <h3 class="text-base font-extrabold text-slate-900">Diagnostic Request Summary</h3>
+      <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+        <div class="bg-slate-900 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2.5">
+            <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">2</span>
+            <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Diagnostic Request Summary</h3>
+          </div>
           <div class="flex items-center gap-2">
             ${renderClearFormIconButtonHTML('clearDiagnosticsForm()', 'Clear Lab & Imaging Form')}
-            <button onclick="downloadPdfElement('diag-printable-a4', 'Lab_Imaging_Request_${escapeHTML(p.name.split(' ')[0].replace(/[^a-zA-Z0-9]/g, ''))}_${visitDate}.pdf', 'a5-landscape')" class="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold cursor-pointer">
+            <button onclick="downloadPdfElement('diag-printable-a4', 'Lab_Imaging_Request_${escapeHTML(p.name.split(' ')[0].replace(/[^a-zA-Z0-9]/g, ''))}_${visitDate}.pdf', 'a5-landscape')" class="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold cursor-pointer">
               Download PDF
             </button>
-            <button onclick="printDocumentElement('diag-printable-a4', 'A5 landscape')" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold cursor-pointer">
+            <button onclick="printDocumentElement('diag-printable-a4', 'A5 landscape')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-bold cursor-pointer">
               Print Sheet
             </button>
           </div>
         </div>
+        <div class="p-5 space-y-4">
 
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div class="sm:col-span-2">
@@ -2627,6 +3018,7 @@ export function buildDiagnosticsWorkspaceHTML(appState: any, p: any): string {
               `).join('')}
             </div>
           `}
+        </div>
         </div>
       </div>
     </div>
@@ -2681,16 +3073,49 @@ export function buildPatientRecordsHTML(appState: any): string {
   const search = (appState.recordsSearchQuery || '').trim().toLowerCase();
   const filterTab = appState.recordsActiveTab || 'all';
   const allPatients = appState.patients || [];
+  const bakunxtPatients = appState.bakunxtPatients || [];
+  const optplusRecords = appState.optplusRecords || [];
   const todayStr = new Date().toISOString().split('T')[0];
 
-  const filtered = allPatients.filter((p: any) => {
+  const normalizedFolders: any[] = [
+    ...allPatients.map((p: any) => ({
+      ...p,
+      recordCategory: p.patientType === 'antenatal' ? 'antenatal' : 'regular',
+      displayAge: `${p.age || '—'} yrs`
+    })),
+    ...bakunxtPatients.map((b: any) => {
+      const ageObj = calculateBakuNxtAgeText(b.dob);
+      return {
+        ...b,
+        name: b.childName || 'Unnamed Infant',
+        patientType: 'immunization',
+        recordCategory: 'immunization',
+        displayAge: ageObj.label || '—',
+        consultationDate: b.visitDate || todayStr,
+        rawRecord: b
+      };
+    }),
+    ...optplusRecords.map((o: any) => ({
+      ...o,
+      name: o.childName || 'Unnamed Preschooler',
+      patientType: 'optplus',
+      recordCategory: 'optplus',
+      displayAge: `${o.ageMonths ?? '—'} mos`,
+      consultationDate: o.measureDate || todayStr,
+      rawRecord: o
+    }))
+  ];
+
+  const filtered = normalizedFolders.filter((p: any) => {
     const matchesTab =
       filterTab === 'all' ||
-      (filterTab === 'antenatal' && p.patientType === 'antenatal') ||
-      (filterTab === 'regular' && p.patientType !== 'antenatal');
+      (filterTab === 'regular' && p.recordCategory === 'regular') ||
+      (filterTab === 'antenatal' && p.recordCategory === 'antenatal') ||
+      (filterTab === 'immunization' && p.recordCategory === 'immunization') ||
+      (filterTab === 'optplus' && p.recordCategory === 'optplus');
     if (!matchesTab) return false;
     if (!search) return true;
-    const hay = `${p.name} ${p.id} ${p.chiefComplaint || ''} ${p.doctorSoap?.assessment || ''}`.toLowerCase();
+    const hay = `${p.name} ${p.id} ${p.chiefComplaint || ''} ${p.doctorSoap?.assessment || ''} ${p.motherName || ''} ${p.barangay || ''} ${p.purok || ''}`.toLowerCase();
     return hay.includes(search);
   });
 
@@ -2701,6 +3126,31 @@ export function buildPatientRecordsHTML(appState: any): string {
   const selectedPdfVisitDate = appState.registryPreviewVisitDate || '';
 
   const getPatientConsultationVisits = (p: any) => {
+    if (p.recordCategory === 'immunization') {
+      const rawVisits = Array.isArray(p.visitHistory) && p.visitHistory.length > 0 ? p.visitHistory : [];
+      const fallbackDate = p.visitDate || p.consultationDate || todayStr;
+      if (rawVisits.length === 0) {
+        return [{ date: fallbackDate, type: 'EPI Immunization Visit', snapshot: p.rawRecord || p }];
+      }
+      return rawVisits.map((v: any) => ({
+        date: v.date || fallbackDate,
+        type: 'EPI Immunization Visit',
+        snapshot: v.snapshot || p.rawRecord || p
+      }));
+    }
+    if (p.recordCategory === 'optplus') {
+      const rawVisits = Array.isArray(p.visitHistory) && p.visitHistory.length > 0 ? p.visitHistory : [];
+      const fallbackDate = p.measureDate || p.consultationDate || todayStr;
+      if (rawVisits.length === 0) {
+        return [{ date: fallbackDate, type: 'OPT Plus Growth Visit', snapshot: p.rawRecord || p }];
+      }
+      return rawVisits.map((v: any) => ({
+        date: v.date || fallbackDate,
+        type: 'OPT Plus Growth Visit',
+        snapshot: v.snapshot || p.rawRecord || p
+      }));
+    }
+
     const rawHistory = Array.isArray(p.consultationHistory) ? p.consultationHistory : [];
     const defaultDate = p.consultationDate || todayStr;
     if (rawHistory.length === 0) {
@@ -2729,6 +3179,15 @@ export function buildPatientRecordsHTML(appState: any): string {
     const visits = getPatientConsultationVisits(p);
     const matched = visits.find((v: any) => v.date === visitDate) || visits[0];
     if (!matched) return p;
+    if (p.recordCategory === 'immunization' || p.recordCategory === 'optplus') {
+      return {
+        ...p,
+        ...(matched.snapshot || p.rawRecord || {}),
+        name: p.name,
+        recordCategory: p.recordCategory,
+        consultationDate: matched.date || p.consultationDate || todayStr
+      };
+    }
     return {
       ...p,
       consultationDate: matched.date || p.consultationDate || todayStr,
@@ -2748,6 +3207,49 @@ export function buildPatientRecordsHTML(appState: any): string {
     const safeFirst = (p.name || 'Patient').split(' ')[0].replace(/[^a-zA-Z0-9]/g, '') || 'Patient';
     const safeFull = (p.name || 'Patient').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '') || 'Patient';
     const vDate = vDateOverride || p.consultationDate || todayStr;
+
+    if (p.recordCategory === 'immunization') {
+      return [
+        {
+          type: 'epi-itr',
+          filename: `Official_EPI_ITR_${safeFull}_${vDate}.pdf`,
+          label: 'Official Immunization ITR',
+          sizeBadge: 'DOH A4 Record',
+          formatType: 'a4',
+          pageSize: 'A4 portrait'
+        },
+        {
+          type: 'epi-card',
+          filename: `Baby_Vaccine_Card_${safeFull}_${vDate}.pdf`,
+          label: 'BakuNxt Baby Vaccine Card',
+          sizeBadge: 'A4 Portrait',
+          formatType: 'a4',
+          pageSize: 'A4 portrait'
+        }
+      ];
+    }
+
+    if (p.recordCategory === 'optplus') {
+      return [
+        {
+          type: 'opt-card',
+          filename: `Child_Nutrition_Card_${safeFull}_${vDate}.pdf`,
+          label: 'Child Growth & Nutrition Card',
+          sizeBadge: 'A4 Portrait',
+          formatType: 'a4',
+          pageSize: 'A4 portrait'
+        },
+        {
+          type: 'opt-form1a',
+          filename: `OPTPlus_Form1A_${safeFull}_${vDate}.pdf`,
+          label: 'OPT Plus Form 1A Record',
+          sizeBadge: 'A4 Portrait',
+          formatType: 'a4',
+          pageSize: 'A4 portrait'
+        }
+      ];
+    }
+
     const files = [
       {
         type: 'itr',
@@ -2817,7 +3319,19 @@ export function buildPatientRecordsHTML(appState: any): string {
     let sheetBodyHTML = '';
     let sheetPaperClass = 'paper-a4';
 
-    if (activeFile.type === 'itr') {
+    if (activeFile.type === 'epi-itr') {
+      sheetPaperClass = '';
+      sheetBodyHTML = buildBakuNxtItrSheetHTML(p);
+    } else if (activeFile.type === 'epi-card') {
+      sheetPaperClass = '';
+      sheetBodyHTML = buildBakuNxtPassportSheetHTML(p);
+    } else if (activeFile.type === 'opt-card') {
+      sheetPaperClass = 'paper-a4';
+      sheetBodyHTML = buildOptPlusChildCardPrintableHTML(p);
+    } else if (activeFile.type === 'opt-form1a') {
+      sheetPaperClass = 'paper-a4';
+      sheetBodyHTML = buildOptPlusForm1ASheetHTML([p], p);
+    } else if (activeFile.type === 'itr') {
       sheetPaperClass = 'paper-a4';
       sheetBodyHTML = buildA4IndividualTreatmentRecordHTML(doc, p);
     } else if (activeFile.type === 'soap') {
@@ -2927,23 +3441,43 @@ export function buildPatientRecordsHTML(appState: any): string {
           <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Patient Records Registry</h2>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-          ${allPatients.length > 0 ? `
+          ${filterTab === 'optplus' && optplusRecords.length > 0 ? `
+            <button onclick="optplusExportMasterlistCSV()" class="px-3.5 py-2.5 rounded-xl bg-slate-900/70 hover:bg-slate-900 text-white border border-teal-400/30 text-xs font-bold shadow-xs cursor-pointer">
+              Export Form 1A CSV
+            </button>
+            <button onclick="optplusExportForm1APdf()" class="px-3.5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-xs cursor-pointer">
+              Export Form 1A Masterlist PDF
+            </button>
+          ` : ''}
+          ${allPatients.length > 0 && (filterTab === 'all' || filterTab === 'regular' || filterTab === 'antenatal') ? `
             <button onclick="downloadPdfElement('all-patients-soap-printable', 'MedFlow_All_Patients_SOAP_${todayStr}.pdf', 'a4')" class="px-4 py-2.5 rounded-xl bg-slate-900/70 hover:bg-slate-900 text-white border border-teal-400/30 text-xs font-bold shadow-xs cursor-pointer">
               Export All Patients SOAP PDF
             </button>
           ` : ''}
-          <button onclick="startNewPatientRegistration()" class="px-4 py-2.5 rounded-xl bg-white text-teal-900 hover:bg-teal-50 text-xs font-bold shadow-xs cursor-pointer">
-            + Register New Patient
-          </button>
+          ${filterTab === 'immunization' ? `
+            <button onclick="bakunxtResetNewPatient(); switchView('bakunxt')" class="px-4 py-2.5 rounded-xl bg-white text-teal-900 hover:bg-teal-50 text-xs font-bold shadow-xs cursor-pointer">
+              + New Immunization Patient
+            </button>
+          ` : filterTab === 'optplus' ? `
+            <button onclick="optplusResetIntakeForm(); switchView('optplus')" class="px-4 py-2.5 rounded-xl bg-white text-teal-900 hover:bg-teal-50 text-xs font-bold shadow-xs cursor-pointer">
+              + New OPTPlus Child
+            </button>
+          ` : `
+            <button onclick="startNewPatientRegistration()" class="px-4 py-2.5 rounded-xl bg-white text-teal-900 hover:bg-teal-50 text-xs font-bold shadow-xs cursor-pointer">
+              + Register New Patient
+            </button>
+          `}
         </div>
       </div>
 
-      <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 no-print">
-        <div class="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-3 no-print">
+        <div class="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
           ${[
-            { id: 'all', label: `All Patient Folders (${allPatients.length})` },
+            { id: 'all', label: `All Patient Folders (${normalizedFolders.length})` },
             { id: 'regular', label: `General / OPD (${allPatients.filter((x: any) => x.patientType !== 'antenatal').length})` },
-            { id: 'antenatal', label: `Antenatal / OB (${allPatients.filter((x: any) => x.patientType === 'antenatal').length})` }
+            { id: 'antenatal', label: `Antenatal / OB (${allPatients.filter((x: any) => x.patientType === 'antenatal').length})` },
+            { id: 'immunization', label: `Immunization (${bakunxtPatients.length})` },
+            { id: 'optplus', label: `OPTPlus (${optplusRecords.length})` }
           ].map(t => `
             <button onclick="setRecordsTab('${t.id}')" class="px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer ${filterTab === t.id ? 'bg-white text-teal-800 shadow-xs' : 'text-slate-600'}">
               ${t.label}
@@ -2953,7 +3487,7 @@ export function buildPatientRecordsHTML(appState: any): string {
         <input type="text" value="${escapeHTML(appState.recordsSearchQuery || '')}"
           oninput="updateRecordsSearch(this.value)"
           placeholder="Search patient folder..."
-          class="w-full sm:w-72 px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+          class="w-full lg:w-72 px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
       </div>
 
       <div class="grid grid-cols-1 gap-4">
@@ -2961,7 +3495,13 @@ export function buildPatientRecordsHTML(appState: any): string {
           <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center no-print">
             <p class="text-sm font-bold text-slate-700">No patient folders found.</p>
             <div class="flex justify-center gap-2 mt-4">
-              <button onclick="startNewPatientRegistration()" class="px-4 py-2 rounded-xl bg-teal-600 text-white text-xs font-bold cursor-pointer">+ Register Patient</button>
+              ${filterTab === 'immunization' ? `
+                <button onclick="bakunxtResetNewPatient(); switchView('bakunxt')" class="px-4 py-2 rounded-xl bg-teal-600 text-white text-xs font-bold cursor-pointer">+ Add Immunization Patient</button>
+              ` : filterTab === 'optplus' ? `
+                <button onclick="optplusResetIntakeForm(); switchView('optplus')" class="px-4 py-2 rounded-xl bg-teal-600 text-white text-xs font-bold cursor-pointer">+ Add OPTPlus Child</button>
+              ` : `
+                <button onclick="startNewPatientRegistration()" class="px-4 py-2 rounded-xl bg-teal-600 text-white text-xs font-bold cursor-pointer">+ Register Patient</button>
+              `}
             </div>
           </div>
         ` : filtered.map((p: any) => {
@@ -2982,7 +3522,7 @@ export function buildPatientRecordsHTML(appState: any): string {
                   </div>
                   <div class="flex items-center gap-2.5 flex-wrap">
                     <span class="text-sm sm:text-base font-extrabold text-slate-900">${escapeHTML(p.name)}</span>
-                    <span class="text-xs font-semibold bg-slate-100 px-2.5 py-0.5 rounded-lg text-slate-700">${escapeHTML(p.sex)} • ${escapeHTML(p.age)} yrs</span>
+                    <span class="text-xs font-semibold bg-slate-100 px-2.5 py-0.5 rounded-lg text-slate-700">${escapeHTML(p.sex)} • ${escapeHTML(p.displayAge || `${p.age} yrs`)}</span>
                   </div>
                 </div>
 
@@ -3019,7 +3559,7 @@ export function buildPatientRecordsHTML(appState: any): string {
                       onclick="startNewConsultationVisitForPatient('${escapeHTML(p.id)}')"
                       class="px-3 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-900 border border-teal-200 text-xs font-bold cursor-pointer"
                     >
-                      + New Consultation Visit
+                      ${p.recordCategory === 'immunization' ? '+ Update / New Immunization Visit' : p.recordCategory === 'optplus' ? '+ Update / New Growth Visit' : '+ New Consultation Visit'}
                     </button>
                   </div>
 
@@ -3059,7 +3599,7 @@ export function buildPatientRecordsHTML(appState: any): string {
 
                           <!-- Generated PDFs Inside This Consultation Visit Folder -->
                           ${isVisitFolderOpen ? `
-                            <div class="mt-3 pt-3 border-t border-teal-200/60 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${p.patientType === 'antenatal' ? '3' : '4'} gap-2.5">
+                            <div class="mt-3 pt-3 border-t border-teal-200/60 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${pdfFiles.length === 2 ? '2' : p.patientType === 'antenatal' ? '3' : '4'} gap-2.5">
                               ${pdfFiles.map((file) => {
                                 const isFileActive =
                                   isPreviewingThisPatient &&
@@ -3104,6 +3644,15 @@ export function buildPatientRecordsHTML(appState: any): string {
           `;
         }).join('')}
       </div>
+
+      <!-- Hidden Consolidated Form 1A Masterlist Printable Sheet for OPTPlus Export -->
+      ${optplusRecords.length > 0 ? `
+        <div class="fixed -left-[9999px] top-0 w-[210mm] opacity-0 pointer-events-none no-print" aria-hidden="true">
+          <div id="optplus-form1a-sheet" class="paper-a4 bg-white p-6 text-slate-900 text-xs">
+            ${buildOptPlusForm1ASheetHTML(optplusRecords, optplusRecords[0])}
+          </div>
+        </div>
+      ` : ''}
 
       <!-- Multi-Page All-Patients SOAP Container for PDF Export -->
       ${allPatients.length > 0 ? `

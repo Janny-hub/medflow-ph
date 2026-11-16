@@ -24,8 +24,29 @@ import {
   getSubscriptionDaysRemaining,
   buildHiddenAdminPortalHTML,
   renderClearFormIconButtonHTML,
-  buildA4IndividualTreatmentRecordHTML
+  buildA4IndividualTreatmentRecordHTML,
+  buildCpgClinicalManagementFlashcardHTML
 } from './medflowViews';
+import {
+  DOH_VACCINES,
+  createBlankBakuNxtPatient,
+  loadBakuNxtPatientsFromStorage,
+  saveBakuNxtPatientsToStorage,
+  calculateBakuNxtAgeText,
+  classifyBakuNxtBirthWeight,
+  evaluateBakuNxtCPAB,
+  evaluateBakuNxtMilestones,
+  buildBakuNxtWorkspaceHTML
+} from './bakunxtModule';
+import {
+  classifyChildWHO,
+  computeOptCompletedMonths,
+  loadOptPlusRecordsFromStorage,
+  saveOptPlusRecordsToStorage,
+  createBlankOptPlusForm,
+  buildOptPlusChildCardPrintableHTML,
+  buildOptPlusWorkspaceHTML
+} from './optplusModule';
 import {
   ClinicianAccount,
   firebaseConfig,
@@ -160,8 +181,35 @@ export function initMedFlowEngine(): void {
     adminFilterTab: 'all',
     adminSearchQuery: '',
     followUpExpanded: false,
-    pendingAttachments: []
+    pendingAttachments: [],
+    bakunxtActiveTab: 'intake',
+    bakunxtPatients: [] as any[],
+    bakunxtCurrentPatient: null as any,
+    bakunxtSearchQuery: '',
+    optplusActiveTab: 'intake',
+    optplusRecords: loadOptPlusRecordsFromStorage(),
+    optplusForm: createBlankOptPlusForm(),
+    optplusFilters: {
+      search: '',
+      status: 'ALL',
+      purok: 'ALL',
+      fourPs: 'ALL'
+    },
+    optplusGoals: {
+      totalPop: 3500,
+      popFactor: 10.8,
+      manualTarget: '',
+      targetCovPct: 95,
+      daysLeft: 15,
+      stuntRedPct: 25,
+      wasteRedPct: 50,
+      uwRedPct: 30
+    }
   };
+
+  const initialBakuNxtPatients = loadBakuNxtPatientsFromStorage();
+  appState.bakunxtPatients = initialBakuNxtPatients;
+  appState.bakunxtCurrentPatient = createBlankBakuNxtPatient(appState.doctor);
 
   window.appState = appState;
 
@@ -399,7 +447,7 @@ export function initMedFlowEngine(): void {
   }
 
   function updateBottomNavHighlight(): void {
-    const navIds = ['home', 'registration', 'anc', 'soap', 'rx', 'diagnostics', 'records', 'cpg'];
+    const navIds = ['home', 'registration', 'anc', 'soap', 'rx', 'diagnostics', 'records', 'cpg', 'bakunxt', 'optplus'];
     navIds.forEach((id) => {
       const btn = document.getElementById(`bnav-${id}`);
       if (!btn) return;
@@ -792,85 +840,109 @@ service cloud.firestore {
           </div>
 
           ${mode === 'signin' ? `
-            <form onsubmit="handleClinicianSignIn(event)" class="space-y-4">
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-extrabold uppercase tracking-wider text-slate-700">Clinician Sign In</span>
-                ${renderClearFormIconButtonHTML('clearSignInForm()', 'Clear Sign In Form')}
+            <form onsubmit="handleClinicianSignIn(event)" class="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+              <div class="bg-slate-900 px-5 py-3.5 flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2.5">
+                  <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
+                  <span class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Clinician Sign In</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">MedFlow PH Access</span>
+                  ${renderClearFormIconButtonHTML('clearSignInForm()', 'Clear Sign In Form')}
+                </div>
               </div>
-              <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">Email Address or Username <span class="text-teal-700">*</span></label>
-                <input id="signin-identifier" type="text" required placeholder="Enter your registered email or username"
-                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none">
+              <div class="p-5 space-y-4">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Email Address or Username <span class="text-teal-700">*</span></label>
+                  <input id="signin-identifier" type="text" required placeholder="Enter your registered email or username"
+                    class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Password <span class="text-teal-700">*</span></label>
+                  <input id="signin-password" type="password" required placeholder="Enter your password"
+                    class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                </div>
+                <button type="submit" class="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm transition cursor-pointer">
+                  Sign In
+                </button>
+                <p class="text-[11px] text-slate-500 text-center pt-1">
+                  New Doctor, Medical Clerk, or Intern?
+                  <button type="button" onclick="setAuthMode('signup')" class="text-teal-700 font-bold hover:underline cursor-pointer">Sign Up (₱199/month) →</button>
+                </p>
               </div>
-              <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">Password <span class="text-teal-700">*</span></label>
-                <input id="signin-password" type="password" required placeholder="Enter your password"
-                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none">
-              </div>
-              <button type="submit" class="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm transition cursor-pointer">
-                Sign In
-              </button>
-              <p class="text-[11px] text-slate-500 text-center pt-1">
-                New Doctor, Medical Clerk, or Intern?
-                <button type="button" onclick="setAuthMode('signup')" class="text-teal-700 font-bold hover:underline cursor-pointer">Sign Up (₱199/month) →</button>
-              </p>
             </form>
           ` : `
-            <form onsubmit="handleClinicianSignUp(event)" class="space-y-4">
-              <!-- Role Selector + Clear Form Icon -->
-              <div>
-                <div class="flex items-center justify-between mb-1.5">
-                  <label class="block text-xs font-bold text-slate-700">Select Clinical Role <span class="text-teal-700">*</span></label>
-                  ${renderClearFormIconButtonHTML('clearSignUpForm()', 'Clear Registration Form')}
+            <form onsubmit="handleClinicianSignUp(event)" class="space-y-5">
+              <!-- Section 1: Role Selector + Account Login Credentials -->
+              <div class="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+                <div class="bg-slate-900 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
+                  <div class="flex items-center gap-2.5">
+                    <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
+                    <h4 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Clinician Role &amp; Account Identification</h4>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">Account Setup</span>
+                    ${renderClearFormIconButtonHTML('clearSignUpForm()', 'Clear Registration Form')}
+                  </div>
                 </div>
-                <div class="grid grid-cols-3 gap-2">
-                  ${['Doctor', 'Medical Clerk', 'Medical Intern'].map(r => `
-                    <button type="button" onclick="setSignupRole('${r}')"
-                      class="py-2 px-3 rounded-xl border text-xs font-bold transition cursor-pointer ${role === r ? 'bg-teal-600 text-white border-teal-600 shadow-xs' : 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100'}">
-                      ${r}
-                    </button>
-                  `).join('')}
+                <div class="p-5 space-y-4">
+                  <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5">Select Clinical Role <span class="text-teal-700">*</span></label>
+                    <div class="grid grid-cols-3 gap-2">
+                      ${['Doctor', 'Medical Clerk', 'Medical Intern'].map(r => `
+                        <button type="button" onclick="setSignupRole('${r}')"
+                          class="py-2 px-3 rounded-xl border text-xs font-bold transition cursor-pointer ${role === r ? 'bg-teal-600 text-white border-teal-600 shadow-xs' : 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100'}">
+                          ${r}
+                        </button>
+                      `).join('')}
+                    </div>
+                  </div>
+
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs font-bold text-slate-700 mb-1">Full Name &amp; Title <span class="text-teal-700">*</span></label>
+                      <input id="signup-name" type="text" required placeholder="${isTrainee ? `Enter full name (${role})` : 'Enter full name & MD title'}"
+                        class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-slate-700 mb-1">Username <span class="text-teal-700">*</span></label>
+                      <input id="signup-username" type="text" required placeholder="Enter preferred username"
+                        class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-slate-700 mb-1">Email Address <span class="text-teal-700">*</span></label>
+                      <input id="signup-email" type="email" required placeholder="Enter active email address"
+                        class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-slate-700 mb-1">Phone / Mobile Number <span class="text-teal-700">*</span></label>
+                      <input id="signup-phone" type="text" required placeholder="09XX-XXX-XXXX"
+                        class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-slate-700 mb-1">Create Password <span class="text-teal-700">*</span></label>
+                      <input id="signup-password" type="password" required minlength="4" placeholder="Create password"
+                        class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-slate-700 mb-1">Specialty / Department Rotation</label>
+                      <input id="signup-specialty" type="text" placeholder="${isTrainee ? 'e.g., Internal Medicine / OB-GYN Rotation' : 'e.g., Primary Care / Internal Medicine'}"
+                        class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <!-- Account Login Credentials -->
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label class="block text-xs font-bold text-slate-700 mb-1">Full Name &amp; Title <span class="text-teal-700">*</span></label>
-                  <input id="signup-name" type="text" required placeholder="${isTrainee ? `Enter full name (${role})` : 'Enter full name & MD title'}"
-                    class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
+              <!-- Section 2: Assigned Facility & Address -->
+              <div class="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+                <div class="bg-slate-900 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
+                  <div class="flex items-center gap-2.5">
+                    <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">2</span>
+                    <p class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Assigned Facility &amp; Document Header Information</p>
+                  </div>
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">RHU / Hospital / Clinic</span>
                 </div>
-                <div>
-                  <label class="block text-xs font-bold text-slate-700 mb-1">Username <span class="text-teal-700">*</span></label>
-                  <input id="signup-username" type="text" required placeholder="Enter preferred username"
-                    class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
-                </div>
-                <div>
-                  <label class="block text-xs font-bold text-slate-700 mb-1">Email Address <span class="text-teal-700">*</span></label>
-                  <input id="signup-email" type="email" required placeholder="Enter active email address"
-                    class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
-                </div>
-                <div>
-                  <label class="block text-xs font-bold text-slate-700 mb-1">Phone / Mobile Number <span class="text-teal-700">*</span></label>
-                  <input id="signup-phone" type="text" required placeholder="09XX-XXX-XXXX"
-                    class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
-                </div>
-                <div>
-                  <label class="block text-xs font-bold text-slate-700 mb-1">Create Password <span class="text-teal-700">*</span></label>
-                  <input id="signup-password" type="password" required minlength="4" placeholder="Create password"
-                    class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
-                </div>
-                <div>
-                  <label class="block text-xs font-bold text-slate-700 mb-1">Specialty / Department Rotation</label>
-                  <input id="signup-specialty" type="text" placeholder="${isTrainee ? 'e.g., Internal Medicine / OB-GYN Rotation' : 'e.g., Primary Care / Internal Medicine'}"
-                    class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
-                </div>
-              </div>
-
-              <!-- Assigned Facility & Address (For Doctor, Clerk, and Intern) -->
-              <div class="p-3.5 rounded-xl bg-teal-50/60 border border-teal-200 space-y-2.5">
-                <p class="text-[11px] font-extrabold uppercase tracking-wider text-teal-900">Assigned Facility &amp; Document Header Information</p>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div class="p-4 bg-teal-50/40 grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">Assigned Facility / Hospital / Clinic <span class="text-teal-700">*</span></label>
                     <input id="signup-facility" type="text" required placeholder="Enter assigned hospital, RHU, or clinic"
@@ -884,11 +956,17 @@ service cloud.firestore {
                 </div>
               </div>
 
-              <!-- Conditional Fields for Medical Clerk / Medical Intern -->
+              <!-- Section 3: Conditional Fields for Medical Clerk / Medical Intern / Doctor -->
               ${isTrainee ? `
-                <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
-                  <p class="text-[11px] font-extrabold uppercase tracking-wider text-slate-800">${escapeHTML(role)} Affiliation &amp; Supervision</p>
-                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div class="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+                  <div class="bg-slate-900 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2.5">
+                      <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">3</span>
+                      <p class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">${escapeHTML(role)} Affiliation &amp; Supervision</p>
+                    </div>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">Academic Supervision</span>
+                  </div>
+                  <div class="p-4 bg-slate-50 grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label class="block text-xs font-bold text-slate-700 mb-1">Current Affiliation School <span class="text-teal-700">*</span></label>
                       <input id="signup-school" type="text" required placeholder="Enter medical school name"
@@ -902,10 +980,15 @@ service cloud.firestore {
                   </div>
                 </div>
               ` : `
-                <!-- Conditional License Fields for Doctor -->
-                <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
-                  <p class="text-[11px] font-extrabold uppercase tracking-wider text-slate-800">Physician License Credentials (Appears on SOAP, Rx &amp; Lab Forms)</p>
-                  <div class="grid grid-cols-3 gap-2">
+                <div class="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+                  <div class="bg-slate-900 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2.5">
+                      <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">3</span>
+                      <p class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Physician License Credentials</p>
+                    </div>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">SOAP, Rx &amp; Lab Signatory</span>
+                  </div>
+                  <div class="p-4 bg-slate-50 grid grid-cols-3 gap-2.5">
                     <div>
                       <label class="block text-[11px] font-bold text-slate-700 mb-1">PRC License No. <span class="text-teal-700">*</span></label>
                       <input id="signup-prc" type="text" required placeholder="PRC License No."
@@ -925,97 +1008,101 @@ service cloud.firestore {
                 </div>
               `}
 
-              <!-- CHOOSE YOUR SUBSCRIPTION -->
-              <div class="p-4 rounded-2xl bg-teal-50/80 border-2 border-teal-300 space-y-3">
-                <div class="flex items-center justify-between border-b border-teal-200 pb-2">
-                  <h4 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-slate-900">
-                    CHOOSE YOUR SUBSCRIPTION
-                  </h4>
-                  <span class="px-2.5 py-1 rounded-full bg-teal-700 text-white text-[10px] font-extrabold uppercase">
+              <!-- Section 4: CHOOSE YOUR SUBSCRIPTION -->
+              <div class="rounded-2xl border-2 border-teal-300 overflow-hidden bg-teal-50/80 shadow-2xs">
+                <div class="bg-slate-900 px-5 py-3.5 flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2.5">
+                    <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">4</span>
+                    <h4 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">
+                      Choose Your Subscription
+                    </h4>
+                  </div>
+                  <span class="px-2.5 py-1 rounded-full bg-teal-600 text-white text-[10px] font-extrabold uppercase">
                     ₱199 / Month
                   </span>
                 </div>
+                <div class="p-4 space-y-3">
+                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label class="block text-[11px] font-bold text-slate-700 mb-1">Starting Date <span class="text-teal-700">*</span></label>
+                      <input
+                        id="signup-sub-start"
+                        type="date"
+                        required
+                        value="${escapeHTML(subStart)}"
+                        onchange="handleSignupSubDateChange('start', this.value)"
+                        class="w-full px-3 py-2 rounded-xl border border-teal-300 bg-white text-xs font-bold text-slate-900"
+                      />
+                    </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label class="block text-[11px] font-bold text-slate-700 mb-1">Starting Date <span class="text-teal-700">*</span></label>
-                    <input
-                      id="signup-sub-start"
-                      type="date"
-                      required
-                      value="${escapeHTML(subStart)}"
-                      onchange="handleSignupSubDateChange('start', this.value)"
-                      class="w-full px-3 py-2 rounded-xl border border-teal-300 bg-white text-xs font-bold text-slate-900"
-                    />
-                  </div>
+                    <div>
+                      <label class="block text-[11px] font-bold text-slate-700 mb-1">Months <span class="text-teal-700">*</span></label>
+                      <select
+                        id="signup-sub-months"
+                        onchange="handleSignupSubMonthsChange(this.value)"
+                        class="w-full px-3 py-2 rounded-xl border border-teal-300 bg-white text-xs font-bold text-slate-900"
+                      >
+                        ${[1, 2, 3, 4, 5, 6, 9, 12].map((m) => `
+                          <option value="${m}" ${subMonths === m ? 'selected' : ''}>
+                            ${m} Month${m > 1 ? 's' : ''} — ₱${(m * 199).toLocaleString()}.00
+                          </option>
+                        `).join('')}
+                      </select>
+                    </div>
 
-                  <div>
-                    <label class="block text-[11px] font-bold text-slate-700 mb-1">Months <span class="text-teal-700">*</span></label>
-                    <select
-                      id="signup-sub-months"
-                      onchange="handleSignupSubMonthsChange(this.value)"
-                      class="w-full px-3 py-2 rounded-xl border border-teal-300 bg-white text-xs font-bold text-slate-900"
-                    >
-                      ${[1, 2, 3, 4, 5, 6, 9, 12].map((m) => `
-                        <option value="${m}" ${subMonths === m ? 'selected' : ''}>
-                          ${m} Month${m > 1 ? 's' : ''} — ₱${(m * 199).toLocaleString()}.00
-                        </option>
-                      `).join('')}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label class="block text-[11px] font-bold text-slate-700 mb-1">End Date <span class="text-teal-700">*</span></label>
-                    <input
-                      id="signup-sub-end"
-                      type="date"
-                      required
-                      value="${escapeHTML(subEnd)}"
-                      onchange="handleSignupSubDateChange('end', this.value)"
-                      class="w-full px-3 py-2 rounded-xl border border-teal-300 bg-white text-xs font-bold text-slate-900"
-                    />
-                  </div>
-                </div>
-
-                <!-- Concise Total Amount Box & GCash Details -->
-                <div class="p-3.5 rounded-xl bg-white border border-teal-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div class="space-y-1">
-                    <p class="text-xs font-bold text-slate-800">
-                      Please pay total amount via GCash before enrollment.
-                    </p>
-                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                      <span class="font-bold text-teal-900">GCash: <span class="font-extrabold">09524400577</span></span>
-                      <span class="font-bold text-slate-800">Account Name: <span class="font-extrabold">Jan Art Serna</span></span>
+                    <div>
+                      <label class="block text-[11px] font-bold text-slate-700 mb-1">End Date <span class="text-teal-700">*</span></label>
+                      <input
+                        id="signup-sub-end"
+                        type="date"
+                        required
+                        value="${escapeHTML(subEnd)}"
+                        onchange="handleSignupSubDateChange('end', this.value)"
+                        class="w-full px-3 py-2 rounded-xl border border-teal-300 bg-white text-xs font-bold text-slate-900"
+                      />
                     </div>
                   </div>
-                  <div class="text-left sm:text-right shrink-0 bg-teal-900 text-white px-4 py-2.5 rounded-xl">
-                    <span class="text-[9px] font-bold uppercase tracking-wider text-teal-200 block">Total Amount</span>
-                    <span id="signup-sub-total-amount" class="text-lg font-extrabold">₱${totalPaymentPhp.toLocaleString()}.00 PHP</span>
-                  </div>
-                </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label class="block text-[11px] font-bold text-slate-700 mb-1">GCash Reference No. (Optional)</label>
-                    <input
-                      id="signup-gcash-ref"
-                      type="text"
-                      placeholder="Enter GCash Reference No."
-                      class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs"
-                    />
+                  <!-- Concise Total Amount Box & GCash Details -->
+                  <div class="p-3.5 rounded-xl bg-white border border-teal-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div class="space-y-1">
+                      <p class="text-xs font-bold text-slate-800">
+                        Please pay total amount via GCash before enrollment.
+                      </p>
+                      <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                        <span class="font-bold text-teal-900">GCash: <span class="font-extrabold">09524400577</span></span>
+                        <span class="font-bold text-slate-800">Account Name: <span class="font-extrabold">Jan Art Serna</span></span>
+                      </div>
+                    </div>
+                    <div class="text-left sm:text-right shrink-0 bg-teal-900 text-white px-4 py-2.5 rounded-xl">
+                      <span class="text-[9px] font-bold uppercase tracking-wider text-teal-200 block">Total Amount</span>
+                      <span id="signup-sub-total-amount" class="text-lg font-extrabold">₱${totalPaymentPhp.toLocaleString()}.00 PHP</span>
+                    </div>
                   </div>
-                  <div>
-                    <label class="block text-[11px] font-bold text-slate-700 mb-1">Upload GCash Receipt Screenshot</label>
-                    <input
-                      id="signup-gcash-receipt"
-                      type="file"
-                      accept="image/*"
-                      onchange="handleGcashReceiptUpload(event)"
-                      class="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white text-xs file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:bg-teal-600 file:text-white file:text-[11px] file:font-bold cursor-pointer"
-                    />
-                    <div id="signup-gcash-receipt-preview" class="mt-1.5 ${appState.signupGcashReceiptDataUrl ? 'flex' : 'hidden'} items-center gap-2">
-                      <img id="signup-gcash-receipt-img" src="${appState.signupGcashReceiptDataUrl || ''}" alt="GCash Receipt Preview" class="w-9 h-9 object-cover rounded-lg border border-teal-300" />
-                      <span id="signup-gcash-receipt-name" class="text-[10px] font-bold text-teal-800 truncate">${escapeHTML(appState.signupGcashReceiptName || 'Receipt attached')}</span>
+
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-[11px] font-bold text-slate-700 mb-1">GCash Reference No. (Optional)</label>
+                      <input
+                        id="signup-gcash-ref"
+                        type="text"
+                        placeholder="Enter GCash Reference No."
+                        class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label class="block text-[11px] font-bold text-slate-700 mb-1">Upload GCash Receipt Screenshot</label>
+                      <input
+                        id="signup-gcash-receipt"
+                        type="file"
+                        accept="image/*"
+                        onchange="handleGcashReceiptUpload(event)"
+                        class="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white text-xs file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:bg-teal-600 file:text-white file:text-[11px] file:font-bold cursor-pointer"
+                      />
+                      <div id="signup-gcash-receipt-preview" class="mt-1.5 ${appState.signupGcashReceiptDataUrl ? 'flex' : 'hidden'} items-center gap-2">
+                        <img id="signup-gcash-receipt-img" src="${appState.signupGcashReceiptDataUrl || ''}" alt="GCash Receipt Preview" class="w-9 h-9 object-cover rounded-lg border border-teal-300" />
+                        <span id="signup-gcash-receipt-name" class="text-[10px] font-bold text-teal-800 truncate">${escapeHTML(appState.signupGcashReceiptName || 'Receipt attached')}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1596,12 +1683,12 @@ service cloud.firestore {
     const ai = p.aiSoap;
 
     return `
-      <div class="flex items-center justify-between border-b border-slate-200 pb-3 mb-3">
+      <div class="-mx-5 -mt-5 mb-4 bg-slate-900 px-5 py-3.5 flex items-center justify-between gap-2">
         <div class="flex items-center gap-2.5">
-          <div class="px-2.5 py-1.5 rounded-lg bg-teal-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">AI SOAP</div>
+          <div class="px-2 py-1 rounded-lg bg-teal-600 text-white flex items-center justify-center font-extrabold text-[10px] uppercase shadow-xs">AI SOAP</div>
           <div>
-            <h3 class="text-sm font-extrabold text-slate-900">Clinical Narrative SOAP Generator</h3>
-            <p class="text-[11px] text-teal-700 font-semibold">${escapeHTML(ai.confidence || 'Live Narrative Sync Active')}</p>
+            <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Clinical Narrative SOAP Generator</h3>
+            <p class="text-[10px] text-teal-300 font-semibold">${escapeHTML(ai.confidence || 'Live Narrative Sync Active')}</p>
           </div>
         </div>
         ${renderClearFormIconButtonHTML('clearAiSoapForm()', 'Clear AI SOAP & Encoded Symptoms')}
@@ -2049,6 +2136,8 @@ service cloud.firestore {
     else if (viewName === 'diagnostics') renderDiagnosticsWorkspace();
     else if (viewName === 'records') renderPatientRecords();
     else if (viewName === 'cpg') renderCpgWorkspace();
+    else if (viewName === 'bakunxt') renderBakuNxtWorkspace();
+    else if (viewName === 'optplus') renderOptPlusWorkspace();
   }
 
   window.switchView = switchView;
@@ -2151,17 +2240,17 @@ service cloud.firestore {
           </div>
         </div>
 
-        <!-- 5 Primary Workflow Cards (Centered Icons & Titles with Distinct Icon Colors) -->
+        <!-- 7 Primary Workflow Cards: Antenatal Care, BakuNxt & OPTPlus Together, with Patient Records & CPGs Last -->
         <div>
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            <button onclick="startNewPatientRegistration('regular')" class="group text-center bg-white hover:bg-teal-50/40 p-6 rounded-2xl border-2 border-slate-200 hover:border-teal-600 shadow-xs hover:shadow-md transition-all flex flex-col items-center justify-between cursor-pointer">
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+            <button onclick="startNewPatientRegistration('regular')" class="group text-center bg-white hover:bg-teal-50/40 p-5 rounded-2xl border-2 border-slate-200 hover:border-teal-600 shadow-xs hover:shadow-md transition-all flex flex-col items-center justify-between cursor-pointer">
               <div class="flex flex-col items-center">
                 <div class="w-12 h-12 rounded-xl bg-teal-600 text-white flex items-center justify-center shadow-sm mb-3 group-hover:scale-105 transition-transform">
                   <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                   </svg>
                 </div>
-                <h4 class="text-base font-bold text-slate-900">New Patient Registration</h4>
+                <h4 class="text-sm font-bold text-slate-900">New Patient Registration</h4>
               </div>
               <div class="w-full mt-4 pt-3 border-t border-slate-100 flex items-center justify-center gap-1.5 text-xs font-bold text-teal-700">
                 <span>Start Intake</span>
@@ -2169,14 +2258,14 @@ service cloud.firestore {
               </div>
             </button>
 
-            <button onclick="openReturningPatientModal()" class="group text-center bg-white hover:bg-teal-50/40 p-6 rounded-2xl border-2 border-slate-200 hover:border-teal-600 shadow-xs hover:shadow-md transition-all flex flex-col items-center justify-between cursor-pointer">
+            <button onclick="openReturningPatientModal()" class="group text-center bg-white hover:bg-teal-50/40 p-5 rounded-2xl border-2 border-slate-200 hover:border-teal-600 shadow-xs hover:shadow-md transition-all flex flex-col items-center justify-between cursor-pointer">
               <div class="flex flex-col items-center">
                 <div class="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-sm mb-3 group-hover:scale-105 transition-transform">
                   <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
                 </div>
-                <h4 class="text-base font-bold text-slate-900">Returning Patient</h4>
+                <h4 class="text-sm font-bold text-slate-900">Returning Patient</h4>
               </div>
               <div class="w-full mt-4 pt-3 border-t border-slate-100 flex items-center justify-center gap-1.5 text-xs font-bold text-teal-700">
                 <span>Select Returning</span>
@@ -2184,14 +2273,14 @@ service cloud.firestore {
               </div>
             </button>
 
-            <button onclick="switchView('anc')" class="group text-center bg-white hover:bg-teal-50/40 p-6 rounded-2xl border-2 border-slate-200 hover:border-teal-600 shadow-xs hover:shadow-md transition-all flex flex-col items-center justify-between cursor-pointer">
+            <button onclick="switchView('anc')" class="group text-center bg-white hover:bg-teal-50/40 p-5 rounded-2xl border-2 border-slate-200 hover:border-teal-600 shadow-xs hover:shadow-md transition-all flex flex-col items-center justify-between cursor-pointer">
               <div class="flex flex-col items-center">
                 <div class="w-12 h-12 rounded-xl bg-rose-500 text-white flex items-center justify-center shadow-sm mb-3 group-hover:scale-105 transition-transform">
                   <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                   </svg>
                 </div>
-                <h4 class="text-base font-bold text-slate-900">Antenatal Care (ANC)</h4>
+                <h4 class="text-sm font-bold text-slate-900">Antenatal Care (ANC)</h4>
               </div>
               <div class="w-full mt-4 pt-3 border-t border-slate-100 flex items-center justify-center gap-1.5 text-xs font-bold text-teal-700">
                 <span>Open ANC Module</span>
@@ -2199,14 +2288,44 @@ service cloud.firestore {
               </div>
             </button>
 
-            <button onclick="switchView('records')" class="group text-center bg-white hover:bg-teal-50/40 p-6 rounded-2xl border-2 border-slate-200 hover:border-teal-600 shadow-xs hover:shadow-md transition-all flex flex-col items-center justify-between cursor-pointer">
+            <button onclick="switchView('bakunxt')" class="group text-center bg-white hover:bg-teal-50/40 p-5 rounded-2xl border-2 border-slate-200 hover:border-teal-600 shadow-xs hover:shadow-md transition-all flex flex-col items-center justify-between cursor-pointer">
+              <div class="flex flex-col items-center">
+                <div class="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm mb-3 group-hover:scale-105 transition-transform">
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                </div>
+                <h4 class="text-sm font-bold text-slate-900">BakuNxt (Immunization Program)</h4>
+              </div>
+              <div class="w-full mt-4 pt-3 border-t border-slate-100 flex items-center justify-center gap-1.5 text-xs font-bold text-teal-700">
+                <span>Open EPI Module</span>
+                <span>→</span>
+              </div>
+            </button>
+
+            <button onclick="switchView('optplus')" class="group text-center bg-white hover:bg-teal-50/40 p-5 rounded-2xl border-2 border-slate-200 hover:border-teal-600 shadow-xs hover:shadow-md transition-all flex flex-col items-center justify-between cursor-pointer">
+              <div class="flex flex-col items-center">
+                <div class="w-12 h-12 rounded-xl bg-cyan-600 text-white flex items-center justify-center shadow-sm mb-3 group-hover:scale-105 transition-transform">
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                  </svg>
+                </div>
+                <h4 class="text-sm font-bold text-slate-900">OPTPlus (Nutrition Program)</h4>
+              </div>
+              <div class="w-full mt-4 pt-3 border-t border-slate-100 flex items-center justify-center gap-1.5 text-xs font-bold text-teal-700">
+                <span>Open OPT+ Module</span>
+                <span>→</span>
+              </div>
+            </button>
+
+            <button onclick="switchView('records')" class="group text-center bg-white hover:bg-teal-50/40 p-5 rounded-2xl border-2 border-slate-200 hover:border-teal-600 shadow-xs hover:shadow-md transition-all flex flex-col items-center justify-between cursor-pointer">
               <div class="flex flex-col items-center">
                 <div class="w-12 h-12 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-sm mb-3 group-hover:scale-105 transition-transform">
                   <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
                   </svg>
                 </div>
-                <h4 class="text-base font-bold text-slate-900">Patient Records</h4>
+                <h4 class="text-sm font-bold text-slate-900">Patient Records</h4>
               </div>
               <div class="w-full mt-4 pt-3 border-t border-slate-100 flex items-center justify-center gap-1.5 text-xs font-bold text-teal-700">
                 <span>Open Registry</span>
@@ -2214,14 +2333,14 @@ service cloud.firestore {
               </div>
             </button>
 
-            <button onclick="switchView('cpg')" class="group text-center bg-white hover:bg-teal-50/40 p-6 rounded-2xl border-2 border-slate-200 hover:border-teal-600 shadow-xs hover:shadow-md transition-all flex flex-col items-center justify-between cursor-pointer">
+            <button onclick="switchView('cpg')" class="group text-center bg-white hover:bg-teal-50/40 p-5 rounded-2xl border-2 border-slate-200 hover:border-teal-600 shadow-xs hover:shadow-md transition-all flex flex-col items-center justify-between cursor-pointer">
               <div class="flex flex-col items-center">
                 <div class="w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm mb-3 group-hover:scale-105 transition-transform">
                   <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                   </svg>
                 </div>
-                <h4 class="text-base font-bold text-slate-900">Philippine CPGs</h4>
+                <h4 class="text-sm font-bold text-slate-900">Philippine CPGs</h4>
               </div>
               <div class="w-full mt-4 pt-3 border-t border-slate-100 flex items-center justify-center gap-1.5 text-xs font-bold text-teal-700">
                 <span>Browse CPGs</span>
@@ -2383,12 +2502,9 @@ service cloud.firestore {
         </div>
 
         <div class="w-full">
-        <form onsubmit="handleSaveRegistration(event)" class="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 sm:p-8 space-y-6">
-          <!-- Pathway Selector + Clear Form Icon -->
-          <div>
-            <div class="flex items-center justify-end gap-2 mb-2">
-              ${renderClearFormIconButtonHTML('clearPatientRegistrationForm()', 'Clear Registration Form')}
-            </div>
+        <form onsubmit="handleSaveRegistration(event)" class="space-y-6">
+          <!-- Pathway Selector Card -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-xs p-5">
             <input type="hidden" id="reg-patient-type" value="${initType}">
             <div class="flex flex-col sm:flex-row gap-3">
               <button type="button" id="btn-type-regular" onclick="toggleRegPatientType('regular')" class="${initType === 'regular' ? 'flex-1 py-3 px-4 rounded-xl border-2 border-teal-600 bg-teal-50/70 text-teal-900 font-bold text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer' : 'flex-1 py-3 px-4 rounded-xl border border-slate-200 bg-white text-slate-600 font-semibold text-xs flex items-center justify-center gap-2 hover:bg-slate-50 cursor-pointer'}">
@@ -2401,238 +2517,265 @@ service cloud.firestore {
           </div>
 
           <!-- SECTION I: PATIENT DEMOGRAPHICS & IDENTIFICATION -->
-          <div class="space-y-4">
-            <h3 class="text-xs font-extrabold uppercase tracking-wider text-teal-800 pb-2 border-b border-slate-200">
-              Section I. Patient Demographics &amp; Identification (DOH ITR Standard)
-            </h3>
-
-            <!-- Identifiers: Family Serial No., Household No., PhilHealth PIN -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 p-3.5 rounded-xl bg-teal-50/50 border border-teal-200">
-              <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">Family Serial Number</label>
-                <input id="reg-family-serial" type="text" placeholder="e.g., FSN-2026-00142" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold">
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2.5">
+                <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
+                <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">
+                  Section I. Patient Demographics &amp; Identification
+                </h3>
               </div>
-              <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">Household Number</label>
-                <input id="reg-household-no" type="text" placeholder="e.g., HH-0482" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold">
-              </div>
-              <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">PhilHealth Identification No. (PIN)</label>
-                <input id="reg-philhealth" type="text" placeholder="XX-XXXXXXXXX-X" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold">
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">DOH ITR Standard</span>
+                ${renderClearFormIconButtonHTML('clearPatientRegistrationForm()', 'Clear Registration Form')}
               </div>
             </div>
 
-            <!-- Personal Details & Mother's Maiden Name -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div class="sm:col-span-2">
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Full Name (Last, First, Middle) <span class="text-teal-700">*</span></label>
-                <input id="reg-name" type="text" required placeholder="Enter patient's full name" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Date of Birth</label>
-                <input id="reg-dob" type="date" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
-              </div>
-              <div class="grid grid-cols-2 gap-2">
+            <div class="p-6 space-y-4">
+              <!-- Identifiers: Family Serial No., Household No., PhilHealth PIN -->
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 p-3.5 rounded-xl bg-teal-50/50 border border-teal-200">
                 <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Age <span class="text-teal-700">*</span></label>
-                  <input id="reg-age" type="number" required min="0" max="120" placeholder="Age" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Family Serial Number</label>
+                  <input id="reg-family-serial" type="text" placeholder="e.g., FSN-2026-00142" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold">
                 </div>
                 <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Sex <span class="text-teal-700">*</span></label>
-                  <select id="reg-sex" onchange="handleRegSexChange(this.value)" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-teal-500">
-                    <option value="Male" ${initType === 'regular' ? 'selected' : ''}>Male</option>
-                    <option value="Female" ${initType === 'antenatal' ? 'selected' : ''}>Female</option>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Household Number</label>
+                  <input id="reg-household-no" type="text" placeholder="e.g., HH-0482" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">PhilHealth Identification No. (PIN)</label>
+                  <input id="reg-philhealth" type="text" placeholder="XX-XXXXXXXXX-X" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold">
+                </div>
+              </div>
+
+              <!-- Personal Details & Mother's Maiden Name -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="sm:col-span-2">
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Full Name (Last, First, Middle) <span class="text-teal-700">*</span></label>
+                  <input id="reg-name" type="text" required placeholder="Enter patient's full name" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Date of Birth</label>
+                  <input id="reg-dob" type="date" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Age <span class="text-teal-700">*</span></label>
+                    <input id="reg-age" type="number" required min="0" max="120" placeholder="Age" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Sex <span class="text-teal-700">*</span></label>
+                    <select id="reg-sex" onchange="handleRegSexChange(this.value)" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-teal-500">
+                      <option value="Male" ${initType === 'regular' ? 'selected' : ''}>Male</option>
+                      <option value="Female" ${initType === 'antenatal' ? 'selected' : ''}>Female</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Civil Status</label>
+                  <select id="reg-civil" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs bg-white">
+                    <option value="Single">Single</option>
+                    <option value="Married">Married</option>
+                    <option value="Widowed">Widowed</option>
+                    <option value="Separated">Separated</option>
+                    <option value="Common-Law / Live-In">Common-Law / Live-In</option>
                   </select>
                 </div>
-              </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Occupation</label>
+                  <input id="reg-occupation" type="text" placeholder="e.g., Teacher, Farmer, Self-Employed" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Educational Attainment</label>
+                  <select id="reg-education" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs bg-white">
+                    <option value="College / Postgraduate">College / Postgraduate</option>
+                    <option value="High School / Senior High">High School / Senior High</option>
+                    <option value="Vocational / Technical">Vocational / Technical</option>
+                    <option value="Elementary">Elementary</option>
+                    <option value="No Formal Schooling">No Formal Schooling</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Contact / Mobile Number</label>
+                  <input id="reg-contact" type="text" placeholder="09XX-XXX-XXXX" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+                </div>
 
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Civil Status</label>
-                <select id="reg-civil" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs bg-white">
-                  <option value="Single">Single</option>
-                  <option value="Married">Married</option>
-                  <option value="Widowed">Widowed</option>
-                  <option value="Separated">Separated</option>
-                  <option value="Common-Law / Live-In">Common-Law / Live-In</option>
-                </select>
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Occupation</label>
-                <input id="reg-occupation" type="text" placeholder="e.g., Teacher, Farmer, Self-Employed" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Educational Attainment</label>
-                <select id="reg-education" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs bg-white">
-                  <option value="College / Postgraduate">College / Postgraduate</option>
-                  <option value="High School / Senior High">High School / Senior High</option>
-                  <option value="Vocational / Technical">Vocational / Technical</option>
-                  <option value="Elementary">Elementary</option>
-                  <option value="No Formal Schooling">No Formal Schooling</option>
-                </select>
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Contact / Mobile Number</label>
-                <input id="reg-contact" type="text" placeholder="09XX-XXX-XXXX" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
-              </div>
-
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Zone / Purok / Street</label>
-                <input id="reg-zone-purok" type="text" placeholder="e.g., Purok 3, Zone 2" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Barangay</label>
-                <input id="reg-barangay" type="text" placeholder="e.g., Brgy. San Isidro" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">City / Municipality &amp; Province</label>
-                <input id="reg-address" type="text" placeholder="e.g., Quezon City, Metro Manila" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Mother's Maiden Name</label>
-                <input id="reg-mothers-maiden" type="text" placeholder="First, Middle, Maiden Surname" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Zone / Purok / Street</label>
+                  <input id="reg-zone-purok" type="text" placeholder="e.g., Purok 3, Zone 2" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Barangay</label>
+                  <input id="reg-barangay" type="text" placeholder="e.g., Brgy. San Isidro" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">City / Municipality &amp; Province</label>
+                  <input id="reg-address" type="text" placeholder="e.g., Quezon City, Metro Manila" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Mother's Maiden Name</label>
+                  <input id="reg-mothers-maiden" type="text" placeholder="First, Middle, Maiden Surname" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+                </div>
               </div>
             </div>
           </div>
 
           <!-- SECTION II: MEDICAL, FAMILY, SOCIAL & OB-GYN HISTORY -->
-          <div class="space-y-4">
-            <h3 class="text-xs font-extrabold uppercase tracking-wider text-teal-800 pb-2 border-b border-slate-200">
-              Section II. Medical, Family, Social &amp; OB-GYN History
-            </h3>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Known Allergies (Drugs / Food)</label>
-                <input id="reg-allergies" type="text" value="No Known Drug Allergies (NKDA)" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2.5">
+                <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">2</span>
+                <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">
+                  Section II. Medical, Family, Social &amp; OB-GYN History
+                </h3>
               </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Chronic Conditions / Comorbidities</label>
-                <input id="reg-comorbidities" type="text" placeholder="e.g., Hypertension, Diabetes, Asthma, TB" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Previous Surgeries</label>
-                <input id="reg-surgeries" type="text" placeholder="e.g., Appendectomy (2019) or None" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Previous Hospitalizations</label>
-                <input id="reg-hospitalizations" type="text" placeholder="e.g., Dengue (2022) or None" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
-              </div>
-
-              <div class="sm:col-span-2">
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Family History (Hereditary Illnesses)</label>
-                <input id="reg-family-history" type="text" placeholder="e.g., Hypertension, Diabetes Mellitus, Cancer, Goiter" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Smoking Status</label>
-                <select id="reg-smoking" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs bg-white">
-                  <option value="Non-Smoker">Non-Smoker</option>
-                  <option value="Current Smoker">Current Smoker</option>
-                  <option value="Former Smoker">Former Smoker</option>
-                  <option value="Secondhand Smoke Exposure">Secondhand Smoke Exposure</option>
-                </select>
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Alcohol Intake</label>
-                <select id="reg-alcohol" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs bg-white">
-                  <option value="Non-Drinker">Non-Drinker</option>
-                  <option value="Occasional / Social Drinker">Occasional / Social Drinker</option>
-                  <option value="Regular Alcohol Intake">Regular Alcohol Intake</option>
-                </select>
-              </div>
-
-              <div class="sm:col-span-2">
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Physical Activity</label>
-                <select id="reg-activity" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs bg-white">
-                  <option value="Adequate (≥150 mins/week moderate activity)">Adequate (≥150 mins/week moderate activity)</option>
-                  <option value="Light / Occasional Physical Activity">Light / Occasional Physical Activity</option>
-                  <option value="Sedentary Lifestyle">Sedentary Lifestyle</option>
-                </select>
-              </div>
-              <div class="sm:col-span-2">
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Person with Disability (PWD) Status</label>
-                <select id="reg-pwd" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs bg-white">
-                  <option value="Non-PWD">Non-PWD</option>
-                  <option value="Registered PWD (Physical / Orthopedic)">Registered PWD (Physical / Orthopedic)</option>
-                  <option value="Registered PWD (Visual / Hearing / Speech)">Registered PWD (Visual / Hearing / Speech)</option>
-                  <option value="Registered PWD (Psychosocial / Chronic Illness)">Registered PWD (Psychosocial / Chronic Illness)</option>
-                </select>
-              </div>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">Clinical History Baseline</span>
             </div>
 
-            <!-- OB-GYN History (For Female Patients) -->
-            <div id="reg-obgyn-history-block" style="display: ${initType === 'antenatal' ? 'block' : 'none'};" class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-              <span class="text-[11px] font-extrabold uppercase tracking-wider text-teal-800 block">OB-GYN History (For Female Patients)</span>
-              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div class="p-6 space-y-4">
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Gravida / Para (OB Score)</label>
-                  <input id="reg-ob-score" type="text" placeholder="e.g., G2P1 (1-0-0-1)" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Known Allergies (Drugs / Food)</label>
+                  <input id="reg-allergies" type="text" value="No Known Drug Allergies (NKDA)" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
                 </div>
                 <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Menarche (Age at First Menses)</label>
-                  <input id="reg-menarche" type="text" placeholder="e.g., 12 years old" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Chronic Conditions / Comorbidities</label>
+                  <input id="reg-comorbidities" type="text" placeholder="e.g., Hypertension, Diabetes, Asthma, TB" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
                 </div>
                 <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Menstrual Cycle Regularity</label>
-                  <select id="reg-menstrual-regularity" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs">
-                    <option value="Regular (28–30 days)">Regular (28–30 days)</option>
-                    <option value="Irregular Cycle">Irregular Cycle</option>
-                    <option value="Amenorrhea / Pregnant">Amenorrhea / Pregnant</option>
-                    <option value="Post-Menopausal">Post-Menopausal</option>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Previous Surgeries</label>
+                  <input id="reg-surgeries" type="text" placeholder="e.g., Appendectomy (2019) or None" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Previous Hospitalizations</label>
+                  <input id="reg-hospitalizations" type="text" placeholder="e.g., Dengue (2022) or None" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+                </div>
+
+                <div class="sm:col-span-2">
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Family History (Hereditary Illnesses)</label>
+                  <input id="reg-family-history" type="text" placeholder="e.g., Hypertension, Diabetes Mellitus, Cancer, Goiter" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Smoking Status</label>
+                  <select id="reg-smoking" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs bg-white">
+                    <option value="Non-Smoker">Non-Smoker</option>
+                    <option value="Current Smoker">Current Smoker</option>
+                    <option value="Former Smoker">Former Smoker</option>
+                    <option value="Secondhand Smoke Exposure">Secondhand Smoke Exposure</option>
                   </select>
                 </div>
                 <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Family Planning Method Used</label>
-                  <input id="reg-fp-method" type="text" placeholder="e.g., None, OCP, IUD, DMPA, Implant" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Alcohol Intake</label>
+                  <select id="reg-alcohol" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs bg-white">
+                    <option value="Non-Drinker">Non-Drinker</option>
+                    <option value="Occasional / Social Drinker">Occasional / Social Drinker</option>
+                    <option value="Regular Alcohol Intake">Regular Alcohol Intake</option>
+                  </select>
+                </div>
+
+                <div class="sm:col-span-2">
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Physical Activity</label>
+                  <select id="reg-activity" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs bg-white">
+                    <option value="Adequate (≥150 mins/week moderate activity)">Adequate (≥150 mins/week moderate activity)</option>
+                    <option value="Light / Occasional Physical Activity">Light / Occasional Physical Activity</option>
+                    <option value="Sedentary Lifestyle">Sedentary Lifestyle</option>
+                  </select>
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Person with Disability (PWD) Status</label>
+                  <select id="reg-pwd" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs bg-white">
+                    <option value="Non-PWD">Non-PWD</option>
+                    <option value="Registered PWD (Physical / Orthopedic)">Registered PWD (Physical / Orthopedic)</option>
+                    <option value="Registered PWD (Visual / Hearing / Speech)">Registered PWD (Visual / Hearing / Speech)</option>
+                    <option value="Registered PWD (Psychosocial / Chronic Illness)">Registered PWD (Psychosocial / Chronic Illness)</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- OB-GYN History (For Female Patients) -->
+              <div id="reg-obgyn-history-block" style="display: ${initType === 'antenatal' ? 'block' : 'none'};" class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                <span class="text-[11px] font-extrabold uppercase tracking-wider text-teal-800 block">OB-GYN History (For Female Patients)</span>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Gravida / Para (OB Score)</label>
+                    <input id="reg-ob-score" type="text" placeholder="e.g., G2P1 (1-0-0-1)" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Menarche (Age at First Menses)</label>
+                    <input id="reg-menarche" type="text" placeholder="e.g., 12 years old" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Menstrual Cycle Regularity</label>
+                    <select id="reg-menstrual-regularity" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+                      <option value="Regular (28–30 days)">Regular (28–30 days)</option>
+                      <option value="Irregular Cycle">Irregular Cycle</option>
+                      <option value="Amenorrhea / Pregnant">Amenorrhea / Pregnant</option>
+                      <option value="Post-Menopausal">Post-Menopausal</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Family Planning Method Used</label>
+                    <input id="reg-fp-method" type="text" placeholder="e.g., None, OCP, IUD, DMPA, Implant" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- VITAL SIGNS AND ANTHROPOMETRIC -->
-          <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-            <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-800 block">Vital Signs and Anthropometric</span>
-            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-3">
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">BP (mmHg)</label>
-                <input id="reg-bp" type="text" placeholder="120/80" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+          <!-- SECTION III: VITAL SIGNS AND ANTHROPOMETRIC -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2.5">
+                <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">3</span>
+                <span class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Vital Signs and Anthropometric</span>
               </div>
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">HR (bpm)</label>
-                <input id="reg-hr" type="text" placeholder="78" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">RR (cpm)</label>
-                <input id="reg-rr" type="text" placeholder="18" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Temp (°C)</label>
-                <input id="reg-temp" type="text" placeholder="36.8" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">SpO2 (%)</label>
-                <input id="reg-spo2" type="text" placeholder="98" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Weight (kg)</label>
-                <input id="reg-weight" type="number" step="0.1" oninput="updateRegBMI()" placeholder="65" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Height (cm)</label>
-                <input id="reg-height" type="number" step="0.1" oninput="updateRegBMI()" placeholder="162" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
-              </div>
-              <div>
-                <label class="block text-[11px] font-bold text-teal-700 mb-1">BMI (kg/m²)</label>
-                <input id="reg-bmi" type="text" readonly placeholder="Auto" class="w-full px-2.5 py-2 rounded-xl border border-teal-300 bg-teal-50/60 text-teal-900 font-bold text-xs">
-                <span id="reg-bmi-cat" class="block text-[9px] text-teal-700 font-medium mt-0.5 truncate">Enter Wt &amp; Ht</span>
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Waist (cm)</label>
-                <input id="reg-waist" type="number" step="0.1" placeholder="80" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">Auto-BMI Computation</span>
+            </div>
+            <div class="p-6">
+              <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-3">
+                <div>
+                  <label class="block text-[11px] font-semibold text-slate-600 mb-1">BP (mmHg)</label>
+                  <input id="reg-bp" type="text" placeholder="120/80" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold text-slate-600 mb-1">HR (bpm)</label>
+                  <input id="reg-hr" type="text" placeholder="78" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold text-slate-600 mb-1">RR (cpm)</label>
+                  <input id="reg-rr" type="text" placeholder="18" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold text-slate-600 mb-1">Temp (°C)</label>
+                  <input id="reg-temp" type="text" placeholder="36.8" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold text-slate-600 mb-1">SpO2 (%)</label>
+                  <input id="reg-spo2" type="text" placeholder="98" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold text-slate-600 mb-1">Weight (kg)</label>
+                  <input id="reg-weight" type="number" step="0.1" oninput="updateRegBMI()" placeholder="65" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold text-slate-600 mb-1">Height (cm)</label>
+                  <input id="reg-height" type="number" step="0.1" oninput="updateRegBMI()" placeholder="162" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-bold text-teal-700 mb-1">BMI (kg/m²)</label>
+                  <input id="reg-bmi" type="text" readonly placeholder="Auto" class="w-full px-2.5 py-2 rounded-xl border border-teal-300 bg-teal-50/60 text-teal-900 font-bold text-xs">
+                  <span id="reg-bmi-cat" class="block text-[9px] text-teal-700 font-medium mt-0.5 truncate">Enter Wt &amp; Ht</span>
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold text-slate-600 mb-1">Waist (cm)</label>
+                  <input id="reg-waist" type="number" step="0.1" placeholder="80" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs">
+                </div>
               </div>
             </div>
           </div>
 
-          <div class="pt-4 border-t border-slate-200 flex flex-wrap items-center justify-end gap-3">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-wrap items-center justify-end gap-3">
             <button type="button" onclick="switchView('home')" class="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer">Cancel</button>
             <button type="submit" class="px-6 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-sm transition cursor-pointer">
               Save Patient &amp; Proceed →
@@ -3199,19 +3342,66 @@ service cloud.firestore {
     switchView(view);
   };
 
+  window.openRecordsOnTab = (tab: string) => {
+    appState.recordsActiveTab = tab;
+    switchView('records');
+  };
+
   window.deletePatientRecord = (id: string) => {
-    appState.patients = appState.patients.filter((p: any) => p.id !== id);
-    if (appState.activePatientId === id) {
-      appState.activePatientId = appState.patients[0]?.id || null;
+    const wasInPatients = appState.patients.some((p: any) => p.id === id);
+    const wasInBakuNxt = (appState.bakunxtPatients || []).some((p: any) => p.id === id);
+    const wasInOptPlus = (appState.optplusRecords || []).some((p: any) => p.id === id);
+
+    if (wasInPatients) {
+      appState.patients = appState.patients.filter((p: any) => p.id !== id);
+      if (appState.activePatientId === id) {
+        appState.activePatientId = appState.patients[0]?.id || null;
+      }
+      saveState();
     }
+    if (wasInBakuNxt) {
+      appState.bakunxtPatients = (appState.bakunxtPatients || []).filter((p: any) => p.id !== id);
+      saveBakuNxtPatientsToStorage(appState.bakunxtPatients);
+      if (appState.bakunxtCurrentPatient?.id === id) {
+        appState.bakunxtCurrentPatient = createBlankBakuNxtPatient(appState.doctor);
+      }
+    }
+    if (wasInOptPlus) {
+      appState.optplusRecords = (appState.optplusRecords || []).filter((p: any) => p.id !== id);
+      saveOptPlusRecordsToStorage(appState.optplusRecords);
+      if (appState.optplusForm?.id === id) {
+        appState.optplusForm = createBlankOptPlusForm(appState.doctor);
+      }
+    }
+
     if (appState.registryPreviewPatientId === id) {
       appState.registryPreviewPatientId = '';
       appState.registryPreviewDocType = '';
+      appState.registryPreviewVisitDate = '';
     }
-    saveState();
     renderPatientRecords();
-    showToast('Deleted patient record from your registry');
+    showToast('Deleted patient folder from registry');
   };
+
+  function findAnyRegistryRecord(patientId: string): { rec: any; defaultDate: string; category: string } {
+    const todayFallback = new Date().toISOString().split('T')[0];
+    const p = appState.patients.find((x: any) => x.id === patientId);
+    if (p) {
+      const d = p.consultationHistory?.[0]?.date || p.consultationDate || todayFallback;
+      return { rec: p, defaultDate: d, category: p.patientType === 'antenatal' ? 'antenatal' : 'regular' };
+    }
+    const b = (appState.bakunxtPatients || []).find((x: any) => x.id === patientId);
+    if (b) {
+      const d = b.visitHistory?.[0]?.date || b.visitDate || todayFallback;
+      return { rec: b, defaultDate: d, category: 'immunization' };
+    }
+    const o = (appState.optplusRecords || []).find((x: any) => x.id === patientId);
+    if (o) {
+      const d = o.visitHistory?.[0]?.date || o.measureDate || todayFallback;
+      return { rec: o, defaultDate: d, category: 'optplus' };
+    }
+    return { rec: null, defaultDate: todayFallback, category: 'regular' };
+  }
 
   window.toggleRegistryPatientFolder = (patientId: string) => {
     if (appState.registryOpenFolderPatientId === patientId) {
@@ -3223,9 +3413,8 @@ service cloud.firestore {
       }
     } else {
       appState.registryOpenFolderPatientId = patientId;
-      const p = appState.patients.find((x: any) => x.id === patientId);
-      const firstDate = p?.consultationHistory?.[0]?.date || p?.consultationDate || new Date().toISOString().split('T')[0];
-      appState.registryOpenVisitFolderKey = `${patientId}__${firstDate}`;
+      const found = findAnyRegistryRecord(patientId);
+      appState.registryOpenVisitFolderKey = `${patientId}__${found.defaultDate}`;
     }
     renderPatientRecords();
   };
@@ -3241,6 +3430,20 @@ service cloud.firestore {
   };
 
   window.startNewConsultationVisitForPatient = (patientId: string) => {
+    const b = (appState.bakunxtPatients || []).find((x: any) => x.id === patientId);
+    if (b) {
+      appState.bakunxtCurrentPatient = JSON.parse(JSON.stringify(b));
+      appState.bakunxtActiveTab = 'intake';
+      switchView('bakunxt');
+      showToast(`Opened ${b.childName} in BakuNxt Immunization Intake.`);
+      return;
+    }
+    const o = (appState.optplusRecords || []).find((x: any) => x.id === patientId);
+    if (o) {
+      window.optplusEditRecord(o.id);
+      switchView('optplus');
+      return;
+    }
     const p = appState.patients.find((x: any) => x.id === patientId);
     if (!p) return;
     appState.activePatientId = p.id;
@@ -3252,8 +3455,8 @@ service cloud.firestore {
 
   window.openRegistryPatientPdf = (patientId: string, docType: string, visitDate?: string) => {
     appState.registryOpenFolderPatientId = patientId;
-    const p = appState.patients.find((x: any) => x.id === patientId);
-    const resolvedDate = visitDate || p?.consultationDate || new Date().toISOString().split('T')[0];
+    const found = findAnyRegistryRecord(patientId);
+    const resolvedDate = visitDate || found.defaultDate;
     appState.registryOpenVisitFolderKey = `${patientId}__${resolvedDate}`;
 
     if (
@@ -3935,16 +4138,153 @@ service cloud.firestore {
     }
   }
 
+    window.setCpgFlashcardPillar = (cpgId: string, pillar: string) => {
+      if (!appState.cpgFlashcardPillarMap) appState.cpgFlashcardPillarMap = {};
+      appState.cpgFlashcardPillarMap[cpgId] = pillar;
+      refreshActiveCpgAndSoapViews();
+    };
+
+    window.toggleCpgFlashcardQuizMode = (cpgId: string) => {
+      if (!appState.cpgFlashcardQuizModeMap) appState.cpgFlashcardQuizModeMap = {};
+      if (!appState.cpgFlashcardQuizMap) appState.cpgFlashcardQuizMap = {};
+      const nextVal = !appState.cpgFlashcardQuizModeMap[cpgId];
+      appState.cpgFlashcardQuizModeMap[cpgId] = nextVal;
+      appState.cpgFlashcardQuizMap[cpgId] = nextVal;
+      if (!nextVal && appState.cpgFlashcardRevealedMap) {
+        appState.cpgFlashcardRevealedMap[cpgId] = {};
+      }
+      refreshActiveCpgAndSoapViews();
+    };
+
+    window.revealCpgFlashcardSection = (cpgId: string, sectionKey: string) => {
+      if (!appState.cpgFlashcardRevealedMap) appState.cpgFlashcardRevealedMap = {};
+      if (!appState.cpgFlashcardRevealedMap[cpgId]) appState.cpgFlashcardRevealedMap[cpgId] = {};
+      appState.cpgFlashcardRevealedMap[cpgId][sectionKey] = !appState.cpgFlashcardRevealedMap[cpgId][sectionKey];
+      refreshActiveCpgAndSoapViews();
+    };
+
+    function formatCpgDiagnosticsText(cm: any): string {
+      if (!cm) return '';
+      if (Array.isArray(cm.diagnostics)) {
+        return cm.diagnostics.map((d: any) => `  • ${d.label}: ${d.detail}`).join('\n');
+      }
+      return String(cm.diagnostics || '');
+    }
+
+    function formatCpgSituationsText(cm: any): string {
+      if (!cm || !Array.isArray(cm.treatmentPerSituation)) return '';
+      return cm.treatmentPerSituation
+        .map((s: any) => `  • Situation ${s.number ?? s.situationNumber} (${s.situation ?? s.situationTitle}): ${s.protocol ?? s.management}`)
+        .join('\n');
+    }
+
+    function formatCpgCounselingText(cm: any): string {
+      if (!cm) return '';
+      if (Array.isArray(cm.counselingAndRedFlags)) {
+        return cm.counselingAndRedFlags
+          .map((c: any) => `  • ${c.isRedFlag ? '[RED FLAG] ' : ''}${c.label}: ${c.detail}`)
+          .join('\n');
+      }
+      return String(cm.counselingAndRedFlags || '');
+    }
+
+    window.applyFullClinicalManagementToSoap = (cpgId: string) => {
+      const cpg = PH_CPG_CATALOG.find((c: any) => c.id === cpgId);
+      const p = getActivePatient();
+      if (!cpg || !p) {
+        showToast('Select or register a patient first to apply CPG Clinical Management', 'warning');
+        return;
+      }
+      const cm = cpg.clinicalManagement;
+      if (!cm) {
+        window.applyCpgToSoapPlan(cpgId);
+        return;
+      }
+
+      const condTitle = cm.title || cm.conditionTitle || cpg.title;
+      const society = cm.societySource || cm.sourceSociety || cpg.source || 'PH CPG';
+
+      const fullBlock = [
+        `[CPG Condition #${cm.conditionNumber}: ${condTitle} — ${society}]`,
+        `1. DIAGNOSTICS:\n${formatCpgDiagnosticsText(cm)}`,
+        `2. TREATMENT PER SITUATION:\n${formatCpgSituationsText(cm)}`,
+        `3. COUNSELING & RED FLAGS:\n${formatCpgCounselingText(cm)}`
+      ].join('\n');
+
+      p.doctorSoap.plan = p.doctorSoap.plan
+        ? `${p.doctorSoap.plan}\n\n${fullBlock}`
+        : fullBlock;
+
+      if (!p.doctorSoap.assessment) {
+        p.doctorSoap.assessment = condTitle;
+      }
+
+      saveState();
+      showToast(`Applied Full 3-Pillar Clinical Management (#${cm.conditionNumber} ${condTitle}) to ${p.name}'s SOAP`);
+      if (appState.currentView !== 'soap' && appState.currentView !== 'anc') {
+        switchView('soap');
+      } else {
+        switchView(appState.currentView);
+      }
+    };
+
+    window.applySingleCpgSituationToSoap = (cpgId: string, situationNumber: number) => {
+      const cpg = PH_CPG_CATALOG.find((c: any) => c.id === cpgId);
+      const p = getActivePatient();
+      if (!cpg || !p || !cpg.clinicalManagement) {
+        showToast('Select or register a patient first to add regimen to SOAP', 'warning');
+        return;
+      }
+      const cm = cpg.clinicalManagement;
+      const sit = (cm.treatmentPerSituation || []).find(
+        (s: any) => Number(s.number ?? s.situationNumber) === Number(situationNumber)
+      );
+      if (!sit) return;
+
+      const condTitle = cm.title || cm.conditionTitle || cpg.title;
+      const sitNum = sit.number ?? sit.situationNumber;
+      const sitTitle = sit.situation ?? sit.situationTitle;
+      const sitProtocol = sit.protocol ?? sit.management;
+
+      const sitLine = [
+        `[${condTitle} — Situation ${sitNum}: ${sitTitle}]`,
+        `• Regimen: ${sitProtocol}`,
+        `• Counseling & Red Flags:\n${formatCpgCounselingText(cm)}`
+      ].join('\n');
+
+      p.doctorSoap.plan = p.doctorSoap.plan
+        ? `${p.doctorSoap.plan}\n\n${sitLine}`
+        : sitLine;
+
+      if (!p.doctorSoap.assessment) {
+        p.doctorSoap.assessment = `${condTitle} (${sitTitle})`;
+      }
+
+      saveState();
+      showToast(`Added Situation ${sitNum} (${sitTitle}) regimen to ${p.name}'s SOAP Plan`);
+      if (appState.currentView === 'soap') {
+        switchView('soap');
+      }
+    };
+
+    function refreshActiveCpgAndSoapViews(): void {
+      const cpgContainer = document.getElementById('cpg-cards-container');
+      if (cpgContainer) {
+        cpgContainer.innerHTML = buildCpgCardsHTML();
+      }
+      if (appState.currentView === 'soap') {
+        switchView(appState.currentView);
+      }
+    }
+
   function buildSingleCpgAccordionItem(cpg: any, isSearching: boolean): string {
     const isDiseaseOpen = isSearching || appState.openCpgIds.includes(cpg.id);
     const hasThreeColSnapshot = Array.isArray(cpg.snapshotHeaders) && cpg.snapshotHeaders.length === 3;
     const snapshotRows = Array.isArray(cpg.snapshot) ? cpg.snapshot : [];
     const includedList = Array.isArray(cpg.scope?.included) ? cpg.scope.included : [];
     const excludedList = Array.isArray(cpg.scope?.excluded) ? cpg.scope.excluded : [];
-    const strongRecs = Array.isArray(cpg.recommendations?.strong) ? cpg.recommendations.strong : [];
-    const conditionalRecs = Array.isArray(cpg.recommendations?.conditional) ? cpg.recommendations.conditional : [];
-    const practiceNotes = Array.isArray(cpg.practiceNotes) ? cpg.practiceNotes : [];
     const pathway = cpg.pathway || {};
+    const cm = cpg.clinicalManagement;
 
     return `
       <div class="bg-white rounded-xl border ${isDiseaseOpen ? 'border-teal-500 ring-2 ring-teal-500/10 shadow-sm' : 'border-slate-200 hover:border-teal-400'} overflow-hidden transition-all">
@@ -3957,14 +4297,16 @@ service cloud.firestore {
               </svg>
             </div>
             <div class="space-y-0.5">
-              <h3 class="font-bold text-sm sm:text-base text-slate-900 group-hover:text-teal-700 transition">${escapeHTML(cpg.title)}</h3>
+              <div class="flex flex-wrap items-center gap-2">
+                ${cm ? `<span class="px-2 py-0.5 rounded-md bg-teal-900 text-teal-200 text-[10px] font-black uppercase tracking-wider">CPG #${cm.conditionNumber}</span>` : ''}
+                <h3 class="font-bold text-sm sm:text-base text-slate-900 group-hover:text-teal-700 transition">${escapeHTML(cpg.title)}</h3>
+              </div>
               <p class="text-xs text-slate-500 line-clamp-1"><strong>Source:</strong> ${escapeHTML(cpg.source || '')}</p>
-              ${!isDiseaseOpen ? `<p class="text-[11px] text-teal-700 font-medium">Click disease to view Quick Snapshot, Recommendations & Clinical Pathway</p>` : ''}
             </div>
           </div>
-          <div class="flex items-center gap-3 self-end sm:self-center shrink-0">
-            <button onclick="event.stopPropagation(); applyCpgToSoapPlan('${escapeHTML(cpg.id)}')" class="px-3 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-xs font-bold transition cursor-pointer">
-              + Apply to SOAP
+          <div class="flex items-center gap-2 self-end sm:self-center shrink-0">
+            <button onclick="event.stopPropagation(); applyFullClinicalManagementToSoap('${escapeHTML(cpg.id)}')" class="px-3 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-xs font-bold transition cursor-pointer">
+              + Apply Protocol to SOAP
             </button>
             <svg class="w-4 h-4 text-slate-400 transition-transform duration-200 ${isDiseaseOpen ? 'rotate-180 text-teal-700' : ''}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg>
           </div>
@@ -3973,18 +4315,11 @@ service cloud.firestore {
         <!-- CPG Data and Information Container (Revealed when disease is clicked) -->
         ${isDiseaseOpen ? `
           <div id="cpg-detail-${escapeHTML(cpg.id)}" class="p-5 sm:p-6 bg-slate-50/90 border-t border-slate-200 space-y-6">
-            <div class="space-y-1">
-              <span class="inline-block px-2.5 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200 text-[11px] font-bold uppercase tracking-wider">${escapeHTML(cpg.category)}</span>
-              <h4 class="text-base sm:text-lg font-bold text-slate-900">${escapeHTML(cpg.title)}</h4>
-              <p class="text-xs text-slate-600"><strong>Source:</strong> ${escapeHTML(cpg.source || '')}</p>
-              ${cpg.intendedUsers ? `<p class="text-xs text-slate-500"><strong>Intended Users:</strong> ${escapeHTML(cpg.intendedUsers)}</p>` : ''}
-            </div>
-
-            <!-- Quick Snapshot Table -->
+            <!-- 1. Quick Snapshot Table (At-a-Glance) -->
             ${snapshotRows.length > 0 ? `
               <div>
-                <h5 class="text-xs font-bold uppercase tracking-wider text-teal-800 mb-2">Quick Snapshot (At-a-Glance)</h5>
-                <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                <h5 class="text-xs font-bold uppercase tracking-wider text-teal-800 mb-2">1. Quick Snapshot</h5>
+                <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-2xs">
                   <table class="w-full text-left border-collapse text-xs sm:text-sm">
                     <thead>
                       <tr class="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold">
@@ -4017,106 +4352,78 @@ service cloud.firestore {
               </div>
             ` : ''}
 
-            <!-- Scope & Exclusions -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div class="p-4 rounded-xl bg-teal-50/60 border border-teal-200 space-y-2">
-                <h5 class="text-xs font-bold uppercase tracking-wider text-teal-900">1. Included Populations</h5>
-                <ul class="list-disc pl-4 space-y-1 text-xs sm:text-sm text-slate-800">
-                  ${includedList.map((inc: string) => `<li>${escapeHTML(inc)}</li>`).join('')}
-                </ul>
-              </div>
-              <div class="p-4 rounded-xl bg-slate-100 border border-slate-300 space-y-2">
-                <h5 class="text-xs font-bold uppercase tracking-wider text-slate-900">Excluded / Switch Protocol</h5>
-                <ul class="space-y-1.5 text-xs sm:text-sm text-slate-800">
-                  ${excludedList.map((exc: any) => `<li><strong class="text-slate-900">${escapeHTML(exc.label)}:</strong> ${escapeHTML(exc.action)}</li>`).join('')}
-                </ul>
-              </div>
-            </div>
-
-            <!-- Strength of Recommendations -->
-            <div class="space-y-3">
-              <h5 class="text-xs font-bold uppercase tracking-wider text-slate-800">2. Strength of Recommendations</h5>
+            <!-- Included & Excluded Populations (Directly Under Quick Snapshot) -->
+            ${(includedList.length > 0 || excludedList.length > 0) ? `
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="p-4 rounded-xl bg-white border border-slate-200 space-y-2">
-                  <div class="text-xs font-bold text-teal-800">Strong Recommendations (Directive)</div>
-                  <ul class="space-y-2 text-xs sm:text-sm text-slate-700">
-                    ${strongRecs.map((r: any) => `<li><strong class="text-slate-900">${escapeHTML(r.title)}:</strong> ${escapeHTML(r.detail)}</li>`).join('')}
+                <div class="p-4 rounded-xl bg-teal-50/60 border border-teal-200 space-y-2">
+                  <h5 class="text-xs font-bold uppercase tracking-wider text-teal-900">Included Populations</h5>
+                  <ul class="list-disc pl-4 space-y-1 text-xs sm:text-sm text-slate-800">
+                    ${includedList.map((inc: string) => `<li>${escapeHTML(inc)}</li>`).join('')}
                   </ul>
                 </div>
-                <div class="p-4 rounded-xl bg-white border border-slate-200 space-y-2">
-                  <div class="text-xs font-bold text-slate-800">Conditional Recommendations (Shared Decision-Making)</div>
-                  <ul class="space-y-2 text-xs sm:text-sm text-slate-700">
-                    ${conditionalRecs.map((r: any) => `<li><strong class="text-slate-900">${escapeHTML(r.title)}:</strong> ${escapeHTML(r.detail)}</li>`).join('')}
+                <div class="p-4 rounded-xl bg-slate-100 border border-slate-300 space-y-2">
+                  <h5 class="text-xs font-bold uppercase tracking-wider text-slate-900">Excluded / Switch Protocol</h5>
+                  <ul class="space-y-1.5 text-xs sm:text-sm text-slate-800">
+                    ${excludedList.map((exc: any) => `<li><strong class="text-slate-900">${escapeHTML(exc.label)}:</strong> ${escapeHTML(exc.action)}</li>`).join('')}
                   </ul>
                 </div>
               </div>
-            </div>
+            ` : ''}
 
-            <!-- Clinical Action Pathway -->
+            <!-- 2. Clinical Action Pathway -->
             <div class="space-y-3">
-              <h5 class="text-xs font-bold uppercase tracking-wider text-slate-800">3. Clinical Action Pathway</h5>
+              <div class="flex items-center justify-between">
+                <h5 class="text-xs font-bold uppercase tracking-wider text-slate-800">2. Clinical Action Pathway (Step-by-Step Workflow)</h5>
+              </div>
               ${Array.isArray(pathway.orderedSteps) ? `
-                <div class="space-y-2.5">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                   ${pathway.orderedSteps.map((st: any) => `
-                    <div class="p-3.5 rounded-xl bg-white border border-slate-200">
-                      <div class="text-xs sm:text-sm font-bold text-slate-900">${escapeHTML(st.step)}</div>
-                      <p class="text-xs sm:text-sm text-slate-700 mt-1 leading-relaxed">${escapeHTML(st.detail)}</p>
+                    <div class="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
+                      <div class="text-xs sm:text-sm font-bold text-teal-900">${escapeHTML(st.step)}</div>
+                      <p class="text-xs text-slate-700 mt-1 leading-relaxed">${escapeHTML(st.detail)}</p>
                     </div>
                   `).join('')}
                 </div>
               ` : `
-                <div class="space-y-3">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
                   ${pathway.stepA ? `
-                    <div class="p-4 rounded-xl bg-white border border-slate-200 space-y-1.5">
-                      <div class="text-xs sm:text-sm font-bold text-slate-900">${escapeHTML(pathway.stepA.title)}</div>
+                    <div class="p-4 rounded-xl bg-white border border-slate-200 space-y-1.5 shadow-2xs">
+                      <div class="text-xs sm:text-sm font-bold text-teal-900">${escapeHTML(pathway.stepA.title)}</div>
                       ${pathway.stepA.subtitle ? `<p class="text-xs text-slate-600">${escapeHTML(pathway.stepA.subtitle)}</p>` : ''}
-                      <ul class="list-disc pl-5 text-xs sm:text-sm text-slate-700 space-y-1">
+                      <ul class="list-disc pl-5 text-xs text-slate-700 space-y-1">
                         ${(pathway.stepA.items || []).map((it: any) => `<li><strong>${escapeHTML(it.label)}:</strong> ${escapeHTML(it.detail)}</li>`).join('')}
                       </ul>
                     </div>
                   ` : ''}
                   ${pathway.stepB ? `
-                    <div class="p-4 rounded-xl bg-white border border-slate-200 space-y-1.5">
-                      <div class="text-xs sm:text-sm font-bold text-slate-900">${escapeHTML(pathway.stepB.title)}</div>
-                      <ul class="list-disc pl-5 text-xs sm:text-sm text-slate-700 space-y-1">
+                    <div class="p-4 rounded-xl bg-white border border-slate-200 space-y-1.5 shadow-2xs">
+                      <div class="text-xs sm:text-sm font-bold text-teal-900">${escapeHTML(pathway.stepB.title)}</div>
+                      <ul class="list-disc pl-5 text-xs text-slate-700 space-y-1">
                         ${(pathway.stepB.steps || []).map((st: any) => `<li><strong>${escapeHTML(st.step)}:</strong> ${escapeHTML(st.detail)}</li>`).join('')}
                       </ul>
                     </div>
                   ` : ''}
-                  ${pathway.stepC ? `
-                    <div class="p-4 rounded-xl bg-slate-100 border border-slate-300 space-y-2">
-                      <div class="text-xs sm:text-sm font-bold text-slate-900">${escapeHTML(pathway.stepC.title)}</div>
-                      ${pathway.stepC.subtitle ? `<p class="text-xs text-slate-700">${escapeHTML(pathway.stepC.subtitle)}</p>` : ''}
-                      ${Array.isArray(pathway.stepC.redFlags) ? `
-                        <ul class="list-disc pl-5 text-xs sm:text-sm text-slate-800 space-y-1">
-                          ${pathway.stepC.redFlags.map((rf: string) => `<li>${escapeHTML(rf)}</li>`).join('')}
-                        </ul>
-                      ` : ''}
-                      ${Array.isArray(pathway.stepC.triageTable) ? `
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
-                          ${pathway.stepC.triageTable.map((t: any) => `
-                            <div class="p-3 rounded-lg border ${t.urgent ? 'bg-teal-900 text-white border-teal-800' : 'bg-white border-slate-200 text-slate-800'} text-xs">
-                              <div class="font-extrabold uppercase">${escapeHTML(t.scenario)} → ${escapeHTML(t.classification)}</div>
-                              <p class="mt-1">${escapeHTML(t.action)}</p>
-                            </div>
-                          `).join('')}
-                        </div>
-                      ` : ''}
+                  ${pathway.stepC && Array.isArray(pathway.stepC.triageTable) && pathway.stepC.triageTable.length > 0 ? `
+                    <div class="lg:col-span-2 p-4 rounded-xl bg-slate-100 border border-slate-300 space-y-2">
+                      <div class="text-xs sm:text-sm font-bold text-slate-900">${escapeHTML(pathway.stepC.title || 'Triage & Severity Matrix')}</div>
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
+                        ${pathway.stepC.triageTable.map((t: any) => `
+                          <div class="p-3 rounded-lg border ${t.urgent ? 'bg-teal-900 text-white border-teal-800' : 'bg-white border-slate-200 text-slate-800'} text-xs">
+                            <div class="font-extrabold uppercase">${escapeHTML(t.scenario)} → ${escapeHTML(t.classification)}</div>
+                            <p class="mt-1">${escapeHTML(t.action)}</p>
+                          </div>
+                        `).join('')}
+                      </div>
                     </div>
                   ` : ''}
                 </div>
               `}
             </div>
 
-            <!-- Philippine Practice & Resource Notes -->
-            ${practiceNotes.length > 0 ? `
-              <div class="p-4 rounded-xl bg-teal-50/60 border border-teal-200 space-y-2">
-                <h5 class="text-xs font-bold uppercase tracking-wider text-teal-900">4. Philippine Practice &amp; Resource Notes</h5>
-                <ul class="space-y-1.5 text-xs sm:text-sm text-slate-800">
-                  ${practiceNotes.map((note: any) => `<li><strong class="text-teal-950">${escapeHTML(note.title)}:</strong> ${escapeHTML(note.detail)}</li>`).join('')}
-                </ul>
-              </div>
-            ` : ''}
+            <!-- 3. SEPARATE CLINICAL CONDITION MANAGEMENT FLASHCARD TABLE (Directly After Clinical Pathway) -->
+            <div class="pt-1">
+              ${buildCpgClinicalManagementFlashcardHTML(cpg, appState, false)}
+            </div>
           </div>
         ` : ''}
       </div>
@@ -4201,21 +4508,21 @@ service cloud.firestore {
     if (!main) return;
 
     main.innerHTML = `
-      <div class="space-y-6">
+      <div class="space-y-5">
         <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Philippine Clinical Practice Guidelines (CPG) Library</h2>
           </div>
         </div>
 
-        <!-- Search Bar Only -->
+        <!-- Search Bar -->
         <div class="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs">
           <div class="relative">
             <input
               type="text"
               value="${escapeHTML(appState.cpgSearchQuery)}"
               oninput="updateCpgSearch(this.value)"
-              placeholder="Search Philippine CPGs by disease, ICD-10, drug name (e.g., Losartan, Dengue, PTB, GDM, Leptospirosis)..."
+              placeholder="Search all 41 Philippine CPGs by disease, Condition #, ICD-10, or drug name (e.g., Losartan, Dengue, PTB, GDM, Leptospirosis, Rabies, Preeclampsia)..."
               class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-teal-500"
             >
             <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -4224,7 +4531,7 @@ service cloud.firestore {
           </div>
         </div>
 
-        <!-- Category Accordions -> Disease Rows -> CPG Details -->
+        <!-- Category Accordions -> Disease Rows -> CPG Details & Flashcard Tables -->
         <div id="cpg-cards-container" class="space-y-3">
           ${buildCpgCardsHTML()}
         </div>
@@ -4392,6 +4699,689 @@ service cloud.firestore {
     saveState();
     renderDiagnosticsWorkspace();
     showToast('Cleared Laboratory & Imaging Request form.');
+  };
+
+  // ============================================================================
+  // SECTION 14: BAKUNXT PH — NATIONAL IMMUNIZATION PROGRAM (EPI) MODULE
+  // ============================================================================
+  function renderBakuNxtWorkspace(): void {
+    const main = document.getElementById('main-workspace');
+    if (!main) return;
+    if (!appState.bakunxtCurrentPatient) {
+      appState.bakunxtCurrentPatient = createBlankBakuNxtPatient(appState.doctor);
+    }
+    main.innerHTML = buildBakuNxtWorkspaceHTML(appState);
+  }
+
+  function updateBakuNxtLiveDomSummaries(): void {
+    const p = appState.bakunxtCurrentPatient;
+    if (!p) return;
+    const ageObj = calculateBakuNxtAgeText(p.dob);
+    const bwClass = classifyBakuNxtBirthWeight(p.birthWeightGrams);
+    const cpabObj = evaluateBakuNxtCPAB(p.motherTdStatus);
+    const milestone = evaluateBakuNxtMilestones(p);
+
+    const ageEl = document.getElementById('bakunxt-live-age-display');
+    if (ageEl) ageEl.textContent = ageObj.label;
+
+    const bwEl = document.getElementById('bakunxt-live-bw-badge');
+    if (bwEl) {
+      bwEl.textContent = `Birth Wt: ${bwClass.text}`;
+      bwEl.className = `inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border mt-1.5 ${bwClass.color}`;
+    }
+
+    const dosesEl = document.getElementById('bakunxt-live-doses-count');
+    if (dosesEl) dosesEl.textContent = `${milestone.dosesCount} / ${milestone.totalVaccines}`;
+
+    const ficEl = document.getElementById('bakunxt-live-fic-badge');
+    if (ficEl) {
+      ficEl.textContent = milestone.statusBadge;
+      ficEl.className = `inline-block px-2.5 py-1 rounded-lg text-xs font-bold border ${milestone.statusColor}`;
+    }
+
+    const cpabEl = document.getElementById('bakunxt-live-cpab-badge');
+    if (cpabEl) {
+      cpabEl.textContent = cpabObj.label;
+      cpabEl.className = `inline-block px-2.5 py-1 rounded-lg text-xs font-bold border ${
+        cpabObj.isCPAB
+          ? 'bg-teal-50 text-teal-800 border-teal-200'
+          : 'bg-amber-50 text-amber-800 border-amber-200'
+      }`;
+    }
+
+    const tempVal = parseFloat(p.tempCelsius);
+    const tempAlertEl = document.getElementById('bakunxt-temp-alert-text');
+    if (tempAlertEl) {
+      if (!isNaN(tempVal) && tempVal >= 38.0) {
+        tempAlertEl.textContent = '⚠️ FEVER (≥38.0°C): Evaluate / Defer Live Vaccines';
+        tempAlertEl.className = 'text-[10px] font-bold mt-1 text-red-600';
+      } else {
+        tempAlertEl.textContent = 'Normal (< 38.0°C) — Safe to Vaccinate';
+        tempAlertEl.className = 'text-[10px] font-bold mt-1 text-teal-700';
+      }
+    }
+
+    const muacVal = parseFloat(p.muacCm);
+    const muacEl = document.getElementById('bakunxt-muac-status-text');
+    if (muacEl) {
+      if (isNaN(muacVal) || muacVal <= 0) {
+        muacEl.textContent = 'Normal (≥ 12.5 cm)';
+        muacEl.className = 'inline-block text-[10px] font-bold px-2 py-0.5 rounded border mt-1 bg-teal-50 text-teal-800 border-teal-200';
+      } else if (muacVal < 11.5) {
+        muacEl.textContent = 'RED (< 11.5 cm) — Severe Acute Malnutrition (SAM)';
+        muacEl.className = 'inline-block text-[10px] font-bold px-2 py-0.5 rounded border mt-1 bg-red-50 text-red-800 border-red-200';
+      } else if (muacVal < 12.5) {
+        muacEl.textContent = 'YELLOW (11.5–12.4 cm) — Moderate Acute Malnutrition (MAM)';
+        muacEl.className = 'inline-block text-[10px] font-bold px-2 py-0.5 rounded border mt-1 bg-amber-50 text-amber-800 border-amber-200';
+      } else {
+        muacEl.textContent = 'GREEN (≥ 12.5 cm) — Normal Nutritional Status';
+        muacEl.className = 'inline-block text-[10px] font-bold px-2 py-0.5 rounded border mt-1 bg-teal-50 text-teal-800 border-teal-200';
+      }
+    }
+  }
+
+  window.switchBakuNxtTab = (tabName: 'intake' | 'registry' | 'itr' | 'passport') => {
+    appState.bakunxtActiveTab = tabName;
+    renderBakuNxtWorkspace();
+  };
+
+  window.bakunxtSyncFormField = (field: string, value: any) => {
+    if (!appState.bakunxtCurrentPatient) {
+      appState.bakunxtCurrentPatient = createBlankBakuNxtPatient(appState.doctor);
+    }
+    appState.bakunxtCurrentPatient[field] = value;
+    updateBakuNxtLiveDomSummaries();
+  };
+
+  window.bakunxtToggleVaccineGiven = (vacId: string, isChecked: boolean) => {
+    if (!appState.bakunxtCurrentPatient) return;
+    const vDef = DOH_VACCINES.find((v) => v.id === vacId);
+    const doseObj = appState.bakunxtCurrentPatient.doses[vacId];
+    if (!doseObj || !vDef) return;
+    doseObj.given = isChecked;
+    if (isChecked) {
+      if (!doseObj.dateGiven) {
+        doseObj.dateGiven = new Date().toISOString().split('T')[0];
+      }
+      if (!doseObj.site) doseObj.site = vDef.site;
+      if (!doseObj.facility) {
+        doseObj.facility = appState.bakunxtCurrentPatient.facilityName || '';
+      }
+    }
+    renderBakuNxtWorkspace();
+  };
+
+  window.bakunxtUpdateDoseField = (vacId: string, key: string, val: string) => {
+    if (!appState.bakunxtCurrentPatient?.doses?.[vacId]) return;
+    appState.bakunxtCurrentPatient.doses[vacId][key] = val;
+    if (key === 'dateGiven' && val) {
+      appState.bakunxtCurrentPatient.doses[vacId].given = true;
+      renderBakuNxtWorkspace();
+    }
+  };
+
+  window.bakunxtResetNewPatient = () => {
+    appState.bakunxtCurrentPatient = createBlankBakuNxtPatient(appState.doctor);
+    appState.bakunxtActiveTab = 'intake';
+    renderBakuNxtWorkspace();
+    showToast('Started a clean BakuNxt EPI patient intake form.');
+  };
+
+  window.bakunxtSaveCurrentPatient = (silent = false): boolean => {
+    const p = appState.bakunxtCurrentPatient;
+    if (!p) return false;
+    if (!p.childName || !p.childName.trim()) {
+      showToast("Please enter the Child's Full Name before saving.", 'warning');
+      const nameInput = document.getElementById('f_childName');
+      if (nameInput) nameInput.focus();
+      return false;
+    }
+
+    const vDate = p.visitDate || new Date().toISOString().split('T')[0];
+    p.visitDate = vDate;
+    const idx = appState.bakunxtPatients.findIndex((item: any) => item.id === p.id);
+    const existingVisits = idx >= 0 && Array.isArray(appState.bakunxtPatients[idx].visitHistory)
+      ? [...appState.bakunxtPatients[idx].visitHistory]
+      : Array.isArray(p.visitHistory)
+        ? [...p.visitHistory]
+        : [];
+
+    const snapshotCopy = JSON.parse(JSON.stringify(p));
+    delete snapshotCopy.visitHistory;
+    const vIdx = existingVisits.findIndex((v: any) => v.date === vDate);
+    if (vIdx >= 0) {
+      existingVisits[vIdx] = { date: vDate, snapshot: snapshotCopy };
+    } else {
+      existingVisits.unshift({ date: vDate, snapshot: snapshotCopy });
+    }
+    p.visitHistory = existingVisits;
+
+    const fullSnapshot = JSON.parse(JSON.stringify(p));
+    if (idx >= 0) {
+      appState.bakunxtPatients[idx] = fullSnapshot;
+    } else {
+      appState.bakunxtPatients.unshift(fullSnapshot);
+    }
+    saveBakuNxtPatientsToStorage(appState.bakunxtPatients);
+    if (!silent) {
+      appState.recordsActiveTab = 'immunization';
+      appState.registryOpenFolderPatientId = p.id;
+      appState.registryOpenVisitFolderKey = `${p.id}__${vDate}`;
+      switchView('records');
+      showToast(`Saved ${p.childName}'s Immunization Folder (ITR & Vaccine Card) to Patient Records!`);
+    }
+    return true;
+  };
+
+  window.bakunxtSaveAndOpenTab = (targetTab: 'itr' | 'passport') => {
+    const ok = window.bakunxtSaveCurrentPatient(true);
+    if (ok) {
+      appState.bakunxtActiveTab = targetTab;
+      renderBakuNxtWorkspace();
+      showToast(
+        targetTab === 'itr'
+          ? 'Generated Official DOH Individual Treatment Record (ITR).'
+          : 'Generated BakuNxt Baby Vaccine Card.'
+      );
+    }
+  };
+
+  window.bakunxtSelectPatient = (id: string, targetTab: 'intake' | 'itr' | 'passport' = 'intake') => {
+    const found = appState.bakunxtPatients.find((x: any) => x.id === id);
+    if (!found) return;
+    appState.bakunxtCurrentPatient = JSON.parse(JSON.stringify(found));
+    appState.bakunxtActiveTab = targetTab;
+    renderBakuNxtWorkspace();
+    showToast(`Loaded record: ${found.childName}`);
+  };
+
+  window.bakunxtDeletePatient = (id: string) => {
+    window.deletePatientRecord(id);
+  };
+
+  window.bakunxtDownloadITRPdf = () => {
+    const p = appState.bakunxtCurrentPatient || {};
+    const rawName = (p.childName || 'Infant_Record').replace(/[^a-zA-Z0-9_-]/g, '_');
+    window.downloadPdfElement('itr-document-sheet', `BakuNxt_Official_ITR_${rawName}.pdf`, 'a4');
+  };
+
+  window.bakunxtDownloadPassportPdf = () => {
+    const p = appState.bakunxtCurrentPatient || {};
+    const rawName = (p.childName || 'Baby_Card').replace(/[^a-zA-Z0-9_-]/g, '_');
+    window.downloadPdfElement('baby-passport-card', `BakuNxt_Baby_Vaccine_Card_${rawName}.pdf`, 'a4');
+  };
+
+  // ============================================================================
+  // SECTION 15: OPTPLUS PH — OPERATION TIMBANG PLUS (NUTRITION PROGRAM) MODULE
+  // ============================================================================
+  function renderOptPlusWorkspace(): void {
+    const main = document.getElementById('main-workspace');
+    if (!main) return;
+    if (!appState.optplusForm) {
+      appState.optplusForm = createBlankOptPlusForm(appState.doctor);
+    }
+    if (!Array.isArray(appState.optplusRecords)) {
+      appState.optplusRecords = loadOptPlusRecordsFromStorage();
+    }
+    main.innerHTML = buildOptPlusWorkspaceHTML(appState);
+  }
+
+  function updateOptPlusLiveIntakeDom(): void {
+    const f = appState.optplusForm || {};
+    const ageMonths = computeOptCompletedMonths(f.dob, f.measureDate);
+    const agePill = document.getElementById('optplus-age-validation-pill');
+    const ageDisplay = document.getElementById('optplus-child-age-display') as HTMLInputElement | null;
+    const modeDisplay = document.getElementById('optplus-height-mode-display') as HTMLInputElement | null;
+
+    if (ageDisplay) {
+      ageDisplay.value = ageMonths !== null && ageMonths >= 0 ? String(ageMonths) : '—';
+    }
+    if (modeDisplay) {
+      modeDisplay.value = ageMonths !== null && ageMonths >= 24 ? 'Standing' : 'Recumbent';
+    }
+    if (agePill) {
+      if (ageMonths === null || ageMonths < 0) {
+        agePill.textContent = 'Age: —';
+        agePill.className = 'text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300';
+      } else if (ageMonths <= 59) {
+        agePill.textContent = `Eligible (${ageMonths} mos)`;
+        agePill.className = 'text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-teal-500/25 text-teal-200 border border-teal-400/40';
+      } else {
+        agePill.textContent = `Over 59 mos (${ageMonths}m)`;
+        agePill.className = 'text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-rose-500/30 text-rose-200 border border-rose-400/40';
+      }
+    }
+
+    const weightNum = parseFloat(f.weight);
+    const heightNum = parseFloat(f.height);
+    const hasValidMetrics =
+      ageMonths !== null &&
+      ageMonths >= 0 &&
+      !isNaN(weightNum) &&
+      weightNum > 0 &&
+      !isNaN(heightNum) &&
+      heightNum > 0;
+
+    const liveWho = hasValidMetrics
+      ? classifyChildWHO({
+          sex: f.sex || 'Male',
+          ageMonths: ageMonths!,
+          weight: weightNum,
+          height: heightNum,
+          muac: f.muac || '',
+          edema: f.edema || 'None'
+        })
+      : null;
+
+    const liveToneBadgeClass = (tone?: string) => {
+      const map: Record<string, string> = {
+        normal: 'bg-teal-500/20 text-teal-200 border border-teal-400/40',
+        moderate: 'bg-amber-500/20 text-amber-200 border border-amber-400/40',
+        severe: 'bg-rose-500/25 text-rose-200 border border-rose-400/50',
+        over: 'bg-sky-500/20 text-sky-200 border border-sky-400/40'
+      };
+      return map[tone || ''] || 'bg-slate-700 text-slate-300';
+    };
+
+    const actionTag = document.getElementById('optplus-overall-action-tag');
+    if (actionTag) {
+      let actionTagText = 'Ready';
+      let actionTagClass = 'bg-slate-800 text-slate-300';
+      if (liveWho) {
+        if (liveWho.wfhTone === 'severe' || liveWho.wfaTone === 'severe' || liveWho.hfaTone === 'severe') {
+          actionTagText = 'Refer RHU / OTC';
+          actionTagClass = 'bg-rose-600 text-white';
+        } else if (
+          liveWho.wfhTone === 'moderate' ||
+          liveWho.wfaTone === 'moderate' ||
+          liveWho.hfaTone === 'moderate'
+        ) {
+          actionTagText = 'Enroll SFP / Counsel';
+          actionTagClass = 'bg-amber-500 text-slate-950';
+        } else if (liveWho.wfhTone === 'over' || liveWho.wfaTone === 'over') {
+          actionTagText = 'Diet Counseling';
+          actionTagClass = 'bg-sky-500 text-white';
+        } else {
+          actionTagText = 'Normal Growth';
+          actionTagClass = 'bg-teal-600 text-white';
+        }
+      }
+      actionTag.textContent = actionTagText;
+      actionTag.className = `text-xs font-extrabold px-2.5 py-1 rounded-lg ${actionTagClass}`;
+    }
+
+    const wfaZ = document.getElementById('optplus-wfa-z');
+    const wfaBadge = document.getElementById('optplus-wfa-badge');
+    const wfaCode = document.getElementById('optplus-wfa-code');
+    if (wfaZ) wfaZ.textContent = liveWho ? `${liveWho.zWFA >= 0 ? '+' : ''}${liveWho.zWFA} SD` : '—';
+    if (wfaBadge) {
+      wfaBadge.textContent = liveWho ? liveWho.wfaLabel : '—';
+      wfaBadge.className = `inline-block px-2 py-0.5 rounded text-[11px] font-bold ${liveToneBadgeClass(liveWho?.wfaTone)}`;
+    }
+    if (wfaCode) wfaCode.textContent = liveWho ? `Code: ${liveWho.wfaCode}` : '—';
+
+    const hfaZ = document.getElementById('optplus-hfa-z');
+    const hfaBadge = document.getElementById('optplus-hfa-badge');
+    const hfaCode = document.getElementById('optplus-hfa-code');
+    if (hfaZ) hfaZ.textContent = liveWho ? `${liveWho.zHFA >= 0 ? '+' : ''}${liveWho.zHFA} SD` : '—';
+    if (hfaBadge) {
+      hfaBadge.textContent = liveWho ? liveWho.hfaLabel : '—';
+      hfaBadge.className = `inline-block px-2 py-0.5 rounded text-[11px] font-bold ${liveToneBadgeClass(liveWho?.hfaTone)}`;
+    }
+    if (hfaCode) hfaCode.textContent = liveWho ? `Code: ${liveWho.hfaCode}` : '—';
+
+    const wfhZ = document.getElementById('optplus-wfh-z');
+    const wfhBadge = document.getElementById('optplus-wfh-badge');
+    const wfhCode = document.getElementById('optplus-wfh-code');
+    if (wfhZ) wfhZ.textContent = liveWho ? `${liveWho.zWFH >= 0 ? '+' : ''}${liveWho.zWFH} SD` : '—';
+    if (wfhBadge) {
+      wfhBadge.textContent = liveWho ? liveWho.wfhLabel : '—';
+      wfhBadge.className = `inline-block px-2 py-0.5 rounded text-[11px] font-bold ${liveToneBadgeClass(liveWho?.wfhTone)}`;
+    }
+    if (wfhCode) wfhCode.textContent = liveWho ? `Code: ${liveWho.wfhCode}` : '—';
+  }
+
+  window.switchOptPlusTab = (tab: 'intake' | 'goals') => {
+    appState.optplusActiveTab = tab;
+    renderOptPlusWorkspace();
+  };
+
+  window.optplusSyncFormField = (field: string, value: any) => {
+    if (!appState.optplusForm) appState.optplusForm = createBlankOptPlusForm(appState.doctor);
+    appState.optplusForm[field] = value;
+    updateOptPlusLiveIntakeDom();
+  };
+
+  window.optplusResetIntakeForm = () => {
+    const prevBrgy = appState.optplusForm?.barangay || '';
+    const prevCity = appState.optplusForm?.city || '';
+    const prevProv = appState.optplusForm?.province || '';
+    appState.optplusForm = createBlankOptPlusForm(appState.doctor);
+    appState.optplusForm.barangay = prevBrgy;
+    appState.optplusForm.city = prevCity;
+    appState.optplusForm.province = prevProv;
+    if (appState.currentView === 'optplus') {
+      renderOptPlusWorkspace();
+      showToast('Cleared OPT+ Child Intake Form.');
+    }
+  };
+
+  window.optplusSaveChildRecord = () => {
+    const f = appState.optplusForm || {};
+    const childName = (f.childName || '').trim();
+    if (!childName) {
+      showToast("Please enter the Child's Full Name.", 'warning');
+      return;
+    }
+    const measureDate = f.measureDate || new Date().toISOString().split('T')[0];
+    const ageMonths = computeOptCompletedMonths(f.dob, measureDate);
+    if (ageMonths === null || ageMonths < 0 || ageMonths > 59) {
+      showToast('Child must be 0 to 59 completed months old for OPT Plus.', 'warning');
+      return;
+    }
+    const weight = parseFloat(f.weight);
+    const height = parseFloat(f.height);
+    if (!weight || !height) {
+      showToast('Please enter valid Weight (kg) and Length/Height (cm).', 'warning');
+      return;
+    }
+
+    const sex: 'Male' | 'Female' = f.sex === 'Female' ? 'Female' : 'Male';
+    const muac = (f.muac || '').trim();
+    const edema = f.edema || 'None';
+    const who = classifyChildWHO({
+      sex,
+      ageMonths,
+      weight,
+      height,
+      muac,
+      edema
+    });
+
+    const editId = f.id || '';
+    const recordId = editId || `OPT-${Date.now().toString(36).toUpperCase()}`;
+    const existingIdx = (appState.optplusRecords || []).findIndex((r: any) => r.id === recordId);
+    const existingVisits =
+      existingIdx >= 0 && Array.isArray(appState.optplusRecords[existingIdx].visitHistory)
+        ? [...appState.optplusRecords[existingIdx].visitHistory]
+        : [];
+
+    const recordObj: any = {
+      id: recordId,
+      region: '',
+      province: (f.province || '').trim(),
+      city: (f.city || '').trim(),
+      barangay: (f.barangay || '').trim(),
+      optYear: f.optYear || String(new Date().getFullYear()),
+      purok: (f.purok || '').trim(),
+      measureDate,
+      measurer: (f.measurer || '').trim() || (appState.doctor?.name || ''),
+      childName,
+      sex,
+      dob: f.dob,
+      ageMonths,
+      motherName: (f.motherName || '').trim(),
+      is4ps: (f.is4ps === 'Yes' ? 'Yes' : 'No') as 'Yes' | 'No',
+      isIp: (f.isIp === 'Yes' ? 'Yes' : 'No') as 'Yes' | 'No',
+      weight,
+      height,
+      muac,
+      edema,
+      srvVitA: Boolean(f.srvVitA),
+      srvDeworm: Boolean(f.srvDeworm),
+      srvIycf: Boolean(f.srvIycf),
+      remarks: (f.remarks || '').trim(),
+      who
+    };
+
+    const snapshotCopy = JSON.parse(JSON.stringify(recordObj));
+    const vIdx = existingVisits.findIndex((v: any) => v.date === measureDate);
+    if (vIdx >= 0) {
+      existingVisits[vIdx] = { date: measureDate, snapshot: snapshotCopy };
+    } else {
+      existingVisits.unshift({ date: measureDate, snapshot: snapshotCopy });
+    }
+    recordObj.visitHistory = existingVisits;
+
+    if (existingIdx >= 0) {
+      appState.optplusRecords[existingIdx] = recordObj;
+    } else {
+      appState.optplusRecords.unshift(recordObj);
+    }
+
+    saveOptPlusRecordsToStorage(appState.optplusRecords);
+    const savedBrgy = recordObj.barangay;
+    const savedCity = recordObj.city;
+    const savedProv = recordObj.province;
+    appState.optplusForm = createBlankOptPlusForm(appState.doctor);
+    appState.optplusForm.barangay = savedBrgy;
+    appState.optplusForm.city = savedCity;
+    appState.optplusForm.province = savedProv;
+
+    appState.recordsActiveTab = 'optplus';
+    appState.registryOpenFolderPatientId = recordObj.id;
+    appState.registryOpenVisitFolderKey = `${recordObj.id}__${measureDate}`;
+    switchView('records');
+    showToast(`Saved ${recordObj.childName}'s OPTPlus Folder to Patient Records!`);
+  };
+
+  window.optplusEditRecord = (id: string) => {
+    const rec = (appState.optplusRecords || []).find((r: any) => r.id === id);
+    if (!rec) return;
+    appState.optplusForm = {
+      id: rec.id,
+      barangay: rec.barangay || '',
+      city: rec.city || '',
+      province: rec.province || '',
+      optYear: rec.optYear || String(new Date().getFullYear()),
+      measureDate: rec.measureDate,
+      measurer: rec.measurer || (appState.doctor?.name || ''),
+      childName: rec.childName,
+      sex: rec.sex,
+      dob: rec.dob,
+      motherName: rec.motherName,
+      purok: rec.purok,
+      is4ps: rec.is4ps || 'No',
+      isIp: rec.isIp || 'No',
+      remarks: rec.remarks || '',
+      weight: String(rec.weight),
+      height: String(rec.height),
+      muac: rec.muac ? String(rec.muac) : '',
+      edema: rec.edema || 'None',
+      srvVitA: Boolean(rec.srvVitA),
+      srvDeworm: Boolean(rec.srvDeworm),
+      srvIycf: Boolean(rec.srvIycf)
+    };
+    appState.optplusActiveTab = 'intake';
+    renderOptPlusWorkspace();
+    showToast(`Editing OPT+ record: ${rec.childName}`);
+  };
+
+  window.optplusDeleteRecord = (id: string) => {
+    window.deletePatientRecord(id);
+  };
+
+  window.optplusUpdateGoalParam = (key: string, val: any) => {
+    if (!appState.optplusGoals) {
+      appState.optplusGoals = {
+        totalPop: 3500,
+        popFactor: 10.8,
+        manualTarget: '',
+        targetCovPct: 95,
+        daysLeft: 15,
+        stuntRedPct: 25,
+        wasteRedPct: 50,
+        uwRedPct: 30
+      };
+    }
+    appState.optplusGoals[key] = val;
+    renderOptPlusWorkspace();
+  };
+
+  function showOptPlusCardInModal(rec: any): void {
+    const overlay = document.getElementById('modal-overlay');
+    const content = document.getElementById('modal-content');
+    if (!overlay || !content) return;
+    const rawName = (rec.childName || 'Child_Card').replace(/[^a-zA-Z0-9_-]/g, '_');
+    content.innerHTML = `
+      <div class="bg-slate-900 px-6 py-4 flex items-center justify-between gap-3 rounded-t-2xl">
+        <div>
+          <span class="text-[10px] font-bold uppercase tracking-widest text-teal-300 block">Individual Child Growth &amp; Nutrition Card</span>
+          <h3 class="text-sm font-extrabold text-white">${escapeHTML(rec.childName)} (${escapeHTML(rec.id)})</h3>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="optplusDownloadChildCardPdf('${escapeHTML(rawName)}')" class="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+            Download PDF
+          </button>
+          <button type="button" onclick="closeModal()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center font-bold text-xs cursor-pointer">✕</button>
+        </div>
+      </div>
+      <div class="p-4 sm:p-6 bg-slate-100 max-h-[78vh] overflow-y-auto rounded-b-2xl">
+        ${buildOptPlusChildCardPrintableHTML(rec)}
+      </div>
+    `;
+    overlay.classList.remove('hidden');
+    overlay.classList.add('flex');
+  }
+
+  window.optplusOpenChildCardModal = (id: string) => {
+    const rec = (appState.optplusRecords || []).find((r: any) => r.id === id);
+    if (!rec) return;
+    showOptPlusCardInModal(rec);
+  };
+
+  window.optplusPreviewCurrentFormCard = () => {
+    const f = appState.optplusForm || {};
+    const measureDate = f.measureDate || new Date().toISOString().split('T')[0];
+    const rawAge = computeOptCompletedMonths(f.dob, measureDate);
+    const ageMonths = rawAge !== null && rawAge >= 0 ? Math.min(59, rawAge) : 0;
+    const sex: 'Male' | 'Female' = f.sex === 'Female' ? 'Female' : 'Male';
+    const weight = parseFloat(f.weight) || 0;
+    const height = parseFloat(f.height) || 0;
+    const muac = (f.muac || '').trim() || '';
+    const edema = f.edema || 'None';
+    const who = classifyChildWHO({ sex, ageMonths, weight: weight || 8.5, height: height || 72, muac, edema });
+
+    const tempRec = {
+      id: f.id || 'OPT-PREVIEW',
+      region: '',
+      province: f.province || '—',
+      city: f.city || '—',
+      barangay: f.barangay || '—',
+      optYear: f.optYear || String(new Date().getFullYear()),
+      purok: f.purok || '—',
+      measureDate,
+      measurer: f.measurer || (appState.doctor?.name || '—'),
+      childName: (f.childName || '').trim() || '—',
+      sex,
+      dob: f.dob || '—',
+      ageMonths,
+      motherName: f.motherName || '—',
+      is4ps: (f.is4ps === 'Yes' ? 'Yes' : 'No') as 'Yes' | 'No',
+      isIp: (f.isIp === 'Yes' ? 'Yes' : 'No') as 'Yes' | 'No',
+      weight,
+      height,
+      muac,
+      edema,
+      srvVitA: Boolean(f.srvVitA),
+      srvDeworm: Boolean(f.srvDeworm),
+      srvIycf: Boolean(f.srvIycf),
+      remarks: f.remarks || '',
+      who
+    };
+    showOptPlusCardInModal(tempRec);
+  };
+
+  window.optplusDownloadChildCardPdf = (rawName = 'Child_Card') => {
+    window.downloadPdfElement('optplus-child-card-printable', `OPTPlus_Child_Nutrition_Card_${rawName}.pdf`, 'a4');
+  };
+
+  window.optplusExportForm1APdf = () => {
+    const brgy = (appState.optplusForm?.barangay || 'Barangay').replace(/[^a-zA-Z0-9_-]/g, '_');
+    window.downloadPdfElement('optplus-form1a-sheet', `OPTPlus_Form1A_Masterlist_${brgy}.pdf`, 'a4');
+  };
+
+  window.optplusExportGoalReportPdf = () => {
+    const brgy = (appState.optplusForm?.barangay || 'Barangay').replace(/[^a-zA-Z0-9_-]/g, '_');
+    window.downloadPdfElement('optplus-goal-report-sheet', `OPTPlus_BNAP_Goal_Computation_${brgy}.pdf`, 'a4');
+  };
+
+  window.optplusExportMasterlistCSV = () => {
+    const records = appState.optplusRecords || [];
+    const headers = [
+      'OPT_ID',
+      'Child_Name',
+      'Sex',
+      'DOB',
+      'Date_Measured',
+      'Age_Months',
+      'Purok',
+      'Mother_Caregiver',
+      '4Ps',
+      'IP',
+      'Weight_kg',
+      'Height_cm',
+      'MUAC_cm',
+      'Edema',
+      'WFA_Status',
+      'WFA_Z',
+      'LHFA_Status',
+      'LHFA_Z',
+      'WFLH_Status',
+      'WFLH_Z',
+      'Vit_A',
+      'Dewormed',
+      'IYCF',
+      'Remarks'
+    ];
+    const rows = records.map((r: any) => {
+      const w = r.who || classifyChildWHO({
+        sex: r.sex,
+        ageMonths: r.ageMonths,
+        weight: r.weight,
+        height: r.height,
+        muac: r.muac || '',
+        edema: r.edema || 'None'
+      });
+      const cols = [
+        r.id,
+        r.childName,
+        r.sex,
+        r.dob,
+        r.measureDate,
+        r.ageMonths,
+        r.purok,
+        r.motherName,
+        r.is4ps,
+        r.isIp,
+        r.weight,
+        r.height,
+        r.muac || '',
+        r.edema || 'None',
+        w.wfaCode,
+        w.zWFA,
+        w.hfaCode,
+        w.zHFA,
+        w.wfhCode,
+        w.zWFH,
+        r.srvVitA ? 'Yes' : 'No',
+        r.srvDeworm ? 'Yes' : 'No',
+        r.srvIycf ? 'Yes' : 'No',
+        r.remarks || ''
+      ];
+      return cols.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',');
+    });
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `OPTPlus_Form1A_Masterlist_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    showToast('Exported OPT+ Form 1A Masterlist CSV.');
   };
 
   // ============================================================================

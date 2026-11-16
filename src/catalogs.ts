@@ -1,3 +1,5 @@
+import { CPG_MANAGEMENT_BY_ID } from './cpgClinicalManagementData';
+
     export const PH_LAB_CATALOG: Record<string, string[]> = {
       "Hematology": [
         "CBC with Platelet Count",
@@ -1926,63 +1928,63 @@
       {
         id: "cpg-cancer-screening-adults",
         category: "Oncology & Preventive Care",
-        title: "Cancer Screening in Adults (Breast, Cervical & Colorectal)",
-        source: "DOH Philippine Periodic Health Examination (PHEX) CPGs on Screening for Breast, Cervical, and Colorectal Cancer & POGS / PSG Guidelines",
+        title: "PCOS, Abnormal Uterine Bleeding (AUB) & Adult Cancer Screening (Breast, Cervical & Colorectal)",
+        source: "POGS / DOH Philippine Periodic Health Examination (PHEX) / PSG CPGs on PCOS, AUB & Adult Cancer Screening",
         intendedUsers: "Primary Care Physicians, Family Medicine Clinicians, OB-GYNs, Internists & RHU Providers",
-        keywords: ["cancer screening", "breast cancer", "cervical cancer", "colorectal cancer", "crc", "mammography", "mammogram", "cbe", "hpv dna", "via", "pap smear", "fit", "colonoscopy", "phex", "bi-rads", "pogs", "psg"],
-        snapshotHeaders: ["Cancer Type", "Target Asymptomatic Population", "First-Line Philippine Screening Test & Interval"],
+        keywords: ["pcos", "polycystic ovary syndrome", "aub", "abnormal uterine bleeding", "letrozole", "tranexamic acid", "rotterdam", "cancer screening", "breast cancer", "cervical cancer", "colorectal cancer", "crc", "mammography", "mammogram", "cbe", "hpv dna", "via", "pap smear", "fit", "colonoscopy", "phex", "bi-rads", "pogs", "psg"],
+        snapshotHeaders: ["Condition / Cancer Type", "Target Population & Diagnostic Criteria", "First-Line Philippine Screening & Management"],
         snapshot: [
           {
-            col1: "Breast Cancer",
-            col2: "Average-risk women aged 50–69 years (start earlier at 40–49 years via shared decision-making or if high-risk/1st-degree family history)",
-            col3: "Biennial (every 2 years) Screening Mammography (gold standard where accessible) | Annual Clinical Breast Exam (CBE) by a trained provider + Monthly Breast Self-Awareness (especially in low-resource/RHU settings without mammography)"
+            col1: "PCOS & Abnormal Uterine Bleeding (AUB)",
+            col2: "PCOS: Rotterdam Criteria (≥ 2 of 3: oligo/anovulation, hyperandrogenism, polycystic ovaries on TVUS) | AUB (PALM-COEIN): Always rule out pregnancy (β-hCG) first; Endometrial Biopsy if age ≥ 45 yrs or unopposed estrogen",
+            col3: "PCOS (not conceiving): Lifestyle (5%–10% wt loss) + COCPs (or cyclic MPA) + Metformin if IR | PCOS (conceiving): Letrozole 2.5–5 mg Cycle Days 3–7 | Stable AUB: Tranexamic Acid 1–1.3 g TID or Mefenamic Acid 500 mg TID or COCP/LNG-IUD"
           },
           {
-            col1: "Cervical Cancer",
-            col2: "Women aged 21–65 years (or starting 3 years after onset of sexual activity; every 6–12 months if living with HIV)",
-            col3: "Ages 30–65: Primary High-Risk HPV DNA Testing every 5 years (preferred) OR Visual Inspection with Acetic Acid (VIA) every 3–5 years (standard RHU \"single-visit\" approach) OR Pap Smear (Cytology) every 3 years | Ages 21–29: Pap Smear alone every 3 years (do NOT use HPV DNA testing under age 30 due to high transient infection rates)"
+            col1: "Breast & Cervical Cancer Screening",
+            col2: "Breast: Average-risk women aged 50–69 yrs (shared decision at 40–49) | Cervical: Women aged 21–65 yrs",
+            col3: "Breast: Biennial Screening Mammography + Annual CBE | Cervical (30–65 yrs): Primary HPV DNA q5y, VIA q3–5y at RHUs, or Pap Smear q3y (Ages 21–29: Pap Smear q3y)"
           },
           {
-            col1: "Colorectal Cancer (CRC)",
-            col2: "Average-risk adults aged 50–75 years (start at 45 years or 10 years earlier than youngest affected relative if 1st-degree family history of CRC/advanced adenoma)",
-            col3: "Annual Fecal Immunochemical Test (FIT) (1st-line population screen in Philippine primary care) OR Colonoscopy every 10 years (gold standard; mandatory diagnostic follow-up for ANY positive FIT)"
+            col1: "Colorectal, Lung & Liver (HCC) Screening",
+            col2: "Colorectal: Adults 50–75 yrs | Lung: Ages 50–80 with ≥ 20 pack-yr smoking | Liver: Chronic HBV or Cirrhosis",
+            col3: "Colorectal: Annual FIT or Colonoscopy q10y (positive FIT mandates Colonoscopy) | Lung: Annual Low-Dose Chest CT | Liver: Ultrasound + AFP q6mos"
           }
         ],
         scope: {
           included: [
-            "Asymptomatic, average-risk Filipino adults presenting for routine preventive health checkups in primary care clinics, RHUs, or executive checkup centers."
+            "Filipino women with suspected Polycystic Ovary Syndrome (PCOS) or Abnormal Uterine Bleeding (AUB), and average-risk Filipino adults presenting for routine DOH PHEX cancer screening."
           ],
           excluded: [
             { label: "Breast Red Flags (Diagnostic Workup Required)", action: "Palpable dominant breast mass, skin dimpling (peau d'orange), nipple retraction, bloody nipple discharge, or axillary lymphadenopathy—refer immediately for Diagnostic Mammogram + Breast Ultrasound + Core Needle Biopsy." },
-            { label: "Cervical Red Flags (Diagnostic Workup Required)", action: "Post-coital bleeding, intermenstrual/postmenopausal vaginal bleeding, or visible fungating cervical lesion—refer immediately for Colposcopy and Directed Cervical Biopsy." },
+            { label: "Cervical / Endometrial Red Flags (Diagnostic Workup Required)", action: "ANY postmenopausal vaginal bleeding, post-coital bleeding, or visible cervical lesion—refer immediately for TVUS, Endometrial Biopsy, and Colposcopy." },
             { label: "Colorectal Red Flags (Diagnostic Workup Required)", action: "Rectal bleeding/hematochezia, unexplained iron-deficiency anemia, persistent change in bowel habits (> 4 weeks), or unintentional weight loss—refer directly for Diagnostic Colonoscopy (do not do FIT)." }
           ]
         },
         recommendations: {
           strong: [
+            { title: "PCOS Metabolic Workup & First-Line Letrozole for Ovulation Induction", detail: "Screen all PCOS patients with a 75g 2-hour OGTT and Fasting Lipid Profile; prescribeCOCPs for cycle regulation/endometrial protection if not attempting conception, and Letrozole (superior live-birth rate over Clomiphene) if attempting conception." },
             { title: "Cervical Cancer Screening & Primary HPV Vaccination", detail: "Screen women aged 30–65 with HPV DNA testing or VIA; administer HPV Vaccination to girls aged 9–14 years (2-dose schedule at 0 and 6 months) as primary prevention." },
-            { title: "Colorectal Cancer Screening & Positive FIT Rule", detail: "Screen adults aged 50–75 using annual FIT or colonoscopy every 10 years; never repeat a positive FIT—every positive FIT mandates a diagnostic colonoscopy." },
-            { title: "Discontinue Routine Screening After Well-Screened Upper Age Cutoffs", detail: "Discontinue routine cervical screening after age 65 (if 3 consecutive negative Pap tests or 2 negative HPV tests in the past 10 years and no CIN2+ history) and colorectal screening after age 75–85 if previously well-screened." }
+            { title: "Colorectal Cancer Screening & Positive FIT Rule", detail: "Screen adults aged 50–75 using annual FIT or colonoscopy every 10 years; never repeat a positive FIT—every positive FIT mandates a diagnostic colonoscopy." }
           ],
           conditional: [
-            { title: "Mammography at Ages 40–49 & CBE in Low-Resource Settings", detail: "Screening mammography for women aged 40–49 years (weighing earlier detection benefits against higher breast density, false positives, and out-of-pocket cost); using Clinical Breast Exam (CBE) alone in rural areas where mammography facilities are geographically or financially inaccessible." }
+            { title: "Mammography at Ages 40–49 & CBE in Low-Resource Settings", detail: "Screening mammography for women aged 40–49 years via shared decision-making; using Clinical Breast Exam (CBE) in rural areas where mammography is inaccessible." }
           ]
         },
         pathway: {
           orderedSteps: [
-            { step: "1. Risk-Stratify at Annual Wellness Visit", detail: "Document age, sex, smoking/alcohol history, reproductive history, and 1st-degree family history of breast, ovarian, cervical, or colorectal cancer." },
-            { step: "2. Execute Age-Appropriate Screening", detail: "Women 21–29: Perform Pap Smear every 3 years. Women 30–65: Perform HPV DNA test (every 5 yrs) or VIA (every 3–5 yrs); if VIA shows a well-defined acetowhite lesion, link immediately to single-visit Cryotherapy / Thermal Ablation (if eligible) or refer for Colposcopy. Women 50–69: Perform CBE + order Screening Mammogram every 2 years (classify via BI-RADS: BI-RADS 1–2 → routine screen; BI-RADS 3 → 6-month follow-up; BI-RADS 4–5 → immediate biopsy). All Adults 50–75: Order 1-sample quantitative FIT (no dietary restrictions required, unlike older guaiac FOBT); if positive → refer for Colonoscopy." },
-            { step: "3. Document Recall Reminders", detail: "Log exact next due dates in the patient's chart/app to ensure longitudinal follow-up." }
+            { step: "1. Evaluate PCOS & AUB Systematically (PALM-COEIN)", detail: "Order Urine/Serum β-hCG first in any reproductive-age woman with AUB, followed by CBC, TSH, and Transvaginal Ultrasound. Perform Endometrial Biopsy in women ≥ 45 years or younger women with unopposed estrogen/PCOS and persistent AUB." },
+            { step: "2. Execute Age-Appropriate DOH PHEX Cancer Screening", detail: "Women 21–29: Pap Smear q3y. Women 30–65: HPV DNA test q5y or VIA q3–5y. Women 50–69: CBE + Biennial Mammogram. Adults 50–75: Annual quantitative FIT (if positive → Diagnostic Colonoscopy). Chronic HBV/Cirrhosis: Liver Ultrasound + AFP q6mos." },
+            { step: "3. Link Abnormal Screens to Definitive Biopsy & PhilHealth Z-Benefits", detail: "Positive FIT → Colonoscopy; BI-RADS 4/5 → Core Needle Biopsy; Positive VIA or HPV 16/18 → Colposcopy or thermal ablation/cryotherapy." }
           ]
         },
         practiceNotes: [
           { title: "Free RHU Screening & HPV Immunization", detail: "VIA cervical screening, Clinical Breast Exams, and school-based/RHU HPV vaccines (for girls aged 9–14) are provided free at DOH-accredited RHUs and government hospitals." },
-          { title: "PhilHealth Konsulta & Z-Benefit Packages", detail: "FIT, Pap smear, and mammography diagnostics are progressively integrated under PhilHealth Konsulta, while confirmed early-stage Breast, Cervical, and Colorectal Cancers qualify for comprehensive PhilHealth Z-Benefit Packages." }
+          { title: "PhilHealth Konsulta & Z-Benefit Packages", detail: "Confirmed Breast, Cervical, and Colorectal Cancers qualify for comprehensive PhilHealth Z-Benefit Packages and DOH Cancer Assistance Fund (CAF) access sites." }
         ],
         soapPlanSummary: [
-          "Age-Appropriate Cancer Screening: Breast (Women 50–69: Biennial Screening Mammogram + Annual CBE; shared decision-making at 40–49) | Cervical (Women 21–29: Pap Smear q3y; Women 30–65: HPV DNA q5y or VIA q3–5y) | Colorectal (Adults 50–75: Annual FIT or Colonoscopy q10y).",
-          "Diagnostic Escalation Rule: Refer immediately for diagnostic imaging/biopsy/endoscopy if red flags are present (breast lump/nipple discharge, post-coital/postmenopausal bleeding, hematochezia, or positive FIT—never repeat a positive FIT).",
-          "Preventive Counseling & Recall: Recommend 2-dose HPV vaccination for eligible girls aged 9–14 yrs; document exact next screening recall date in patient chart."
+          "PCOS / AUB Workup & Therapy: Rule out pregnancy (β-hCG); order CBC, TSH, TVUS, and 75g OGTT; treat PCOS with lifestyle + COCPs (or Letrozole if conceiving) and stable AUB with Tranexamic Acid 1 g TID or Mefenamic Acid 500 mg TID.",
+          "Age-Appropriate Cancer Screening: Breast (Women 50–69: Biennial Mammogram + CBE) | Cervical (Women 30–65: HPV DNA q5y or VIA q3–5y; 21–29: Pap q3y) | Colorectal (Adults 50–75: Annual FIT or Colonoscopy q10y).",
+          "Diagnostic Escalation Rule: Refer immediately for Endometrial Biopsy if postmenopausal bleeding or AUB ≥ 45 yrs, Core Biopsy if BI-RADS 4/5, and Colonoscopy for any positive FIT."
         ]
       },
       {
@@ -2235,6 +2237,156 @@
           "Lifestyle & Pharmacotherapy: Target ≥ 5%–10% weight loss (500–1,000 kcal deficit, eliminate sugary drinks, cut white rice portions in half) + ≥ 150–300 min/week exercise; prescribe GLP-1 RA, Pioglitazone, or SGLT2i if T2DM/obesity; safely prescribe Statins for dyslipidemia/cardiovascular protection (statins are not hepatotoxic in MASLD).",
           "Counseling & Surveillance: Correct the \"fatty liver needs liver vitamins/silymarin\" myth (redirect funds to weight loss and FibroScan); recommend 2–3 cups of unsweetened black coffee daily; enforce 6-monthly Ultrasound + AFP surveillance if advanced fibrosis/cirrhosis is present."
         ]
+      },
+      {
+        id: "cpg-acute-severe-bp",
+        category: "Cardiovascular",
+        title: "Acute Severe Blood Pressure Elevation (≥ 180/120 mm Hg)",
+        source: "2024 Philippine Clinical Practice Guidelines on the Management of Acute Severe Blood Pressure Elevation",
+        intendedUsers: "Emergency Physicians, Primary Care Physicians, Internists & Hospitalist Clinicians",
+        keywords: ["acute severe bp", "hypertensive emergency", "hypertensive urgency", "180/120", "nicardipine", "sublingual nifedipine", "target organ damage", "aortic dissection", "pulmonary edema"],
+        snapshot: [
+          { parameter: "Severe BP Threshold", value: "SBP ≥ 180 mm Hg AND/OR DBP ≥ 120 mm Hg confirmed on repeat measurement in both arms" },
+          { parameter: "Critical Triage Question", value: "Is acute Target Organ Damage (TOD) present? (NO → Hypertensive Urgency [Outpatient Oral] | YES → Hypertensive Emergency [ER/ICU IV Titration])" },
+          { parameter: "Hypertensive Urgency Goal", value: "Quiet rest for 2 hours + re-initiate/uptitrate oral maintenance therapy; lower BP gradually over 24–48 hours (NO IV drugs, NO sublingual nifedipine/captopril)" },
+          { parameter: "Hypertensive Emergency Goal", value: "Continuous IV Nicardipine (5–15 mg/hr) or IV Nitroglycerin/Labetalol; reduce MAP by 15%–25% over 1–2 hours (never drop SBP by ≥ 60 mm Hg in 1 hour, except in Aortic Dissection where SBP < 120 & HR < 60 bpm in 20 min)" }
+        ],
+        scope: {
+          included: [
+            "Filipino adults presenting to outpatient clinics or emergency departments with acute severe blood pressure elevation (≥ 180/120 mm Hg)."
+          ],
+          excluded: [
+            { label: "Severe Preeclampsia / Eclampsia in Pregnancy (BP ≥ 160/110 mm Hg)", action: "Switch to POGS Hypertension in Pregnancy protocol (IV MgSO₄ + Oral IR Nifedipine / IV Hydralazine / IV Labetalol)." },
+            { label: "Hyperacute Ischemic Stroke", action: "Follow SSP Stroke permissive hypertension cutoffs (< 185/110 mm Hg if receiving IV rtPA; otherwise do not lower unless ≥ 220/120 mm Hg)." }
+          ]
+        },
+        recommendations: {
+          strong: [
+            { title: "Strictly Avoid Sublingual Nifedipine or Captopril", detail: "Never administer sublingual nifedipine or sublingual captopril—unpredictable precipitous BP drops cause watershed cerebral infarction and myocardial ischemia." },
+            { title: "Manage Asymptomatic Hypertensive Urgency Outpatient", detail: "Patients with BP ≥ 180/120 mm Hg WITHOUT acute target organ damage should be rested in a quiet room and restarted/uptitrated on oral combination therapy rather than admitted for IV infusions." }
+          ],
+          conditional: [
+            { title: "Targeted Organ-Specific Diagnostics", detail: "Order 12-Lead ECG, Chest X-Ray, Troponin, Creatinine, Urinalysis, or Cranial CT selectively when clinical symptoms or signs suggest acute target organ injury." }
+          ]
+        },
+        pathway: {
+          orderedSteps: [
+            { step: "1. Confirm Severe BP & Screen for Acute Target Organ Damage (TOD)", detail: "Recheck BP in both arms using an appropriately sized cuff. Screen immediately for chest pain (ACS), dyspnea/orthopnea (pulmonary edema), focal neuro deficits/confusion (stroke/encephalopathy), or tearing back pain (aortic dissection)." },
+            { step: "2. Pathway A — No TOD (Hypertensive Urgency)", detail: "Rest quietly for 2 hours, re-initiate or uptitrate oral maintenance drugs (e.g., Amlodipine + Losartan), lower BP over 24–48 hours, and schedule follow-up within 3–7 days." },
+            { step: "3. Pathway B — TOD Present (Hypertensive Emergency)", detail: "Admit to ER/ICU and start continuous IV Nicardipine (5 mg/hr, titrate by 2.5 mg/hr q5–15min up to 15 mg/hr), IV Nitroglycerin (for ACS/pulmonary edema), or IV Esmolol/Labetalol + Nicardipine (for aortic dissection)." }
+          ]
+        },
+        practiceNotes: [
+          { title: "Addressing Medication Non-Adherence", detail: "Most Philippine outpatient cases of BP ≥ 180/120 mm Hg occur in patients who stopped taking daily Losartan/Amlodipine once they felt well; counsel that daily maintenance prevents stroke and renal failure." }
+        ],
+        soapPlanSummary: [
+          "Triage & Diagnostics: Confirm BP ≥ 180/120 mm Hg in both arms and screen for acute Target Organ Damage (order ECG, CXR, Troponin, Creatinine, Urinalysis, or Cranial CT if TOD symptoms present).",
+          "Targeted Management: Hypertensive Urgency (no TOD) → 2-hour quiet rest + oral maintenance re-initiation/uptitration over 24–48 hrs (avoid sublingual nifedipine); Hypertensive Emergency (with TOD) → Admit to ER/ICU for continuous IV Nicardipine (5–15 mg/hr) or IV Nitroglycerin.",
+          "Follow-Up & Precautions: Follow up within 3–7 days with twice-daily Home BP log; return to ER immediately if chest pain, dyspnea, slurred speech, unilateral weakness, or visual loss occurs."
+        ]
+      },
+      {
+        id: "cpg-allergic-rhinitis",
+        category: "ENT & Allergy",
+        title: "Allergic Rhinitis",
+        source: "Philippine Society of Otolaryngology–Head and Neck Surgery (PSO-HNS) & ARIA-Adapted CPG on Allergic Rhinitis",
+        intendedUsers: "Primary Care Physicians, ENT Specialists, Pediatricians, Allergists & Outpatient Clinicians",
+        keywords: ["allergic rhinitis", "rhinitis", "sneezing", "rhinorrhea", "nasal congestion", "fluticasone", "mometasone", "cetirizine", "loratadine", "bilastine", "intranasal corticosteroid", "pso-hns", "aria"],
+        snapshot: [
+          { parameter: "Cardinal Clinical Features (≥ 2 for > 1 hr/day)", value: "Watery anterior rhinorrhea, paroxysmal sneezing, nasal obstruction/congestion, and nasal/ocular pruritus (+ pale/bluish boggy turbinates on anterior rhinoscopy)" },
+          { parameter: "ARIA Classification", value: "Duration: Intermittent (< 4 days/wk OR < 4 consecutive wks) vs. Persistent (≥ 4 days/wk AND ≥ 4 consecutive wks) | Severity: Mild (normal sleep & work/school) vs. Moderate-Severe (impairs sleep, work, school, or daily activities)" },
+          { parameter: "Mild Intermittent AR (1st-Line)", value: "2nd-Generation Non-Sedating Oral Antihistamine (Cetirizine 10 mg OD, Loratadine 10 mg OD, Levocetirizine 5 mg OD, Bilastine 20 mg OD, or Fexofenadine 120–180 mg OD) + Isotonic Nasal Saline Irrigation" },
+          { parameter: "Moderate-Severe or Persistent AR (1st-Line)", value: "Intranasal Corticosteroid (INCS) Spray (Fluticasone Propionate, Fluticasone Furoate, or Mometasone Furoate OD for ≥ 2–4 weeks)" }
+        ],
+        scope: {
+          included: [
+            "Filipino children and adults presenting with intermittent or persistent allergic rhinitis in primary care or specialty clinics."
+          ],
+          excluded: [
+            { label: "Unilateral Nasal Obstruction, Epistaxis, or Foul Purulent Discharge", action: "Refer to ENT for Nasal Endoscopy and Sinus CT to rule out sinonasal tumor, foreign body, or invasive fungal sinusitis." },
+            { label: "Rhinitis Medicamentosa", action: "Rebound congestion from using topical Oxymetazoline/Phenylephrine nasal drops for > 3–5 days—stop decongestant drops immediately and bridge with Intranasal Corticosteroid spray." }
+          ]
+        },
+        recommendations: {
+          strong: [
+            { title: "Intranasal Corticosteroids for Moderate-Severe or Persistent AR", detail: "Prescribe Intranasal Corticosteroids (INCS) as the most effective first-line controller medication for nasal congestion and persistent symptoms." },
+            { title: "Prefer 2nd-Generation Over 1st-Generation Oral Antihistamines", detail: "Always choose 2nd-generation non-sedating antihistamines over 1st-generation sedating antihistamines (Chlorpheniramine, Diphenhydramine), which impair cognition, school learning, and driving safety." }
+          ],
+          conditional: [
+            { title: "Combination INCS + Intranasal Antihistamine or Leukotriene Receptor Antagonist", detail: "Stepping up to fixed-dose INCS + Intranasal Antihistamine (Azelastine/Fluticasone) in refractory rhinitis, or adding Montelukast 10 mg OD when Bronchial Asthma coexists (with neuropsychiatric side-effect counseling)." }
+          ]
+        },
+        pathway: {
+          orderedSteps: [
+            { step: "1. Classify by ARIA Duration & Severity", detail: "Assess symptom days per week, consecutive weeks, sleep disturbance, and coexisting bronchial asthma or conjunctivitis." },
+            { step: "2. Initiate Stepwise Pharmacotherapy + Saline Irrigation", detail: "Mild Intermittent → 2nd-Gen Oral Antihistamine + Saline Spray. Moderate-Severe Intermittent or Any Persistent AR → Daily Intranasal Corticosteroid (INCS) Spray for 2–4 weeks." },
+            { step: "3. Verify Cross-Hand Nasal Spray Technique & Reassess at 2–4 Weeks", detail: "Demonstrate aiming the spray nozzle laterally toward the outer eye canthus (away from the nasal septum to prevent nosebleeds). Step up to INCS + Intranasal/Oral Antihistamine if uncontrolled." }
+          ]
+        },
+        practiceNotes: [
+          { title: "Tropical House Dust Mite & Trigger Control", detail: "In the humid Philippine climate, Dermatophagoides pteronyssinus and Blomia tropicalis house dust mites are the #1 perennial allergens; advise washing bedsheets weekly in hot water, sun-drying pillows, and avoiding mosquito coils (katol) and indoor smoke." }
+        ],
+        soapPlanSummary: [
+          "ARIA Classification & Workup: Classify duration (Intermittent vs. Persistent) and severity (Mild vs. Moderate-Severe); evaluate for coexisting Bronchial Asthma.",
+          "Stepwise Controller Therapy: Mild Intermittent → 2nd-Gen Oral Antihistamine (Cetirizine 10 mg OD / Loratadine 10 mg OD / Bilastine 20 mg OD) + Nasal Saline Irrigation; Moderate-Severe or Persistent → Intranasal Corticosteroid Spray (Fluticasone or Mometasone OD × 2–4 weeks).",
+          "Spray Technique & Red Flags: Aim nasal spray laterally away from septum; limit topical decongestants to ≤ 3–5 days; refer to ENT if unilateral obstruction, recurrent epistaxis, anosmia, or orbital/facial swelling."
+        ]
+      },
+      {
+        id: "cpg-arf-rhd",
+        category: "Cardiovascular",
+        title: "Acute Rheumatic Fever & Rheumatic Heart Disease (with GAS Pharyngitis)",
+        source: "PHA / PSPC / PIDSP Clinical Practice Guidelines on Group A Streptococcal Pharyngitis, Acute Rheumatic Fever (ARF) & Rheumatic Heart Disease (RHD)",
+        intendedUsers: "Primary Care Physicians, Pediatricians, Internists, Cardiologists & RHU Providers",
+        keywords: ["acute rheumatic fever", "arf", "rheumatic heart disease", "rhd", "strep throat", "gas pharyngitis", "tonsillopharyngitis", "jones criteria", "benzathine penicillin", "carditis", "chorea", "aso titer"],
+        snapshot: [
+          { parameter: "Primary Prevention (GAS Pharyngitis)", value: "Single-dose Benzathine Penicillin G IM (< 27 kg: 600,000 U; ≥ 27 kg: 1.2 MU) OR Oral Penicillin V / Amoxicillin (50 mg/kg/day max 1 g/day) × 10 FULL days" },
+          { parameter: "2015 Revised Jones Criteria (High-Risk Endemic Philippines)", value: "Evidence of preceding GAS (elevated ASO/anti-DNase B or + throat culture/RADT) PLUS 2 Major OR 1 Major + 2 Minor Criteria | High-Risk Major: Carditis (clinical or subclinical on 2D Echo), Monoarthritis/Polyarthritis/Polyarthralgia, Chorea, Erythema marginatum, Subcutaneous nodules | High-Risk Minor: Monoarthralgia, Fever ≥ 38.0°C, ESR ≥ 30 mm/hr or CRP ≥ 3.0 mg/dL, Prolonged PR interval" },
+          { parameter: "Acute ARF Anti-Inflammatory Regimen", value: "Arthritis/Arthralgia: High-dose Aspirin (50–75 mg/kg/day QID) or Naproxen (10–20 mg/kg/day BID) | Moderate-Severe Carditis + Heart Failure: Oral Prednisone (2 mg/kg/day max 60–80 mg × 2–3 wks, then taper with Aspirin overlap) + HF therapy" },
+          { parameter: "Mandatory Secondary Prophylaxis", value: "Benzathine Penicillin G 1.2 MU IM (< 27 kg: 600,000 U IM) EVERY 21–28 DAYS (5 yrs/age 21 if no carditis; 10 yrs/age 21 if resolved carditis; ≥ 10 yrs/age 40 or lifelong if persistent valvular RHD)" }
+        ],
+        scope: {
+          included: [
+            "Filipino children, adolescents, and adults presenting with acute streptococcal tonsillopharyngitis, suspected Acute Rheumatic Fever (ARF), or chronic Rheumatic Heart Disease (RHD)."
+          ],
+          excluded: [
+            { label: "Viral Pharyngitis (Presence of Cough, Rhinorrhea, Hoarseness, Conjunctivitis, or Oral Ulcers)", action: "Do NOT prescribe antibiotics for viral upper respiratory tract infections." },
+            { label: "Infective Endocarditis or Septic Arthritis", action: "Draw 3 sets of blood cultures and perform arthrocentesis if febrile monoarthritis or unexplained fever in an RHD patient." }
+          ]
+        },
+        recommendations: {
+          strong: [
+            { title: "Mandatory 2D Echocardiography in All Suspected ARF", detail: "Perform 2D Echocardiography with Doppler in every patient with suspected ARF to detect subclinical valvulitis (mitral/aortic regurgitation) even when no murmur is audible." },
+            { title: "Uninterrupted Every-21-to-28-Day Benzathine Penicillin G Secondary Prophylaxis", detail: "Administer intramuscular Benzathine Penicillin G every 3–4 weeks as the gold standard to prevent recurrent ARF flares and progressive rheumatic mitral/aortic valve destruction." }
+          ],
+          conditional: [
+            { title: "Corticosteroids for Severe Acute Rheumatic Carditis", detail: "Using oral Prednisone (2 mg/kg/day) over salicylates alone in patients with severe acute carditis and heart failure." }
+          ]
+        },
+        pathway: {
+          orderedSteps: [
+            { step: "1. Confirm ARF via High-Risk Jones Criteria & 2D Echo", detail: "Order Throat Culture/RADT, ASO Titer, ESR, CRP, CBC, 12-Lead ECG (check PR interval), and 2D Echocardiogram." },
+            { step: "2. Eradicate GAS & Control Acute Inflammation", detail: "Give Benzathine Penicillin G IM single dose (or 10 days oral Penicillin V/Amoxicillin) + High-dose Aspirin/Naproxen for joint symptoms (or Prednisone + diuretics/ACEi for severe carditis)." },
+            { step: "3. Enroll in Registry for Monthly Secondary Prophylaxis & Dental Care", detail: "Schedule Benzathine Penicillin G IM every 21–28 days, maintain strict dental hygiene, and provide Infective Endocarditis prophylaxis prior to high-risk dental procedures." }
+          ]
+        },
+        practiceNotes: [
+          { title: "High-Risk Endemic Status of the Philippines", detail: "Because the Philippines is a high-risk endemic setting for ARF/RHD, aseptic Monoarthritis or Polyarthralgia counts as a Major Criterion, and Monoarthralgia or Fever ≥ 38.0°C counts as a Minor Criterion under the 2015 Revised Jones Criteria." }
+        ],
+        soapPlanSummary: [
+          "Diagnostics & Staging: Order ASO Titer, ESR, CRP, Throat Culture, 12-Lead ECG, and mandatory 2D Echocardiography (apply 2015 High-Risk Jones Criteria).",
+          "Acute Treatment: Eradicate GAS with single-dose Benzathine Penicillin G 1.2 MU IM (< 27 kg: 600,000 U) or 10-day Amoxicillin; treat arthritis with high-dose Aspirin/Naproxen and severe carditis with Prednisone 2 mg/kg/day + HF therapy.",
+          "Secondary Prophylaxis & Counseling: Administer Benzathine Penicillin G 1.2 MU IM every 21–28 days long-term; enforce dental hygiene and IE prophylaxis; return to ER for orthopnea, atrial fibrillation, or unexplained fever."
+        ]
       }
     ];
+
+    // Attach verbatim 3-pillar Clinical Management Plan to every disease in PH_CPG_CATALOG
+    PH_CPG_CATALOG.forEach((cpg: any) => {
+      if (CPG_MANAGEMENT_BY_ID[cpg.id]) {
+        cpg.clinicalManagement = CPG_MANAGEMENT_BY_ID[cpg.id];
+      }
+    });
+
+
 

@@ -3326,6 +3326,23 @@ service cloud.firestore {
     showToast(`Generating ${safeFilename}...`);
 
     let stageContainer: HTMLDivElement | null = null;
+    let masterStyleEl: HTMLStyleElement | null = null;
+    const nativeGetComputedStyle = window.getComputedStyle.bind(window);
+
+    // Fix html2canvas-pro 2.6.4 bug where context.config.window.getComputedStyle(clonedEl)
+    // calls the outer window's getComputedStyle on an element inside the cloned iframe document,
+    // which in Chromium ignores all iframe stylesheets unless routed to the element's owner window.
+    window.getComputedStyle = ((elt: Element, pseudoElt?: string | null) => {
+      try {
+        const ownerWin = elt?.ownerDocument?.defaultView;
+        if (ownerWin && ownerWin !== window) {
+          return ownerWin.getComputedStyle(elt, pseudoElt ?? null);
+        }
+      } catch {
+        // Fallback to nativeGetComputedStyle
+      }
+      return nativeGetComputedStyle(elt, pseudoElt ?? null);
+    }) as typeof window.getComputedStyle;
 
     try {
       const isLandscape = formatType === 'a5-landscape';
@@ -3346,7 +3363,33 @@ service cloud.firestore {
       const targetWidthPx = formatType === 'a6' ? 397 : 794;
       const targetMinHeightPx = formatType === 'a6' || formatType === 'a5-landscape' ? 559 : 1122;
 
+      // Collect all compiled CSS rules from active document.styleSheets so the cloned iframe
+      // has every Tailwind v4 & index.css rule without relying on <link> fetches inside about:blank
+      let combinedCssRulesText = '';
+      for (const sheet of Array.from(document.styleSheets)) {
+        try {
+          const rules = sheet.cssRules;
+          if (!rules) continue;
+          for (let i = 0; i < rules.length; i++) {
+            const rule = rules[i];
+            if (rule && typeof rule.cssText === 'string' && !rule.cssText.trim().startsWith('@import')) {
+              combinedCssRulesText += rule.cssText + '\n';
+            }
+          }
+        } catch {
+          // Ignore cross-origin stylesheet security errors
+        }
+      }
+
+      if (combinedCssRulesText) {
+        masterStyleEl = document.createElement('style');
+        masterStyleEl.id = 'medflow-pdf-master-style';
+        masterStyleEl.textContent = combinedCssRulesText;
+        document.head.appendChild(masterStyleEl);
+      }
+
       stageContainer = document.createElement('div');
+      stageContainer.id = 'medflow-pdf-stage-container';
       stageContainer.className = 'pdf-capture-clean';
       stageContainer.style.cssText = `
         position: fixed;
@@ -3362,6 +3405,102 @@ service cloud.firestore {
       `;
       document.body.appendChild(stageContainer);
 
+      const ignoredProps = new Set([
+        'all',
+        'd',
+        'content',
+        'transition',
+        'transition-property',
+        'transition-duration',
+        'transition-delay',
+        'transition-timing-function',
+        'animation',
+        'animation-name',
+        'animation-duration',
+        'animation-delay',
+        'animation-iteration-count',
+        'animation-direction',
+        'animation-fill-mode',
+        'animation-play-state',
+        'inline-size',
+        'block-size',
+        'min-inline-size',
+        'max-inline-size',
+        'min-block-size',
+        'max-block-size',
+        'height'
+      ]);
+
+      const svgPresentationProps = [
+        'width',
+        'height',
+        'fill',
+        'stroke',
+        'stroke-width',
+        'stroke-linecap',
+        'stroke-linejoin',
+        'color',
+        'opacity',
+        'display'
+      ];
+
+      // Two-pass computed style inliner: reads exact resolved styles from the real browser DOM
+      // while staged at physical paper width, then writes them directly onto each element's style attribute.
+      const inlineComputedStylesOnTree = (rootEl: HTMLElement) => {
+        const allNodes = [rootEl, ...Array.from(rootEl.querySelectorAll('*'))];
+        const computedEntries: Array<{ node: Element; cssText: string }> = [];
+
+        // Pass 1: Read computed styles from the live DOM before mutating any inline styles
+        for (const node of allNodes) {
+          const cs = nativeGetComputedStyle(node);
+          if (!cs) continue;
+
+          if (node instanceof SVGElement) {
+            const parts: string[] = [];
+            for (const prop of svgPresentationProps) {
+              const val = cs.getPropertyValue(prop);
+              if (val) parts.push(`${prop}:${val}`);
+            }
+            if (parts.length > 0) {
+              computedEntries.push({ node, cssText: parts.join(';') + ';' });
+            }
+          } else if (node instanceof HTMLElement) {
+            const parts: string[] = [];
+            for (let i = 0; i < cs.length; i++) {
+              const prop = cs.item(i);
+              if (!prop || ignoredProps.has(prop) || prop.startsWith('--') || prop.startsWith('-webkit-locale')) {
+                continue;
+              }
+              const val = cs.getPropertyValue(prop);
+              if (val) {
+                parts.push(`${prop}:${val}`);
+              }
+            }
+            if (parts.length > 0) {
+              computedEntries.push({ node, cssText: parts.join(';') + ';' });
+            }
+          }
+        }
+
+        // Pass 2: Write inlined computed styles onto every node
+        for (const entry of computedEntries) {
+          if (entry.node instanceof HTMLElement || entry.node instanceof SVGElement) {
+            entry.node.style.cssText = entry.cssText;
+          }
+        }
+
+        // Lock root paper dimensions cleanly
+        rootEl.style.margin = '0px';
+        rootEl.style.width = `${targetWidthPx}px`;
+        rootEl.style.minWidth = `${targetWidthPx}px`;
+        rootEl.style.maxWidth = `${targetWidthPx}px`;
+        rootEl.style.minHeight = `${targetMinHeightPx}px`;
+        rootEl.style.backgroundColor = '#ffffff';
+        rootEl.style.boxShadow = 'none';
+        rootEl.style.border = 'none';
+        rootEl.style.boxSizing = 'border-box';
+      };
+
       const renderNodeToPdfPage = async (sourceNode: HTMLElement) => {
         if (!stageContainer) return;
         stageContainer.innerHTML = '';
@@ -3376,8 +3515,11 @@ service cloud.firestore {
         clone.style.boxSizing = 'border-box';
         stageContainer.appendChild(clone);
 
-        // Wait one frame for layout settle
-        await new Promise((resolve) => requestAnimationFrame(resolve));
+        // Wait two frames for layout and font metrics to settle in the real DOM
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+        // Bake exact computed styles from the real DOM onto every node in the cloned paper sheet
+        inlineComputedStylesOnTree(clone);
 
         const canvas = await html2canvas(clone, {
           scale: 2.5,
@@ -3385,7 +3527,37 @@ service cloud.firestore {
           backgroundColor: '#ffffff',
           logging: false,
           width: targetWidthPx,
-          windowWidth: 1280
+          windowWidth: 1280,
+          ignoreElements: (node: Element) => {
+            if (node.id === 'root' || node.id === 'toast-container' || node.id === 'modal-overlay') {
+              return true;
+            }
+            if (node.tagName === 'LINK' && (node as HTMLLinkElement).rel?.toLowerCase().includes('stylesheet')) {
+              return true;
+            }
+            if (node.tagName === 'STYLE' && node.id !== 'medflow-pdf-master-style') {
+              return true;
+            }
+            return false;
+          },
+          onclone: (clonedDoc: Document, clonedEl: HTMLElement) => {
+            if (combinedCssRulesText && clonedDoc.head && !clonedDoc.getElementById('medflow-pdf-master-style')) {
+              const styleTag = clonedDoc.createElement('style');
+              styleTag.id = 'medflow-pdf-master-style';
+              styleTag.textContent = combinedCssRulesText;
+              clonedDoc.head.appendChild(styleTag);
+            }
+            if (clonedDoc.body) {
+              clonedDoc.body.style.margin = '0';
+              clonedDoc.body.style.padding = '0';
+              clonedDoc.body.style.backgroundColor = '#ffffff';
+              clonedDoc.body.style.fontFamily = "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif";
+            }
+            if (clonedEl?.parentElement) {
+              clonedEl.parentElement.style.left = '0px';
+              clonedEl.parentElement.style.top = '0px';
+            }
+          }
         });
 
         const imgWidthMm = pageWidthMm;
@@ -3466,6 +3638,10 @@ service cloud.firestore {
         formatType === 'a5-landscape' ? 'A5 landscape' : formatType === 'a6' ? 'A6 portrait' : 'A4 portrait'
       );
     } finally {
+      window.getComputedStyle = nativeGetComputedStyle;
+      if (masterStyleEl && masterStyleEl.parentNode) {
+        masterStyleEl.parentNode.removeChild(masterStyleEl);
+      }
       if (stageContainer && stageContainer.parentNode) {
         stageContainer.parentNode.removeChild(stageContainer);
       }

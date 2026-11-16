@@ -49,16 +49,16 @@ export function buildA4SoapRecordSheetHTML(doc: any, p: any, recordPrefix = 'CON
     <div class="flex flex-col justify-between min-h-[262mm] text-slate-900">
       <div>
         <!-- Top Clinic / Facility Header -->
-        <div class="border-b-2 border-slate-900 pb-3 mb-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+        <div class="border-b-2 border-slate-900 pb-3 mb-4 flex flex-row items-start justify-between gap-3">
           <div>
-            <h2 class="text-base sm:text-lg font-extrabold text-slate-900 uppercase tracking-tight">${escapeHTML(doc.facility || doc.clinic || 'MEDICAL & DIAGNOSTIC CLINIC')}</h2>
+            <h2 class="text-lg font-extrabold text-slate-900 uppercase tracking-tight">${escapeHTML(doc.facility || doc.clinic || 'MEDICAL & DIAGNOSTIC CLINIC')}</h2>
             ${doc.address ? `<p class="text-[11px] text-slate-600 mt-0.5">${escapeHTML(doc.address)}</p>` : ''}
             <p class="text-[11px] text-slate-600 mt-0.5">
               ${doc.phone ? `Contact: ${escapeHTML(doc.phone)}` : ''}
               ${isTrainee && doc.school ? `${doc.phone ? ' | ' : ''}Affiliation: ${escapeHTML(doc.school)}` : ''}
             </p>
           </div>
-          <div class="text-left sm:text-right shrink-0">
+          <div class="text-right shrink-0">
             <span class="inline-block bg-slate-900 text-white text-[10.5px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded">OUTPATIENT CLINICAL RECORD (SOAP)</span>
             <p class="text-[10px] text-slate-500 mt-1">Record ID: ${escapeHTML(recordIdDisplay)} • Date: ${escapeHTML(visitDate)}</p>
           </div>
@@ -66,42 +66,42 @@ export function buildA4SoapRecordSheetHTML(doc: any, p: any, recordPrefix = 'CON
 
         <!-- Patient Demographics Box -->
         <div class="bg-slate-50/90 border border-slate-300 rounded-lg p-3.5 mb-4 text-[11px] space-y-1.5">
-          <div class="grid grid-cols-1 sm:grid-cols-12 gap-2">
-            <div class="sm:col-span-5">
+          <div class="grid grid-cols-12 gap-2">
+            <div class="col-span-5">
               <span class="font-extrabold uppercase text-slate-900">PATIENT NAME:</span>
               <span class="text-slate-800 ml-1">${escapeHTML(p.name)}</span>
             </div>
-            <div class="sm:col-span-4">
+            <div class="col-span-4">
               <span class="font-extrabold uppercase text-slate-900">AGE / SEX:</span>
               <span class="text-slate-800 ml-1">${escapeHTML(p.age)} y/o / ${escapeHTML(p.sex)}</span>
             </div>
-            <div class="sm:col-span-3">
+            <div class="col-span-3">
               <span class="font-extrabold uppercase text-slate-900">PATIENT ID:</span>
               <span class="text-slate-800 ml-1">${escapeHTML(p.id)}</span>
             </div>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-12 gap-2">
-            <div class="sm:col-span-5">
+          <div class="grid grid-cols-12 gap-2">
+            <div class="col-span-5">
               <span class="font-extrabold uppercase text-slate-900">ADDRESS:</span>
               <span class="text-slate-800 ml-1">${escapeHTML(p.address || 'N/A')}</span>
             </div>
-            <div class="sm:col-span-4">
+            <div class="col-span-4">
               <span class="font-extrabold uppercase text-slate-900">CIVIL STATUS:</span>
               <span class="text-slate-800 ml-1">${escapeHTML(p.civilStatus || 'Single')}</span>
             </div>
-            <div class="sm:col-span-3">
+            <div class="col-span-3">
               <span class="font-extrabold uppercase text-slate-900">PHILHEALTH:</span>
               <span class="text-slate-800 ml-1">${escapeHTML(p.philhealth || 'N/A')}</span>
             </div>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 pt-0.5">
-            <div class="sm:col-span-7">
+          <div class="grid grid-cols-12 gap-2 pt-0.5">
+            <div class="col-span-7">
               <span class="font-extrabold uppercase text-slate-900">CHIEF COMPLAINT:</span>
               <span class="text-slate-800 ml-1">${escapeHTML(p.chiefComplaint || 'Routine consultation')}</span>
             </div>
-            <div class="sm:col-span-5 sm:text-right">
+            <div class="col-span-5 text-right">
               <span class="font-extrabold uppercase text-rose-700">ALLERGIES:</span>
               <span class="text-rose-700 ml-1">${escapeHTML(p.allergies || 'No Known Drug Allergies (NKDA)')}</span>
             </div>
@@ -170,12 +170,12 @@ export function buildA4SoapRecordSheetHTML(doc: any, p: any, recordPrefix = 'CON
 
       <!-- Bottom Signature & Confidential Footer -->
       <div class="pt-8 mt-8">
-        <div class="border-t border-slate-300 pt-3 flex flex-col sm:flex-row sm:items-end justify-between gap-4 text-[11px]">
+        <div class="border-t border-slate-300 pt-3 flex flex-row items-end justify-between gap-4 text-[11px]">
           <div class="text-slate-500 space-y-0.5">
             <p class="font-bold text-slate-600">Confidential Medical Record • MedFlow PH</p>
             <p>Follow-up Date: <span class="font-semibold text-slate-800">${escapeHTML(ds.followUpDate || 'As advised')}</span></p>
           </div>
-          <div class="text-left sm:text-right min-w-[240px]">
+          <div class="text-right min-w-[240px]">
             <div class="border-t-[1.5px] border-slate-900 pt-1.5">
               <p class="font-extrabold text-xs text-slate-900">${escapeHTML(doc.name)}</p>
               <p class="text-[11px] text-slate-600">
@@ -257,7 +257,7 @@ export function buildA4IndividualTreatmentRecordHTML(doc: any, p: any): string {
     <div class="flex flex-col justify-between min-h-[262mm] text-slate-900 text-[10.5px] leading-snug">
       <div class="space-y-3">
         <!-- Top DOH / Konsulta / LGU Facility Header -->
-        <div class="border-b-2 border-slate-900 pb-2.5 flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+        <div class="border-b-2 border-slate-900 pb-2.5 flex flex-row items-start justify-between gap-2">
           <div>
             <span class="text-[9px] font-extrabold uppercase tracking-widest text-teal-800 block">Department of Health (DOH) • PhilHealth Konsulta / iClinicSys Standard</span>
             <h2 class="text-base font-extrabold text-slate-900 uppercase tracking-tight">${escapeHTML(doc.facility || doc.clinic || 'RURAL HEALTH UNIT / MEDICAL CLINIC')}</h2>
@@ -267,7 +267,7 @@ export function buildA4IndividualTreatmentRecordHTML(doc: any, p: any): string {
               ${isTrainee && doc.school ? `${doc.phone ? ' | ' : ''}Affiliation: ${escapeHTML(doc.school)}` : ''}
             </p>
           </div>
-          <div class="text-left sm:text-right shrink-0">
+          <div class="text-right shrink-0">
             <span class="inline-block bg-slate-900 text-white text-[10px] font-extrabold uppercase tracking-wider px-3 py-1 rounded">INDIVIDUAL TREATMENT RECORD (ITR)</span>
             <p class="text-[9.5px] text-slate-600 mt-1 font-semibold">ITR No.: ${escapeHTML(itrIdDisplay)} • Patient ID: ${escapeHTML(p.id)}</p>
             <p class="text-[9.5px] text-slate-500">Date of Visit: ${escapeHTML(visitDate)}</p>
@@ -282,7 +282,7 @@ export function buildA4IndividualTreatmentRecordHTML(doc: any, p: any): string {
           </div>
           <div class="p-2.5 space-y-2">
             <!-- Identifiers Row -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pb-2 border-b border-slate-200 bg-slate-50/80 p-2 rounded">
+            <div class="grid grid-cols-3 gap-2 pb-2 border-b border-slate-200 bg-slate-50/80 p-2 rounded">
               <div>
                 <span class="text-[9px] font-extrabold uppercase text-slate-500 block">Family Serial Number</span>
                 <span class="font-extrabold text-slate-900">${escapeHTML(p.familySerialNo || 'N/A')}</span>
@@ -298,8 +298,8 @@ export function buildA4IndividualTreatmentRecordHTML(doc: any, p: any): string {
             </div>
 
             <!-- Personal Details Grid -->
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div class="sm:col-span-2">
+            <div class="grid grid-cols-4 gap-2">
+              <div class="col-span-2">
                 <span class="text-[9px] font-bold uppercase text-slate-500 block">Full Name</span>
                 <span class="font-extrabold text-slate-900 text-xs">${escapeHTML(p.name)}</span>
               </div>
@@ -327,7 +327,7 @@ export function buildA4IndividualTreatmentRecordHTML(doc: any, p: any): string {
                 <span class="text-[9px] font-bold uppercase text-slate-500 block">Mother's Maiden Name</span>
                 <span class="font-semibold text-slate-800">${escapeHTML(p.mothersMaidenName || 'N/A')}</span>
               </div>
-              <div class="col-span-2 sm:col-span-4 pt-1 border-t border-slate-100">
+              <div class="col-span-4 pt-1 border-t border-slate-100">
                 <span class="text-[9px] font-bold uppercase text-slate-500">Complete Address (Zone/Purok, Barangay, Municipality/Province):</span>
                 <span class="font-semibold text-slate-900 ml-1">${escapeHTML(completeAddress)}</span>
               </div>
@@ -341,7 +341,7 @@ export function buildA4IndividualTreatmentRecordHTML(doc: any, p: any): string {
             II. Medical, Family, Personal/Social &amp; OB-GYN History
           </div>
           <div class="p-2.5 space-y-2">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div class="grid grid-cols-2 gap-2">
               <div class="p-2 rounded bg-slate-50 border border-slate-200 space-y-1">
                 <span class="text-[9px] font-extrabold uppercase text-teal-900 block">Past Medical History (PMH)</span>
                 <p><strong>Known Allergies:</strong> <span class="text-rose-700 font-bold">${escapeHTML(p.allergies || 'No Known Drug Allergies (NKDA)')}</span></p>
@@ -358,7 +358,7 @@ export function buildA4IndividualTreatmentRecordHTML(doc: any, p: any): string {
             </div>
 
             ${isFemale ? `
-              <div class="p-2 rounded bg-teal-50/50 border border-teal-200 grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div class="p-2 rounded bg-teal-50/50 border border-teal-200 grid grid-cols-4 gap-2">
                 <div>
                   <span class="text-[9px] font-extrabold uppercase text-teal-900 block">OB Score (Gravida/Para)</span>
                   <span class="font-bold text-slate-900">${escapeHTML(obScoreText)}</span>
@@ -396,7 +396,7 @@ export function buildA4IndividualTreatmentRecordHTML(doc: any, p: any): string {
             <!-- O: Objective (Vitals, Anthropometrics, PE from SOAP Tab) -->
             <div class="border border-slate-200 rounded p-2 bg-white space-y-1.5">
               <div class="text-[9.5px] font-extrabold uppercase text-teal-900">O — Objective (Vital Signs, Anthropometrics &amp; Physical Exam)</div>
-              <div class="grid grid-cols-3 sm:grid-cols-9 gap-1.5 bg-slate-50 p-1.5 rounded border border-slate-200 text-[9.5px]">
+              <div class="grid grid-cols-9 gap-1.5 bg-slate-50 p-1.5 rounded border border-slate-200 text-[9.5px]">
                 <div><span class="text-slate-500 block">BP</span><strong>${escapeHTML(v.bp || '-')} mmHg</strong></div>
                 <div><span class="text-slate-500 block">HR</span><strong>${escapeHTML(v.hr || '-')} bpm</strong></div>
                 <div><span class="text-slate-500 block">RR</span><strong>${escapeHTML(v.rr || '-')} cpm</strong></div>
@@ -440,12 +440,12 @@ export function buildA4IndividualTreatmentRecordHTML(doc: any, p: any): string {
       </div>
 
       <!-- Bottom Signature Footer -->
-      <div class="pt-4 mt-4 border-t border-slate-300 flex flex-col sm:flex-row sm:items-end justify-between gap-4 text-[10px]">
+      <div class="pt-4 mt-4 border-t border-slate-300 flex flex-row items-end justify-between gap-4 text-[10px]">
         <div class="text-slate-500 space-y-0.5">
           <p class="font-bold text-slate-700">Standard DOH-Aligned Individual Treatment Record (ITR) • MedFlow PH</p>
           <p>Confidential Medical Record • Generated on ${escapeHTML(visitDate)}</p>
         </div>
-        <div class="text-left sm:text-right min-w-[230px] border-t-[1.5px] border-slate-900 pt-1">
+        <div class="text-right min-w-[230px] border-t-[1.5px] border-slate-900 pt-1">
           <p class="font-extrabold text-xs text-slate-900">${escapeHTML(doc.name)}</p>
           <p class="text-[10px] text-slate-600">
             ${isTrainee ? `${escapeHTML(doc.role)}${doc.school ? ` (${escapeHTML(doc.school)})` : ''}` : `Licensed Physician${doc.specialty ? ` (${escapeHTML(doc.specialty)})` : ''}`}
@@ -535,7 +535,7 @@ export function buildDualLabImagingRequestSheetHTML(doc: any, p: any): string {
 
   function buildRequestHalfColumn(bannerTitle: string, groupsContentHTML: string, emptyLabel: string): string {
     return `
-      <div class="flex flex-col justify-between min-h-[142mm] p-5 text-slate-900">
+      <div class="flex flex-col justify-between min-h-[126mm] text-slate-900">
         <div>
           <!-- Centered Facility Header -->
           <div class="text-center mb-2">
@@ -576,7 +576,7 @@ export function buildDualLabImagingRequestSheetHTML(doc: any, p: any): string {
             <p class="font-medium">ID: ${escapeHTML(p.id)}</p>
             <p>A6 Request Sheet</p>
           </div>
-          <div class="text-right min-w-[175px]">
+          <div class="text-right min-w-[165px]">
             <div class="border-t-[1.5px] border-slate-900 pt-1">
               <p class="font-extrabold text-[11px] text-slate-900">${escapeHTML(doc.name)}</p>
               <p class="text-[10px] text-slate-600">PRC Lic. No.: <strong>${escapeHTML(doc.prc || 'N/A')}</strong></p>
@@ -589,11 +589,11 @@ export function buildDualLabImagingRequestSheetHTML(doc: any, p: any): string {
   }
 
   return `
-    <div class="grid grid-cols-1 md:grid-cols-2 bg-white border border-slate-300 shadow-md max-w-[260mm] mx-auto">
-      <div class="border-b md:border-b-0 md:border-r-2 border-dashed border-slate-300">
+    <div class="paper-dual-a6">
+      <div class="paper-dual-a6-half paper-dual-a6-divider">
         ${buildRequestHalfColumn('LABORATORY REQUEST FORM', labGroupsHTML.join(''), 'No laboratory tests selected.')}
       </div>
-      <div>
+      <div class="paper-dual-a6-half">
         ${buildRequestHalfColumn('IMAGING & DIAGNOSTIC REQUEST', imagingGroupsHTML.join(''), 'No imaging or diagnostic studies selected.')}
       </div>
     </div>
@@ -957,7 +957,7 @@ export function buildRekordNiNanayHalfBondHTML(doc: any, p: any): string {
 
         <!-- ANC Step 1 & Step 2 Summary Strip: OB Scoring, Dating, Maternal Vitals & Fetal PE -->
         <div class="bg-slate-50 border border-slate-300 rounded-lg p-2 space-y-1.5">
-          <div class="grid grid-cols-2 sm:grid-cols-6 gap-1.5">
+          <div class="grid grid-cols-6 gap-1.5">
             <div>
               <span class="text-[8.5px] font-bold uppercase text-slate-500 block">OB Score (GPTPAL)</span>
               <span class="font-extrabold text-teal-900">${escapeHTML(obScore)}</span>
@@ -1026,7 +1026,7 @@ export function buildRekordNiNanayHalfBondHTML(doc: any, p: any): string {
         </div>
 
         <!-- Three-Column Summary from ANC Inputs: (1) Screening Workup, (2) Supplementation & Vaccines, (3) Birth & Emergency Plan -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div class="grid grid-cols-3 gap-2">
           <div class="border border-slate-300 rounded-lg p-2 bg-white space-y-0.5">
             <span class="text-[8.5px] font-extrabold uppercase tracking-wider text-teal-900 block border-b border-slate-200 pb-0.5 mb-1">
               Trimester Screening Workup (${escapeHTML(anc.trimester || '1st')} Tri)
@@ -3110,7 +3110,7 @@ export function buildPatientRecordsHTML(appState: any): string {
         <div id="all-patients-soap-wrapper" class="fixed -left-[9999px] top-0 w-[210mm] opacity-0 pointer-events-none no-print" aria-hidden="true">
           <div id="all-patients-soap-printable" class="bg-white">
             ${allPatients.map((pt: any, index: number) => `
-              <div class="paper-a4" style="${index < allPatients.length - 1 ? 'page-break-after: always;' : ''}">
+              <div class="paper-a4 pdf-page-break" style="${index < allPatients.length - 1 ? 'page-break-after: always;' : ''}">
                 ${buildA4SoapRecordSheetHTML(doc, pt, 'CONS')}
               </div>
             `).join('')}

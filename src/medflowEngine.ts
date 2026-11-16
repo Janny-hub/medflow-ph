@@ -3325,6 +3325,8 @@ service cloud.firestore {
     const safeFilename = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
     showToast(`Generating ${safeFilename}...`);
 
+    let stageContainer: HTMLDivElement | null = null;
+
     try {
       const isLandscape = formatType === 'a5-landscape';
       const pdfFormat = formatType === 'a6' ? 'a6' : formatType === 'a5-landscape' ? 'a5' : 'a4';
@@ -3336,60 +3338,74 @@ service cloud.firestore {
 
       const pageWidthMm = pdf.internal.pageSize.getWidth();
       const pageHeightMm = pdf.internal.pageSize.getHeight();
-      const marginMm = formatType === 'a6' ? 4 : 6;
-      const usableWidthMm = pageWidthMm - marginMm * 2;
-      const usableHeightMm = pageHeightMm - marginMm * 2;
 
-      // Check if container holds multiple explicit pages (e.g., Export All Patients SOAP PDF)
-      const childPages = Array.from(el.querySelectorAll(':scope > .pdf-page-break')) as HTMLElement[];
+      // Exact physical paper widths in CSS pixels at 96 DPI:
+      // A6 portrait (105mm x 148mm) -> 397px wide
+      // A5 landscape / Dual-A6 / Half-Bond (210mm x 148mm) -> 794px wide
+      // A4 portrait (210mm x 297mm) -> 794px wide
+      const targetWidthPx = formatType === 'a6' ? 397 : 794;
+      const targetMinHeightPx = formatType === 'a6' || formatType === 'a5-landscape' ? 559 : 1122;
 
-      if (childPages.length > 0) {
-        for (let i = 0; i < childPages.length; i++) {
-          if (i > 0) pdf.addPage();
-          const pageNode = childPages[i];
-          const canvas = await html2canvas(pageNode, {
-            scale: 2,
-            useCORS: true,
-            backgroundColor: '#ffffff',
-            logging: false
-          });
-          const imgData = canvas.toDataURL('image/jpeg', 0.96);
-          const ratio = canvas.height / canvas.width;
-          let renderW = usableWidthMm;
-          let renderH = renderW * ratio;
-          if (renderH > usableHeightMm) {
-            renderH = usableHeightMm;
-            renderW = renderH / ratio;
-          }
-          const offsetX = marginMm + (usableWidthMm - renderW) / 2;
-          pdf.addImage(imgData, 'JPEG', offsetX, marginMm, renderW, renderH);
-        }
-      } else {
-        const canvas = await html2canvas(el, {
-          scale: 2,
+      stageContainer = document.createElement('div');
+      stageContainer.className = 'pdf-capture-clean';
+      stageContainer.style.cssText = `
+        position: fixed;
+        left: -10000px;
+        top: 0;
+        width: ${targetWidthPx}px;
+        min-width: ${targetWidthPx}px;
+        max-width: ${targetWidthPx}px;
+        background: #ffffff;
+        z-index: -9999;
+        pointer-events: none;
+        overflow: visible;
+      `;
+      document.body.appendChild(stageContainer);
+
+      const renderNodeToPdfPage = async (sourceNode: HTMLElement) => {
+        if (!stageContainer) return;
+        stageContainer.innerHTML = '';
+
+        const clone = sourceNode.cloneNode(true) as HTMLElement;
+        clone.style.margin = '0';
+        clone.style.width = `${targetWidthPx}px`;
+        clone.style.minWidth = `${targetWidthPx}px`;
+        clone.style.maxWidth = `${targetWidthPx}px`;
+        clone.style.minHeight = `${targetMinHeightPx}px`;
+        clone.style.background = '#ffffff';
+        clone.style.boxSizing = 'border-box';
+        stageContainer.appendChild(clone);
+
+        // Wait one frame for layout settle
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+
+        const canvas = await html2canvas(clone, {
+          scale: 2.5,
           useCORS: true,
           backgroundColor: '#ffffff',
-          logging: false
+          logging: false,
+          width: targetWidthPx,
+          windowWidth: 1280
         });
 
-        const imgWidthMm = usableWidthMm;
+        const imgWidthMm = pageWidthMm;
         const imgHeightMm = (canvas.height * imgWidthMm) / canvas.width;
 
-        if (imgHeightMm <= usableHeightMm * 1.08) {
-          // Fits on a single page (scale slightly if within 8% tolerance)
-          const finalH = Math.min(imgHeightMm, usableHeightMm);
-          const finalW = imgHeightMm > usableHeightMm ? (canvas.width * finalH) / canvas.height : imgWidthMm;
-          const offsetX = marginMm + (usableWidthMm - finalW) / 2;
+        // If the content fits on one page (or within 12% tolerance of the physical sheet height), fit cleanly onto 1 page
+        if (imgHeightMm <= pageHeightMm * 1.12) {
+          const finalH = Math.min(imgHeightMm, pageHeightMm);
+          const finalW = imgHeightMm > pageHeightMm ? (canvas.width * finalH) / canvas.height : imgWidthMm;
+          const offsetX = (pageWidthMm - finalW) / 2;
           const imgData = canvas.toDataURL('image/jpeg', 0.96);
-          pdf.addImage(imgData, 'JPEG', offsetX, marginMm, finalW, finalH);
+          pdf.addImage(imgData, 'JPEG', offsetX, 0, finalW, finalH);
         } else {
-          // Multi-page vertical slicing for long documents
-          const pageCanvasHeightPx = Math.floor((usableHeightMm * canvas.width) / imgWidthMm);
+          // Multi-page vertical slicing for extra-long clinical records
+          const pageCanvasHeightPx = Math.floor((pageHeightMm * canvas.width) / imgWidthMm);
           let renderedHeightPx = 0;
-          let pageIndex = 0;
+          let sliceIndex = 0;
 
           while (renderedHeightPx < canvas.height) {
-            if (pageIndex > 0) pdf.addPage();
+            if (sliceIndex > 0) pdf.addPage();
             const sliceHeightPx = Math.min(pageCanvasHeightPx, canvas.height - renderedHeightPx);
             const sliceCanvas = document.createElement('canvas');
             sliceCanvas.width = canvas.width;
@@ -3411,12 +3427,24 @@ service cloud.firestore {
               );
               const sliceData = sliceCanvas.toDataURL('image/jpeg', 0.96);
               const sliceHeightMm = (sliceHeightPx * imgWidthMm) / canvas.width;
-              pdf.addImage(sliceData, 'JPEG', marginMm, marginMm, imgWidthMm, sliceHeightMm);
+              pdf.addImage(sliceData, 'JPEG', 0, 0, imgWidthMm, sliceHeightMm);
             }
             renderedHeightPx += sliceHeightPx;
-            pageIndex++;
+            sliceIndex++;
           }
         }
+      };
+
+      // Check if container holds multiple explicit pages (e.g., Export All Patients SOAP PDF)
+      const childPages = Array.from(el.querySelectorAll(':scope > .pdf-page-break')) as HTMLElement[];
+
+      if (childPages.length > 0) {
+        for (let i = 0; i < childPages.length; i++) {
+          if (i > 0) pdf.addPage();
+          await renderNodeToPdfPage(childPages[i]);
+        }
+      } else {
+        await renderNodeToPdfPage(el);
       }
 
       // Trigger direct Blob download via anchor tag so it works reliably inside iframes and all browsers
@@ -3437,6 +3465,10 @@ service cloud.firestore {
         elementId,
         formatType === 'a5-landscape' ? 'A5 landscape' : formatType === 'a6' ? 'A6 portrait' : 'A4 portrait'
       );
+    } finally {
+      if (stageContainer && stageContainer.parentNode) {
+        stageContainer.parentNode.removeChild(stageContainer);
+      }
     }
   };
 

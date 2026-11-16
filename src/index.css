@@ -35,26 +35,32 @@ body {
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-/* Printable Paper Previews */
+/* Printable Paper Previews — Locked Physical Aspect Ratios & Structure */
 .paper-a4 {
-  width: 100%;
+  width: 210mm;
+  min-width: 210mm;
   max-width: 210mm;
   min-height: 297mm;
-  background: white;
+  background: #ffffff;
+  color: #0f172a;
   margin: 0 auto;
-  padding: 16mm 18mm;
+  padding: 12mm 14mm;
+  box-sizing: border-box;
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
   border: 1px solid #e2e8f0;
 }
 
 /* 1/4 Bond Paper / A6 Prescription Pad Size (105mm x 148mm) */
 .paper-a6 {
-  width: 100%;
+  width: 105mm;
+  min-width: 105mm;
   max-width: 105mm;
   min-height: 148mm;
-  background: white;
+  background: #ffffff;
+  color: #0f172a;
   margin: 0 auto;
-  padding: 8mm 9mm;
+  padding: 7mm 8mm;
+  box-sizing: border-box;
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
   border: 1px solid #cbd5e1;
   display: flex;
@@ -64,11 +70,14 @@ body {
 
 /* 2-in-1 Dual A6 Sheet (Half-Bond Landscape: 210mm x 148mm) */
 .paper-dual-a6 {
-  width: 100%;
+  width: 210mm;
+  min-width: 210mm;
   max-width: 210mm;
   min-height: 148mm;
-  background: white;
+  background: #ffffff;
+  color: #0f172a;
   margin: 0 auto;
+  box-sizing: border-box;
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
   border: 1px solid #cbd5e1;
   display: grid;
@@ -77,8 +86,9 @@ body {
 }
 
 .paper-dual-a6-half {
-  padding: 8mm 9mm;
+  padding: 7mm 8mm;
   min-height: 148mm;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -91,17 +101,31 @@ body {
 
 /* Half-Bond Paper Card (210mm x 148mm — Rekord ni Nanay Maternal Card) */
 .paper-half-bond {
-  width: 100%;
+  width: 210mm;
+  min-width: 210mm;
   max-width: 210mm;
   min-height: 148mm;
-  background: white;
+  background: #ffffff;
+  color: #0f172a;
   margin: 0 auto;
-  padding: 9mm 11mm;
+  padding: 8mm 10mm;
+  box-sizing: border-box;
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
   border: 1px solid #cbd5e1;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+}
+
+/* Offscreen PDF Capture Stage — removes screen shadows/borders so PDF matches exact paper structure */
+.pdf-capture-clean,
+.pdf-capture-clean .paper-a4,
+.pdf-capture-clean .paper-a6,
+.pdf-capture-clean .paper-dual-a6,
+.pdf-capture-clean .paper-half-bond {
+  box-shadow: none !important;
+  border-color: transparent !important;
+  margin: 0 !important;
 }
 
 /* Print Media Queries */
@@ -129,15 +153,17 @@ body {
     box-shadow: none !important;
     border: none !important;
     margin: 0 auto !important;
-    width: 100% !important;
   }
   .paper-a4 {
-    max-width: 100% !important;
-    min-height: auto !important;
+    width: 210mm !important;
+    min-width: 210mm !important;
+    max-width: 210mm !important;
+    min-height: 285mm !important;
     padding: 10mm 12mm !important;
   }
   .paper-a6 {
     width: 105mm !important;
+    min-width: 105mm !important;
     max-width: 105mm !important;
     min-height: 145mm !important;
     padding: 6mm 8mm !important;
@@ -146,6 +172,7 @@ body {
   }
   .paper-dual-a6 {
     width: 210mm !important;
+    min-width: 210mm !important;
     max-width: 210mm !important;
     min-height: 145mm !important;
     border: 1px solid #cbd5e1 !important;
@@ -153,8 +180,9 @@ body {
   }
   .paper-half-bond {
     width: 210mm !important;
+    min-width: 210mm !important;
     max-width: 210mm !important;
-    min-height: 144mm !important;
+    min-height: 145mm !important;
     padding: 7mm 9mm !important;
     border: 1px solid #cbd5e1 !important;
     page-break-inside: avoid;

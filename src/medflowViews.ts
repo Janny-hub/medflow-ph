@@ -1085,8 +1085,8 @@ export function buildRekordNiNanayHalfBondHTML(doc: any, p: any): string {
 export function buildAntenatalCareHTML(appState: any, p: any): string {
   if (!p || p.patientType !== 'antenatal') {
     return `
-      <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md mb-6 no-print">
-        <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Maternal &amp; Antenatal Care</h2>
+      <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-900 border border-teal-600/30 rounded-2xl p-6 text-white shadow-md mb-6 no-print">
+        <h2 class="medflow-title text-xl sm:text-2xl font-extrabold tracking-wide">Maternal &amp; Antenatal Care</h2>
       </div>
       ${renderPatientSelectorBannerHTML(appState, null, 'antenatal')}
       <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center">
@@ -1197,8 +1197,8 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
   return `
     <div class="space-y-6">
       <!-- Uniform Green Banner Title -->
-      <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md no-print">
-        <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Maternal &amp; Antenatal Care</h2>
+      <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-900 border border-teal-600/30 rounded-2xl p-6 text-white shadow-md no-print">
+        <h2 class="medflow-title text-xl sm:text-2xl font-extrabold tracking-wide">Maternal &amp; Antenatal Care</h2>
       </div>
 
       <!-- Active Antenatal Patient Card Below Banner -->
@@ -1221,15 +1221,15 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
         <div class="space-y-6 no-print">
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-              <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+              <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
                 <div class="flex items-center gap-2.5">
-                  <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
-                  <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">
+                  <span class="w-6 h-6 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-xs flex items-center justify-center">1</span>
+                  <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">
                     Obstetric Score (G-P / T-P-A-L)
                   </h3>
                 </div>
                 <div class="flex items-center gap-2">
-                  <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">DOH Safe Motherhood</span>
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100">DOH Safe Motherhood</span>
                   ${renderClearFormIconButtonHTML('clearAncStep1Form()', 'Clear Form')}
                 </div>
               </div>
@@ -1271,14 +1271,14 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
             </div>
 
             <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-              <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+              <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
                 <div class="flex items-center gap-2.5">
-                  <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">2</span>
-                  <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">
+                  <span class="w-6 h-6 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-xs flex items-center justify-center">2</span>
+                  <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">
                     Menstrual Dating (Naegele's Rule Calculator)
                   </h3>
                 </div>
-                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">AOG &amp; EDC Calculator</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100">AOG &amp; EDC Calculator</span>
               </div>
               <div class="p-5 space-y-4">
               <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
@@ -1342,14 +1342,14 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
 
           <!-- DOH Maternal Danger Signs Checklist Inside Step 1 -->
           <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-            <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+            <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
               <div class="flex items-center gap-2.5">
-                <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">3</span>
-                <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">
+                <span class="w-6 h-6 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-xs flex items-center justify-center">3</span>
+                <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">
                   DOH Maternal Danger Signs Screening
                 </h3>
               </div>
-              <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">Check Any Danger Sign Present</span>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100">Check Any Danger Sign Present</span>
             </div>
             <div class="p-6">
               <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
@@ -1380,15 +1380,15 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
       ${activeAncTab === 'pe' ? `
         <div class="space-y-6">
           <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden no-print">
-            <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+            <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
               <div class="flex items-center gap-2.5">
-                <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
-                <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">
+                <span class="w-6 h-6 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-xs flex items-center justify-center">1</span>
+                <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">
                   Obstetric Physical Examination (Leopold's Maneuvers &amp; FHT)
                 </h3>
               </div>
               <div class="flex items-center gap-2">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">Maternal &amp; Fetal Assessment</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100">Maternal &amp; Fetal Assessment</span>
                 ${renderClearFormIconButtonHTML('clearAncStep2Form()', 'Clear Form')}
               </div>
             </div>
@@ -1436,11 +1436,11 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
 
           <!-- Maternal SOAP Note Editor & Live A4 Antenatal SOAP Preview -->
           <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden no-print">
-            <div class="bg-slate-900 px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div class="flex items-center gap-2.5">
-                <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">2</span>
+                <span class="w-6 h-6 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-xs flex items-center justify-center">2</span>
                 <div>
-                  <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Official Antenatal SOAP (Subjective, Objective, Assessment, Plan)</h3>
+                  <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">Official Antenatal SOAP (Subjective, Objective, Assessment, Plan)</h3>
                 </div>
               </div>
               <div class="flex flex-wrap items-center gap-2 shrink-0">
@@ -1519,15 +1519,15 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
       ${activeAncTab === 'screening' ? `
         <div class="space-y-6">
           <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden no-print">
-            <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+            <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
               <div class="flex items-center gap-2.5">
-                <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
-                <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">
+                <span class="w-6 h-6 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-xs flex items-center justify-center">1</span>
+                <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">
                   Trimester Laboratory &amp; Imaging Request Builder
                 </h3>
               </div>
               <div class="flex items-center gap-2">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">DOH / POGS Screening</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100">DOH / POGS Screening</span>
                 ${renderClearFormIconButtonHTML('clearAncStep3Form()', 'Clear Lab & Imaging Selection')}
               </div>
             </div>
@@ -1645,15 +1645,15 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
           <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <!-- Left: DOH Micronutrient & Immunization Dropdowns + Medication List -->
             <div class="lg:col-span-6 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden no-print">
-              <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+              <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
                 <div class="flex items-center gap-2.5">
-                  <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
-                  <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">
+                  <span class="w-6 h-6 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-xs flex items-center justify-center">1</span>
+                  <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">
                     Maternal Micronutrients &amp; Vaccine Rx Builder
                   </h3>
                 </div>
                 <div class="flex items-center gap-2">
-                  <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">DOH Safe Motherhood</span>
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100">DOH Safe Motherhood</span>
                   ${renderClearFormIconButtonHTML('clearAncStep4Form()', 'Clear Prescription Form')}
                 </div>
               </div>
@@ -1809,16 +1809,16 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
       ${activeAncTab === 'birth-plan' ? `
         <div class="space-y-6">
           <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden no-print">
-            <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+            <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
               <div class="flex items-center gap-2.5">
-                <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
-                <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">
+                <span class="w-6 h-6 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-xs flex items-center justify-center">1</span>
+                <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">
                   Mother-Baby Birth &amp; Emergency Plan
                 </h3>
               </div>
               <div class="flex items-center gap-2.5">
-                <div class="flex items-center gap-1.5 bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700">
-                  <label class="text-[10px] font-bold uppercase tracking-wider text-teal-300">Total Prenatal Visits:</label>
+                <div class="flex items-center gap-1.5 bg-teal-950/40 px-2.5 py-1 rounded-lg border border-teal-500/30">
+                  <label class="text-[10px] font-bold uppercase tracking-wider text-teal-100">Total Prenatal Visits:</label>
                   <input type="number" min="1" max="30" value="${escapeHTML(anc.prenatalVisitCount || getPatientPrenatalVisits(p).length)}"
                     oninput="updateAncField('prenatalVisitCount', Number(this.value))"
                     class="w-16 px-2 py-0.5 rounded bg-white text-xs font-extrabold text-center text-slate-900">
@@ -1926,9 +1926,9 @@ export function buildAntenatalCareHTML(appState: any, p: any): string {
           </div>
 
           <!-- FINAL SAVE PATIENT RECORD ACTION AT THE END OF ANTENATAL PATHWAY -->
-          <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
+          <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-900 border border-teal-600/30 rounded-2xl p-6 text-white shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
             <div>
-              <h3 class="text-base sm:text-lg font-extrabold">Save ${escapeHTML(p.name)}'s Antenatal Record</h3>
+              <h3 class="medflow-title text-base sm:text-lg font-extrabold">Save ${escapeHTML(p.name)}'s Antenatal Record</h3>
             </div>
             <div class="flex flex-wrap items-center gap-2.5 shrink-0">
               <button type="button" onclick="setAncActiveTab('immunization')" class="px-4 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-bold transition cursor-pointer">
@@ -1982,17 +1982,17 @@ export function buildCpgClinicalManagementFlashcardHTML(cpg: any, appState: any,
   return `
     <div id="cpg-flashcard-${escapeHTML(cpgId)}" class="rounded-2xl border-2 border-teal-600/80 bg-white shadow-sm overflow-hidden transition-all">
       <!-- Interactive Flashcard Header & Deck Controls -->
-      <div class="bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white px-4 sm:px-5 py-3.5">
+      <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-900 border-b border-teal-600/30 text-white px-4 sm:px-5 py-3.5">
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div class="flex items-center gap-2.5">
-            <div class="w-8 h-8 rounded-xl bg-teal-500/20 border border-teal-400/40 text-teal-300 flex items-center justify-center font-mono font-extrabold text-xs shrink-0">
+            <div class="w-8 h-8 rounded-xl bg-white text-teal-900 shadow-2xs flex items-center justify-center font-mono font-extrabold text-xs shrink-0">
               #${escapeHTML(cm.conditionNumber)}
             </div>
             <div>
-              <h4 class="text-sm sm:text-base font-extrabold tracking-tight text-white">
+              <h4 class="medflow-title text-sm sm:text-base font-extrabold tracking-wide text-white">
                 Clinical Condition Management Flashcard
               </h4>
-              <p class="text-[11px] text-teal-200/90 font-medium">
+              <p class="text-[11px] text-teal-100 font-medium">
                 ${escapeHTML(cm.title)} • ${escapeHTML(cm.societySource)}
               </p>
             </div>
@@ -2295,14 +2295,14 @@ export function buildOfflineCpgReferencePanelHTML(appState: any, p: any): string
   const snapshotRows = Array.isArray(selectedCpg?.snapshot) ? selectedCpg.snapshot : [];
 
   return `
-    <div class="-mx-5 -mt-5 mb-4 bg-slate-900 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
+    <div class="-mx-5 -mt-5 mb-4 bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
       <div class="flex items-center gap-2.5">
-        <span class="px-2 py-1 rounded-lg bg-teal-600 text-white font-extrabold text-[10px] uppercase">CPG</span>
+        <span class="px-2 py-1 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-[10px] uppercase">CPG</span>
         <div>
-          <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">41-Condition Philippine CPG Flashcards</h3>
+          <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">41-Condition Philippine CPG Flashcards</h3>
         </div>
       </div>
-      <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">Offline Reference</span>
+      <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100">Offline Reference</span>
     </div>
 
     <div class="space-y-3.5 text-xs">
@@ -2436,11 +2436,11 @@ export function buildOfflineCpgReferencePanelHTML(appState: any, p: any): string
 export function buildSoapWorkspaceHTML(appState: any, p: any, aiLeftHTML: string): string {
   if (!p || p.patientType === 'antenatal') {
     return `
-      <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md mb-6 no-print">
-        <span class="px-2.5 py-0.5 rounded-full bg-teal-500/20 border border-teal-400/30 text-[10px] font-extrabold uppercase tracking-wider">
+      <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-900 border border-teal-600/30 rounded-2xl p-6 text-white shadow-md mb-6 no-print">
+        <span class="px-2.5 py-0.5 rounded-full bg-white/15 border border-white/25 text-[10px] font-extrabold uppercase tracking-wider">
           General OPD Pathway • Step 2 of 4
         </span>
-        <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight mt-1">SOAP (Subjective, Objective, Assessment, Plan)</h2>
+        <h2 class="medflow-title text-xl sm:text-2xl font-extrabold tracking-wide mt-1">SOAP (Subjective, Objective, Assessment, Plan)</h2>
       </div>
       ${renderPatientSelectorBannerHTML(appState, null, 'opd')}
       <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center">
@@ -2462,12 +2462,12 @@ export function buildSoapWorkspaceHTML(appState: any, p: any, aiLeftHTML: string
 
   return `
     <!-- Uniform Green Banner Title -->
-    <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
+    <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-900 border border-teal-600/30 rounded-2xl p-6 text-white shadow-md mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
       <div>
-        <span class="px-2.5 py-0.5 rounded-full bg-teal-500/20 border border-teal-400/30 text-[10px] font-extrabold uppercase tracking-wider">
+        <span class="px-2.5 py-0.5 rounded-full bg-white/15 border border-white/25 text-[10px] font-extrabold uppercase tracking-wider">
           General OPD Pathway • Step 2 of 4 (Registration → SOAP → Prescription → Lab &amp; Imaging)
         </span>
-        <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight mt-1">SOAP (Subjective, Objective, Assessment, Plan)</h2>
+        <h2 class="medflow-title text-xl sm:text-2xl font-extrabold tracking-wide mt-1">SOAP (Subjective, Objective, Assessment, Plan)</h2>
       </div>
       <button
         type="button"
@@ -2519,14 +2519,14 @@ export function buildSoapWorkspaceHTML(appState: any, p: any, aiLeftHTML: string
 
       <!-- Right Column: Official SOAP -->
       <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div class="bg-slate-900 px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div class="flex items-center gap-2.5">
-            <span class="px-2 py-1 rounded-lg bg-teal-600 text-white font-extrabold text-[10px] uppercase">SOAP</span>
-            <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Official Consultation SOAP Note</h3>
+            <span class="px-2 py-1 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-[10px] uppercase">SOAP</span>
+            <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">Official Consultation SOAP Note</h3>
           </div>
           <div class="flex flex-wrap items-center gap-2">
-            <div class="flex items-center gap-1.5 bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700">
-              <label class="text-[10px] font-extrabold uppercase text-teal-300">Date:</label>
+            <div class="flex items-center gap-1.5 bg-teal-950/40 px-2.5 py-1 rounded-lg border border-teal-500/30">
+              <label class="text-[10px] font-extrabold uppercase text-teal-100">Date:</label>
               <input
                 type="date"
                 value="${escapeHTML(p.consultationDate || visitDate)}"
@@ -2724,11 +2724,11 @@ export function buildSingleA6RxPadHTML(doc: any, p: any, meds: any[]): string {
 export function buildPrescriptionWorkspaceHTML(appState: any, p: any): string {
   if (!p || p.patientType === 'antenatal') {
     return `
-      <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md mb-6 no-print">
-        <span class="px-2.5 py-0.5 rounded-full bg-teal-500/20 border border-teal-400/30 text-[10px] font-extrabold uppercase tracking-wider">
+      <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-900 border border-teal-600/30 rounded-2xl p-6 text-white shadow-md mb-6 no-print">
+        <span class="px-2.5 py-0.5 rounded-full bg-white/15 border border-white/25 text-[10px] font-extrabold uppercase tracking-wider">
           General OPD Pathway • Step 3 of 4
         </span>
-        <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight mt-1">Medical Prescription</h2>
+        <h2 class="medflow-title text-xl sm:text-2xl font-extrabold tracking-wide mt-1">Medical Prescription</h2>
       </div>
       ${renderPatientSelectorBannerHTML(appState, null, 'opd')}
       <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center">
@@ -2748,11 +2748,11 @@ export function buildPrescriptionWorkspaceHTML(appState: any, p: any): string {
 
   return `
     <!-- Uniform Green Banner Title -->
-    <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md mb-6 no-print">
-      <span class="px-2.5 py-0.5 rounded-full bg-teal-500/20 border border-teal-400/30 text-[10px] font-extrabold uppercase tracking-wider">
+    <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-900 border border-teal-600/30 rounded-2xl p-6 text-white shadow-md mb-6 no-print">
+      <span class="px-2.5 py-0.5 rounded-full bg-white/15 border border-white/25 text-[10px] font-extrabold uppercase tracking-wider">
         General OPD Pathway • Step 3 of 4 (Registration → SOAP → Prescription → Lab &amp; Imaging)
       </span>
-      <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight mt-1">Medical Prescription</h2>
+      <h2 class="medflow-title text-xl sm:text-2xl font-extrabold tracking-wide mt-1">Medical Prescription</h2>
     </div>
 
     <!-- Active General OPD Patient Card Below Banner -->
@@ -2761,16 +2761,16 @@ export function buildPrescriptionWorkspaceHTML(appState: any, p: any): string {
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
       <!-- Left: Rx Medication Editor -->
       <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden no-print">
-        <div class="bg-slate-900 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
+        <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
           <div class="flex items-center gap-2.5">
-            <span class="px-2 py-1 rounded-lg bg-teal-600 text-white font-extrabold text-[10px] uppercase">Rx</span>
+            <span class="px-2 py-1 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-[10px] uppercase">Rx</span>
             <div>
-              <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Generics Act Rx Pad Builder</h3>
+              <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">Generics Act Rx Pad Builder</h3>
             </div>
           </div>
           <div class="flex items-center gap-2">
             ${renderClearFormIconButtonHTML('clearPrescriptionForm()', 'Clear Prescription Form')}
-            <button onclick="addBlankDoctorMed()" class="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold cursor-pointer">
+            <button onclick="addBlankDoctorMed()" class="px-3 py-1.5 rounded-lg bg-white text-teal-900 hover:bg-teal-50 text-xs font-extrabold cursor-pointer">
               + Add Medication
             </button>
           </div>
@@ -2874,11 +2874,11 @@ export function buildPrescriptionWorkspaceHTML(appState: any, p: any): string {
 export function buildDiagnosticsWorkspaceHTML(appState: any, p: any): string {
   if (!p || p.patientType === 'antenatal') {
     return `
-      <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md mb-6 no-print">
-        <span class="px-2.5 py-0.5 rounded-full bg-teal-500/20 border border-teal-400/30 text-[10px] font-extrabold uppercase tracking-wider">
+      <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-900 border border-teal-600/30 rounded-2xl p-6 text-white shadow-md mb-6 no-print">
+        <span class="px-2.5 py-0.5 rounded-full bg-white/15 border border-white/25 text-[10px] font-extrabold uppercase tracking-wider">
           General OPD Pathway • Step 4 of 4 (Final Step)
         </span>
-        <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight mt-1">Laboratory and Imaging</h2>
+        <h2 class="medflow-title text-xl sm:text-2xl font-extrabold tracking-wide mt-1">Laboratory and Imaging</h2>
       </div>
       ${renderPatientSelectorBannerHTML(appState, null, 'opd')}
       <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center">
@@ -2901,11 +2901,11 @@ export function buildDiagnosticsWorkspaceHTML(appState: any, p: any): string {
 
   return `
     <!-- Uniform Green Banner Title -->
-    <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md mb-6 no-print">
-      <span class="px-2.5 py-0.5 rounded-full bg-teal-500/20 border border-teal-400/30 text-[10px] font-extrabold uppercase tracking-wider">
+    <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-900 border border-teal-600/30 rounded-2xl p-6 text-white shadow-md mb-6 no-print">
+      <span class="px-2.5 py-0.5 rounded-full bg-white/15 border border-white/25 text-[10px] font-extrabold uppercase tracking-wider">
         General OPD Pathway • Step 4 of 4 (Final Step: Lab &amp; Imaging → Save Patient's Record)
       </span>
-      <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight mt-1">Laboratory and Imaging</h2>
+      <h2 class="medflow-title text-xl sm:text-2xl font-extrabold tracking-wide mt-1">Laboratory and Imaging</h2>
     </div>
 
     <!-- Active General OPD Patient Card Below Banner -->
@@ -2914,18 +2914,18 @@ export function buildDiagnosticsWorkspaceHTML(appState: any, p: any): string {
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 no-print">
       <!-- Left: Philippine Lab & Imaging Catalog Selector -->
       <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div class="bg-slate-900 px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div class="flex items-center gap-2.5">
-            <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
+            <span class="w-6 h-6 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-xs flex items-center justify-center">1</span>
             <div>
-              <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Philippine Hospital Lab &amp; Imaging Catalog</h3>
+              <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">Philippine Hospital Lab &amp; Imaging Catalog</h3>
             </div>
           </div>
-          <div class="flex rounded-xl bg-slate-800 p-1">
-            <button onclick="setDiagActiveTab('labs')" class="px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer ${activeTab === 'labs' ? 'bg-teal-600 text-white shadow-xs' : 'text-slate-300 hover:text-white'}">
+          <div class="flex rounded-xl bg-teal-950/40 border border-teal-500/30 p-1">
+            <button onclick="setDiagActiveTab('labs')" class="px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer ${activeTab === 'labs' ? 'bg-white text-teal-900 shadow-xs' : 'text-teal-100 hover:text-white'}">
               Laboratory (${selectedLabs.length})
             </button>
-            <button onclick="setDiagActiveTab('imaging')" class="px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer ${activeTab === 'imaging' ? 'bg-teal-600 text-white shadow-xs' : 'text-slate-300 hover:text-white'}">
+            <button onclick="setDiagActiveTab('imaging')" class="px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer ${activeTab === 'imaging' ? 'bg-white text-teal-900 shadow-xs' : 'text-teal-100 hover:text-white'}">
               Imaging (${selectedImaging.length})
             </button>
           </div>
@@ -2957,17 +2957,17 @@ export function buildDiagnosticsWorkspaceHTML(appState: any, p: any): string {
 
       <!-- Right: Selected Orders & Request Metadata -->
       <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div class="bg-slate-900 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
+        <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
           <div class="flex items-center gap-2.5">
-            <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">2</span>
-            <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Diagnostic Request Summary</h3>
+            <span class="w-6 h-6 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-xs flex items-center justify-center">2</span>
+            <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">Diagnostic Request Summary</h3>
           </div>
           <div class="flex items-center gap-2">
             ${renderClearFormIconButtonHTML('clearDiagnosticsForm()', 'Clear Lab & Imaging Form')}
-            <button onclick="downloadPdfElement('diag-printable-a4', 'Lab_Imaging_Request_${escapeHTML(p.name.split(' ')[0].replace(/[^a-zA-Z0-9]/g, ''))}_${visitDate}.pdf', 'a5-landscape')" class="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold cursor-pointer">
+            <button onclick="downloadPdfElement('diag-printable-a4', 'Lab_Imaging_Request_${escapeHTML(p.name.split(' ')[0].replace(/[^a-zA-Z0-9]/g, ''))}_${visitDate}.pdf', 'a5-landscape')" class="px-3 py-1.5 rounded-lg bg-white text-teal-900 hover:bg-teal-50 text-xs font-extrabold cursor-pointer">
               Download PDF
             </button>
-            <button onclick="printDocumentElement('diag-printable-a4', 'A5 landscape')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-bold cursor-pointer">
+            <button onclick="printDocumentElement('diag-printable-a4', 'A5 landscape')" class="px-3 py-1.5 rounded-lg bg-teal-950/50 hover:bg-teal-950/70 border border-teal-400/30 text-white text-xs font-bold cursor-pointer">
               Print Sheet
             </button>
           </div>
@@ -3035,12 +3035,12 @@ export function buildDiagnosticsWorkspaceHTML(appState: any, p: any): string {
     </div>
 
     <!-- Final General OPD Completion Banner & Save Patient's Record Button -->
-    <div class="mt-8 bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4 no-print">
+    <div class="mt-8 bg-gradient-to-r from-teal-800 via-teal-700 to-teal-900 border border-teal-600/30 rounded-2xl p-6 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4 no-print">
       <div class="space-y-1">
-        <span class="px-2.5 py-0.5 rounded-full bg-teal-400/20 border border-teal-300/30 text-[10px] font-extrabold uppercase tracking-wider">
+        <span class="px-2.5 py-0.5 rounded-full bg-white/15 border border-white/25 text-[10px] font-extrabold uppercase tracking-wider">
           End of General OPD Consultation Pathway
         </span>
-        <h3 class="text-lg font-extrabold tracking-tight">Complete &amp; Save ${escapeHTML(p.name)}'s General OPD Record</h3>
+        <h3 class="medflow-title text-lg font-extrabold tracking-wide">Complete &amp; Save ${escapeHTML(p.name)}'s General OPD Record</h3>
         <p class="text-xs text-teal-100/90">
           Saves the patient's Registration, SOAP Note, Medical Prescription (Rx), and Laboratory &amp; Imaging Request into the Patient Records Registry folder.
         </p>
@@ -3436,9 +3436,9 @@ export function buildPatientRecordsHTML(appState: any): string {
 
   return `
     <div class="space-y-6">
-      <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4 no-print">
+      <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-900 border border-teal-600/30 rounded-2xl p-6 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4 no-print">
         <div>
-          <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Patient Records Registry</h2>
+          <h2 class="medflow-title text-xl sm:text-2xl font-extrabold tracking-wide">Patient Records Registry</h2>
         </div>
         <div class="flex flex-wrap items-center gap-2">
           ${filterTab === 'optplus' && optplusRecords.length > 0 ? `
@@ -3695,39 +3695,124 @@ export function buildHiddenAdminPortalHTML(appState: any, firebaseConfigObj: any
   const todayStr = new Date().toISOString().split('T')[0];
   const defaultEndDate = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
 
+  const currentAdminPasskey = localStorage.getItem('medflow_ph_admin_passkey_v1') || 'admin199';
+  const isForgotMode = Boolean(appState.adminForgotMode);
+
   if (!isUnlocked) {
     return `
       <div class="max-w-md mx-auto my-12 bg-white rounded-2xl border border-slate-200 shadow-lg overflow-hidden">
-        <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 p-6 text-white">
-          <span class="px-2.5 py-0.5 rounded-full bg-teal-500/20 border border-teal-400/30 text-[10px] font-extrabold uppercase tracking-wider">
+        <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-900 border-b border-teal-600/30 p-6 text-white">
+          <span class="px-2.5 py-0.5 rounded-full bg-white/15 border border-white/25 text-[10px] font-extrabold uppercase tracking-wider">
             Direct Link Only • Hidden Portal
           </span>
-          <h2 class="text-xl font-extrabold tracking-tight mt-1.5">MedFlow Administrator Portal</h2>
+          <h2 class="medflow-title text-xl font-extrabold tracking-wide mt-1.5">MedFlow Administrator Portal</h2>
           <p class="text-xs text-teal-100/90 mt-1">Enrollment Approval, ₱199/Month Subscription Control &amp; Clinician Registry</p>
         </div>
-        <form onsubmit="handleAdminPortalLogin(event)" class="p-6 space-y-4">
-          <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">Admin Password / Passkey <span class="text-teal-700">*</span></label>
-            <input
-              id="admin-portal-passkey"
-              type="password"
-              required
-              placeholder="Enter Admin Password"
-              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
-            />
-          </div>
-          <button
-            type="submit"
-            class="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
-          >
-            Unlock Admin Portal
-          </button>
-          <div class="pt-3 border-t border-slate-100 text-center">
-            <a href="${window.location.pathname}" class="text-xs font-bold text-slate-500 hover:text-teal-700">
-              ← Return to Clinician Sign-In
-            </a>
-          </div>
-        </form>
+
+        ${!isForgotMode ? `
+          <form onsubmit="handleAdminPortalLogin(event)" class="p-6 space-y-4">
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-xs font-bold text-slate-700">Admin Password / Passkey <span class="text-teal-700">*</span></label>
+                <button
+                  type="button"
+                  onclick="toggleAdminForgotPassword(true)"
+                  class="text-[11px] font-bold text-teal-700 hover:text-teal-900 hover:underline cursor-pointer"
+                >
+                  Forgot Password?
+                </button>
+              </div>
+              <input
+                id="admin-portal-passkey"
+                type="password"
+                required
+                placeholder="Enter Admin Password"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+              />
+            </div>
+            <button
+              type="submit"
+              class="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
+            >
+              Unlock Admin Portal
+            </button>
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+              <a href="${window.location.pathname}" class="font-bold text-slate-500 hover:text-teal-700">
+                ← Return to Clinician Sign-In
+              </a>
+              <button
+                type="button"
+                onclick="toggleAdminForgotPassword(true)"
+                class="font-bold text-teal-700 hover:underline cursor-pointer"
+              >
+                Reset Admin Password
+              </button>
+            </div>
+          </form>
+        ` : `
+          <form onsubmit="handleAdminForgotPasswordReset(event)" class="p-6 space-y-4">
+            <div class="p-3.5 rounded-xl bg-teal-50/80 border border-teal-200 text-xs text-slate-700 space-y-1">
+              <span class="text-[10px] font-extrabold uppercase tracking-wider text-teal-900 block">Admin Password Recovery</span>
+              <p>Verify your Administrator Email (<strong class="text-slate-900">artjanny303@gmail.com</strong>) to set a new Admin Portal password or restore the default passkey (<code class="font-bold text-teal-900">admin199</code>).</p>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Administrator Recovery Email <span class="text-teal-700">*</span></label>
+              <input
+                id="admin-recovery-email"
+                type="email"
+                required
+                placeholder="artjanny303@gmail.com"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">New Admin Password <span class="text-teal-700">*</span></label>
+              <input
+                id="admin-recovery-new-pass"
+                type="password"
+                required
+                minlength="4"
+                placeholder="Enter new Admin password (min 4 chars)"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Confirm New Password <span class="text-teal-700">*</span></label>
+              <input
+                id="admin-recovery-confirm-pass"
+                type="password"
+                required
+                minlength="4"
+                placeholder="Confirm new Admin password"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+              />
+            </div>
+            <div class="flex flex-col gap-2">
+              <button
+                type="submit"
+                class="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
+              >
+                Reset Password &amp; Unlock Portal
+              </button>
+              <button
+                type="button"
+                onclick="handleAdminResetToDefaultPasskey()"
+                class="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition cursor-pointer"
+              >
+                Restore Default Password (admin199)
+              </button>
+            </div>
+            <div class="pt-3 border-t border-slate-100 text-center">
+              <button
+                type="button"
+                onclick="toggleAdminForgotPassword(false)"
+                class="text-xs font-bold text-slate-500 hover:text-teal-700 cursor-pointer"
+              >
+                ← Back to Admin Password Login
+              </button>
+            </div>
+          </form>
+        `}
       </div>
     `;
   }
@@ -3788,17 +3873,17 @@ export function buildHiddenAdminPortalHTML(appState: any, firebaseConfigObj: any
   return `
     <div class="space-y-6 pb-12">
       <!-- Top Admin Banner -->
-      <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-900 border border-teal-600/30 rounded-2xl p-6 text-white shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <div class="flex flex-wrap items-center gap-2 mb-1.5">
-            <span class="px-2.5 py-0.5 rounded-full bg-teal-500/20 border border-teal-300/30 text-[10px] font-extrabold uppercase tracking-wider">
+            <span class="px-2.5 py-0.5 rounded-full bg-white/15 border border-white/25 text-[10px] font-extrabold uppercase tracking-wider">
               Hidden Admin Portal • ₱199 / Month Subscription Plan
             </span>
-            <span class="px-2.5 py-0.5 rounded-full bg-slate-800/80 text-teal-200 text-[10px] font-bold">
+            <span class="px-2.5 py-0.5 rounded-full bg-teal-950/50 text-teal-100 text-[10px] font-bold">
               Direct Link: ${escapeHTML(adminUrl)}
             </span>
           </div>
-          <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">
+          <h2 class="medflow-title text-xl sm:text-2xl font-extrabold tracking-wide">
             Clinician Enrollment, Credentials &amp; Subscription Administration
           </h2>
           <p class="text-xs text-teal-100/90 mt-1">
@@ -3883,7 +3968,10 @@ export function buildHiddenAdminPortalHTML(appState: any, firebaseConfigObj: any
           <div>
             <span class="text-[10px] font-extrabold uppercase tracking-wider text-teal-800 block">Admin Security</span>
             <h3 class="text-sm font-extrabold text-slate-900">Change Admin Portal Password / Passkey</h3>
-            <p class="text-xs text-slate-500">Update the password used to unlock this hidden Admin Portal (<code class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">?portal=admin</code>).</p>
+            <p class="text-xs text-slate-500 mt-0.5">
+              Current Active Admin Password:
+              <code class="bg-teal-50 border border-teal-200 px-2 py-0.5 rounded font-extrabold text-teal-900">${escapeHTML(currentAdminPasskey)}</code>
+            </p>
           </div>
           <div class="flex flex-wrap sm:flex-nowrap items-end gap-2.5">
             <div>

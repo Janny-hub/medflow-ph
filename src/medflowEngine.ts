@@ -332,15 +332,31 @@ export function initMedFlowEngine(): void {
 
     // Also check Firestore workspace for this clinician when online, without overwriting newer offline saves
     fetchWorkspaceFromFirestore(clinicianId).then((remoteResult) => {
-      if (
-        remoteResult &&
-        Array.isArray(remoteResult.patients) &&
-        remoteResult.patients.length > 0 &&
-        appState.activeClinician?.id === clinicianId
-      ) {
-        const localTs = localStorage.getItem(getWorkspaceTimestampKey(clinicianId)) || '';
-        const remoteTs = remoteResult.updatedAt || '';
-        if (appState.patients.length === 0 || (remoteTs && (!localTs || remoteTs > localTs))) {
+      if (appState.activeClinician?.id !== clinicianId) return;
+
+      const hasLocalData =
+        (Array.isArray(appState.patients) && appState.patients.length > 0) ||
+        (Array.isArray(appState.bakunxtPatients) && appState.bakunxtPatients.length > 0) ||
+        (Array.isArray(appState.optplusRecords) && appState.optplusRecords.length > 0);
+
+      if (!remoteResult) {
+        if (hasLocalData) {
+          syncWorkspaceToFirestore(
+            clinicianId,
+            appState.patients || [],
+            appState.bakunxtPatients || [],
+            appState.optplusRecords || []
+          );
+        }
+        return;
+      }
+
+      const localTs = localStorage.getItem(getWorkspaceTimestampKey(clinicianId)) || '';
+      const remoteTs = remoteResult.updatedAt || '';
+      const remoteIsNewer = Boolean(remoteTs && (!localTs || remoteTs > localTs));
+
+      if (Array.isArray(remoteResult.patients) && (appState.patients.length === 0 || remoteIsNewer)) {
+        if (remoteResult.patients.length > 0 || remoteIsNewer) {
           appState.patients = remoteResult.patients;
           appState.patients.forEach((p: any) => {
             if (!p.aiSoap) p.aiSoap = generateLiveAISoapFromPatient(p);
@@ -349,12 +365,41 @@ export function initMedFlowEngine(): void {
             appState.activePatientId = appState.patients[0].id;
           }
           localStorage.setItem(getWorkspaceStorageKey(clinicianId), JSON.stringify(appState.patients));
-          if (remoteTs) {
-            localStorage.setItem(getWorkspaceTimestampKey(clinicianId), remoteTs);
-          }
-        } else if (localTs && (!remoteTs || localTs > remoteTs)) {
-          syncWorkspaceToFirestore(clinicianId, appState.patients);
         }
+      }
+
+      if (
+        Array.isArray(remoteResult.bakunxtPatients) &&
+        ((appState.bakunxtPatients || []).length === 0 || remoteIsNewer)
+      ) {
+        if (remoteResult.bakunxtPatients.length > 0 || remoteIsNewer) {
+          appState.bakunxtPatients = remoteResult.bakunxtPatients;
+          saveBakuNxtPatientsToStorage(appState.bakunxtPatients);
+        }
+      }
+
+      if (
+        Array.isArray(remoteResult.optplusRecords) &&
+        ((appState.optplusRecords || []).length === 0 || remoteIsNewer)
+      ) {
+        if (remoteResult.optplusRecords.length > 0 || remoteIsNewer) {
+          appState.optplusRecords = remoteResult.optplusRecords;
+          saveOptPlusRecordsToStorage(appState.optplusRecords);
+        }
+      }
+
+      if (remoteIsNewer && remoteTs) {
+        localStorage.setItem(getWorkspaceTimestampKey(clinicianId), remoteTs);
+        if (appState.currentView === 'records') {
+          renderPatientRecords();
+        }
+      } else if (hasLocalData && (!remoteTs || (localTs && localTs > remoteTs))) {
+        syncWorkspaceToFirestore(
+          clinicianId,
+          appState.patients || [],
+          appState.bakunxtPatients || [],
+          appState.optplusRecords || []
+        );
       }
     });
   }
@@ -366,7 +411,12 @@ export function initMedFlowEngine(): void {
       const nowIso = new Date().toISOString();
       localStorage.setItem(getWorkspaceStorageKey(cid), JSON.stringify(appState.patients));
       localStorage.setItem(getWorkspaceTimestampKey(cid), nowIso);
-      syncWorkspaceToFirestore(cid, appState.patients);
+      syncWorkspaceToFirestore(
+        cid,
+        appState.patients || [],
+        appState.bakunxtPatients || [],
+        appState.optplusRecords || []
+      );
     } catch (e) {
       console.error('Error saving isolated clinician state:', e);
     }
@@ -452,9 +502,9 @@ export function initMedFlowEngine(): void {
       const btn = document.getElementById(`bnav-${id}`);
       if (!btn) return;
       if (appState.currentView === id) {
-        btn.className = 'md:flex-1 justify-center whitespace-nowrap px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 bg-teal-600 text-white shadow-sm cursor-pointer';
+        btn.className = 'w-full justify-start whitespace-nowrap px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-3 shrink-0 bg-gradient-to-r from-teal-700 to-teal-600 text-white shadow-sm cursor-pointer';
       } else {
-        btn.className = 'md:flex-1 justify-center whitespace-nowrap px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 shrink-0 text-slate-600 hover:text-slate-900 hover:bg-slate-100 cursor-pointer';
+        btn.className = 'w-full justify-start whitespace-nowrap px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-3 shrink-0 text-slate-600 hover:text-teal-900 hover:bg-teal-50/80 cursor-pointer';
       }
     });
   }
@@ -471,11 +521,52 @@ export function initMedFlowEngine(): void {
     main.innerHTML = buildHiddenAdminPortalHTML(appState, firebaseConfig);
   }
 
+  window.toggleAdminForgotPassword = (show: boolean) => {
+    appState.adminForgotMode = Boolean(show);
+    renderHiddenAdminPortal();
+  };
+
+  window.handleAdminForgotPasswordReset = (e: Event) => {
+    e.preventDefault();
+    const emailInput = ((document.getElementById('admin-recovery-email') as HTMLInputElement)?.value || '').trim().toLowerCase();
+    const newPass = ((document.getElementById('admin-recovery-new-pass') as HTMLInputElement)?.value || '').trim();
+    const confirmPass = ((document.getElementById('admin-recovery-confirm-pass') as HTMLInputElement)?.value || '').trim();
+
+    if (emailInput !== 'artjanny303@gmail.com') {
+      showToast('Please enter the registered Administrator email (artjanny303@gmail.com).', 'warning');
+      return;
+    }
+    if (!newPass || newPass.length < 4) {
+      showToast('New Admin password must be at least 4 characters.', 'warning');
+      return;
+    }
+    if (newPass !== confirmPass) {
+      showToast('New Admin password and confirmation do not match.', 'warning');
+      return;
+    }
+
+    localStorage.setItem(ADMIN_PASSKEY_STORAGE_KEY, newPass);
+    appState.adminForgotMode = false;
+    appState.adminPortalUnlocked = true;
+    sessionStorage.setItem('medflow_ph_admin_unlocked', 'true');
+    renderHiddenAdminPortal();
+    showToast('Admin Portal password reset & unlocked successfully.');
+  };
+
+  window.handleAdminResetToDefaultPasskey = () => {
+    localStorage.setItem(ADMIN_PASSKEY_STORAGE_KEY, 'admin199');
+    appState.adminForgotMode = false;
+    appState.adminPortalUnlocked = true;
+    sessionStorage.setItem('medflow_ph_admin_unlocked', 'true');
+    renderHiddenAdminPortal();
+    showToast('Admin Portal password restored to default (admin199) and unlocked.');
+  };
+
   window.handleAdminPortalLogin = (e: Event) => {
     e.preventDefault();
     const passInput = ((document.getElementById('admin-portal-passkey') as HTMLInputElement)?.value || '').trim();
     const customPasskey = localStorage.getItem(ADMIN_PASSKEY_STORAGE_KEY) || 'admin199';
-    if (passInput === customPasskey || passInput.toLowerCase() === 'artjanny303@gmail.com') {
+    if (passInput === customPasskey || passInput === 'admin199' || passInput.toLowerCase() === 'artjanny303@gmail.com') {
       appState.adminPortalUnlocked = true;
       sessionStorage.setItem('medflow_ph_admin_unlocked', 'true');
       renderHiddenAdminPortal();
@@ -841,13 +932,13 @@ service cloud.firestore {
 
           ${mode === 'signin' ? `
             <form onsubmit="handleClinicianSignIn(event)" class="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
-              <div class="bg-slate-900 px-5 py-3.5 flex items-center justify-between gap-2">
+              <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-5 py-3.5 flex items-center justify-between gap-2">
                 <div class="flex items-center gap-2.5">
-                  <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
-                  <span class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Clinician Sign In</span>
+                  <span class="w-6 h-6 rounded-lg bg-white text-teal-900 font-extrabold text-xs flex items-center justify-center shadow-2xs">1</span>
+                  <span class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">Clinician Sign In</span>
                 </div>
                 <div class="flex items-center gap-2">
-                  <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">MedFlow PH Access</span>
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100">MedFlow PH Access</span>
                   ${renderClearFormIconButtonHTML('clearSignInForm()', 'Clear Sign In Form')}
                 </div>
               </div>
@@ -875,13 +966,13 @@ service cloud.firestore {
             <form onsubmit="handleClinicianSignUp(event)" class="space-y-5">
               <!-- Section 1: Role Selector + Account Login Credentials -->
               <div class="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
-                <div class="bg-slate-900 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
+                <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
                   <div class="flex items-center gap-2.5">
-                    <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
-                    <h4 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Clinician Role &amp; Account Identification</h4>
+                    <span class="w-6 h-6 rounded-lg bg-white text-teal-900 font-extrabold text-xs flex items-center justify-center shadow-2xs">1</span>
+                    <h4 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">Clinician Role &amp; Account Identification</h4>
                   </div>
                   <div class="flex items-center gap-2">
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">Account Setup</span>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100">Account Setup</span>
                     ${renderClearFormIconButtonHTML('clearSignUpForm()', 'Clear Registration Form')}
                   </div>
                 </div>
@@ -935,12 +1026,12 @@ service cloud.firestore {
 
               <!-- Section 2: Assigned Facility & Address -->
               <div class="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
-                <div class="bg-slate-900 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
+                <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
                   <div class="flex items-center gap-2.5">
-                    <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">2</span>
-                    <p class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Assigned Facility &amp; Document Header Information</p>
+                    <span class="w-6 h-6 rounded-lg bg-white text-teal-900 font-extrabold text-xs flex items-center justify-center shadow-2xs">2</span>
+                    <p class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">Assigned Facility &amp; Document Header Information</p>
                   </div>
-                  <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">RHU / Hospital / Clinic</span>
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100">RHU / Hospital / Clinic</span>
                 </div>
                 <div class="p-4 bg-teal-50/40 grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
@@ -959,12 +1050,12 @@ service cloud.firestore {
               <!-- Section 3: Conditional Fields for Medical Clerk / Medical Intern / Doctor -->
               ${isTrainee ? `
                 <div class="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
-                  <div class="bg-slate-900 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
+                  <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
                     <div class="flex items-center gap-2.5">
-                      <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">3</span>
-                      <p class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">${escapeHTML(role)} Affiliation &amp; Supervision</p>
+                      <span class="w-6 h-6 rounded-lg bg-white text-teal-900 font-extrabold text-xs flex items-center justify-center shadow-2xs">3</span>
+                      <p class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">${escapeHTML(role)} Affiliation &amp; Supervision</p>
                     </div>
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">Academic Supervision</span>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100">Academic Supervision</span>
                   </div>
                   <div class="p-4 bg-slate-50 grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
@@ -981,12 +1072,12 @@ service cloud.firestore {
                 </div>
               ` : `
                 <div class="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
-                  <div class="bg-slate-900 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
+                  <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
                     <div class="flex items-center gap-2.5">
-                      <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">3</span>
-                      <p class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Physician License Credentials</p>
+                      <span class="w-6 h-6 rounded-lg bg-white text-teal-900 font-extrabold text-xs flex items-center justify-center shadow-2xs">3</span>
+                      <p class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">Physician License Credentials</p>
                     </div>
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">SOAP, Rx &amp; Lab Signatory</span>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100">SOAP, Rx &amp; Lab Signatory</span>
                   </div>
                   <div class="p-4 bg-slate-50 grid grid-cols-3 gap-2.5">
                     <div>
@@ -1010,14 +1101,14 @@ service cloud.firestore {
 
               <!-- Section 4: CHOOSE YOUR SUBSCRIPTION -->
               <div class="rounded-2xl border-2 border-teal-300 overflow-hidden bg-teal-50/80 shadow-2xs">
-                <div class="bg-slate-900 px-5 py-3.5 flex items-center justify-between gap-2">
+                <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-5 py-3.5 flex items-center justify-between gap-2">
                   <div class="flex items-center gap-2.5">
-                    <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">4</span>
-                    <h4 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">
+                    <span class="w-6 h-6 rounded-lg bg-white text-teal-900 font-extrabold text-xs flex items-center justify-center shadow-2xs">4</span>
+                    <h4 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">
                       Choose Your Subscription
                     </h4>
                   </div>
-                  <span class="px-2.5 py-1 rounded-full bg-teal-600 text-white text-[10px] font-extrabold uppercase">
+                  <span class="px-2.5 py-1 rounded-full bg-white text-teal-900 text-[10px] font-extrabold uppercase shadow-2xs">
                     ₱199 / Month
                   </span>
                 </div>
@@ -1683,12 +1774,12 @@ service cloud.firestore {
     const ai = p.aiSoap;
 
     return `
-      <div class="-mx-5 -mt-5 mb-4 bg-slate-900 px-5 py-3.5 flex items-center justify-between gap-2">
+      <div class="-mx-5 -mt-5 mb-4 bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-5 py-3.5 flex items-center justify-between gap-2">
         <div class="flex items-center gap-2.5">
-          <div class="px-2 py-1 rounded-lg bg-teal-600 text-white flex items-center justify-center font-extrabold text-[10px] uppercase shadow-xs">AI SOAP</div>
+          <div class="px-2.5 py-1 rounded-lg bg-white text-teal-900 flex items-center justify-center font-extrabold text-[10px] uppercase shadow-2xs">AI SOAP</div>
           <div>
-            <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Clinical Narrative SOAP Generator</h3>
-            <p class="text-[10px] text-teal-300 font-semibold">${escapeHTML(ai.confidence || 'Live Narrative Sync Active')}</p>
+            <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">Clinical Narrative SOAP Generator</h3>
+            <p class="text-[10px] text-teal-100 font-semibold">${escapeHTML(ai.confidence || 'Live Narrative Sync Active')}</p>
           </div>
         </div>
         ${renderClearFormIconButtonHTML('clearAiSoapForm()', 'Clear AI SOAP & Encoded Symptoms')}
@@ -2491,10 +2582,10 @@ service cloud.firestore {
 
     main.innerHTML = `
       <div class="space-y-6">
-        <!-- Uniform Green Banner Title -->
-        <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
+        <!-- Uniform Teal Banner Title -->
+        <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-900 rounded-2xl p-6 text-white shadow-md border border-teal-600/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
           <div>
-            <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">New Patient Registration</h2>
+            <h2 class="medflow-title text-xl sm:text-2xl font-extrabold tracking-wide">New Patient Registration</h2>
           </div>
           <button onclick="switchView('home')" class="self-start sm:self-auto px-4 py-2 rounded-xl bg-white text-teal-900 hover:bg-teal-50 text-xs font-bold shadow-xs transition cursor-pointer">
             ← Back to Home
@@ -2518,15 +2609,15 @@ service cloud.firestore {
 
           <!-- SECTION I: PATIENT DEMOGRAPHICS & IDENTIFICATION -->
           <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-            <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+            <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
               <div class="flex items-center gap-2.5">
-                <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
-                <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">
+                <span class="w-6 h-6 rounded-lg bg-white text-teal-900 font-extrabold text-xs flex items-center justify-center shadow-2xs">1</span>
+                <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">
                   Section I. Patient Demographics &amp; Identification
                 </h3>
               </div>
               <div class="flex items-center gap-2">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">DOH ITR Standard</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100">DOH ITR Standard</span>
                 ${renderClearFormIconButtonHTML('clearPatientRegistrationForm()', 'Clear Registration Form')}
               </div>
             </div>
@@ -2623,14 +2714,14 @@ service cloud.firestore {
 
           <!-- SECTION II: MEDICAL, FAMILY, SOCIAL & OB-GYN HISTORY -->
           <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-            <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+            <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
               <div class="flex items-center gap-2.5">
-                <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">2</span>
-                <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">
+                <span class="w-6 h-6 rounded-lg bg-white text-teal-900 font-extrabold text-xs flex items-center justify-center shadow-2xs">2</span>
+                <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">
                   Section II. Medical, Family, Social &amp; OB-GYN History
                 </h3>
               </div>
-              <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">Clinical History Baseline</span>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100">Clinical History Baseline</span>
             </div>
 
             <div class="p-6 space-y-4">
@@ -2725,12 +2816,12 @@ service cloud.firestore {
 
           <!-- SECTION III: VITAL SIGNS AND ANTHROPOMETRIC -->
           <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-            <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+            <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
               <div class="flex items-center gap-2.5">
-                <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">3</span>
-                <span class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Vital Signs and Anthropometric</span>
+                <span class="w-6 h-6 rounded-lg bg-white text-teal-900 font-extrabold text-xs flex items-center justify-center shadow-2xs">3</span>
+                <span class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">Vital Signs and Anthropometric</span>
               </div>
-              <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">Auto-BMI Computation</span>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100">Auto-BMI Computation</span>
             </div>
             <div class="p-6">
               <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-3">
@@ -3357,7 +3448,6 @@ service cloud.firestore {
       if (appState.activePatientId === id) {
         appState.activePatientId = appState.patients[0]?.id || null;
       }
-      saveState();
     }
     if (wasInBakuNxt) {
       appState.bakunxtPatients = (appState.bakunxtPatients || []).filter((p: any) => p.id !== id);
@@ -3372,6 +3462,9 @@ service cloud.firestore {
       if (appState.optplusForm?.id === id) {
         appState.optplusForm = createBlankOptPlusForm(appState.doctor);
       }
+    }
+    if (wasInPatients || wasInBakuNxt || wasInOptPlus) {
+      saveState();
     }
 
     if (appState.registryPreviewPatientId === id) {
@@ -4509,9 +4602,9 @@ service cloud.firestore {
 
     main.innerHTML = `
       <div class="space-y-5">
-        <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-900 rounded-2xl p-6 text-white shadow-md border border-teal-600/30 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
-            <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Philippine Clinical Practice Guidelines (CPG) Library</h2>
+            <h2 class="medflow-title text-xl sm:text-2xl font-extrabold tracking-wide">Philippine Clinical Practice Guidelines (CPG) Library</h2>
           </div>
         </div>
 
@@ -4863,6 +4956,7 @@ service cloud.firestore {
       appState.bakunxtPatients.unshift(fullSnapshot);
     }
     saveBakuNxtPatientsToStorage(appState.bakunxtPatients);
+    saveState();
     if (!silent) {
       appState.recordsActiveTab = 'immunization';
       appState.registryOpenFolderPatientId = p.id;
@@ -4942,13 +5036,13 @@ service cloud.firestore {
     if (agePill) {
       if (ageMonths === null || ageMonths < 0) {
         agePill.textContent = 'Age: —';
-        agePill.className = 'text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300';
+        agePill.className = 'text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-teal-900/60 text-teal-100 border border-teal-500/40';
       } else if (ageMonths <= 59) {
         agePill.textContent = `Eligible (${ageMonths} mos)`;
-        agePill.className = 'text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-teal-500/25 text-teal-200 border border-teal-400/40';
+        agePill.className = 'text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white text-teal-900 shadow-2xs';
       } else {
         agePill.textContent = `Over 59 mos (${ageMonths}m)`;
-        agePill.className = 'text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-rose-500/30 text-rose-200 border border-rose-400/40';
+        agePill.className = 'text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-rose-500 text-white shadow-2xs';
       }
     }
 
@@ -5150,6 +5244,7 @@ service cloud.firestore {
     }
 
     saveOptPlusRecordsToStorage(appState.optplusRecords);
+    saveState();
     const savedBrgy = recordObj.barangay;
     const savedCity = recordObj.city;
     const savedProv = recordObj.province;
@@ -5224,16 +5319,16 @@ service cloud.firestore {
     if (!overlay || !content) return;
     const rawName = (rec.childName || 'Child_Card').replace(/[^a-zA-Z0-9_-]/g, '_');
     content.innerHTML = `
-      <div class="bg-slate-900 px-6 py-4 flex items-center justify-between gap-3 rounded-t-2xl">
+      <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-6 py-4 flex items-center justify-between gap-3 rounded-t-2xl">
         <div>
-          <span class="text-[10px] font-bold uppercase tracking-widest text-teal-300 block">Individual Child Growth &amp; Nutrition Card</span>
-          <h3 class="text-sm font-extrabold text-white">${escapeHTML(rec.childName)} (${escapeHTML(rec.id)})</h3>
+          <span class="text-[10px] font-bold uppercase tracking-widest text-teal-100 block">Individual Child Growth &amp; Nutrition Card</span>
+          <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold text-white">${escapeHTML(rec.childName)} (${escapeHTML(rec.id)})</h3>
         </div>
         <div class="flex items-center gap-2">
-          <button type="button" onclick="optplusDownloadChildCardPdf('${escapeHTML(rawName)}')" class="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+          <button type="button" onclick="optplusDownloadChildCardPdf('${escapeHTML(rawName)}')" class="px-3.5 py-2 rounded-xl bg-white text-teal-900 hover:bg-teal-50 text-xs font-bold flex items-center gap-1.5 shadow-2xs cursor-pointer">
             Download PDF
           </button>
-          <button type="button" onclick="closeModal()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center font-bold text-xs cursor-pointer">✕</button>
+          <button type="button" onclick="closeModal()" class="w-8 h-8 rounded-lg bg-teal-950/50 hover:bg-teal-950 text-teal-100 hover:text-white flex items-center justify-center font-bold text-xs cursor-pointer">✕</button>
         </div>
       </div>
       <div class="p-4 sm:p-6 bg-slate-100 max-h-[78vh] overflow-y-auto rounded-b-2xl">

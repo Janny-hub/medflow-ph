@@ -579,16 +579,16 @@ export function buildOptPlusWorkspaceHTML(appState: any): string {
 
   return `
     <div class="space-y-6">
-      <!-- MedFlow Standard Teal-to-Slate Header Banner -->
-      <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-4 no-print">
+      <!-- MedFlow Unified Clinical Teal Header Banner -->
+      <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-900 border border-teal-600/30 rounded-2xl p-6 text-white shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-4 no-print">
         <div class="flex items-start sm:items-center gap-3.5">
-          <div class="w-11 h-11 rounded-xl bg-teal-600/90 border border-teal-400/40 flex items-center justify-center text-white shadow-sm shrink-0">
+          <div class="w-11 h-11 rounded-xl bg-white/15 border border-white/25 flex items-center justify-center text-white shadow-sm shrink-0">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
             </svg>
           </div>
           <div>
-            <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">OPTPlus PH — Operation Timbang Plus (Nutrition Program)</h2>
+            <h2 class="medflow-title text-xl sm:text-2xl font-extrabold tracking-wide">OPTPlus PH — Operation Timbang Plus (Nutrition Program)</h2>
           </div>
         </div>
         <div class="flex items-center gap-2 self-start lg:self-auto">
@@ -664,12 +664,12 @@ export function buildOptPlusWorkspaceHTML(appState: any): string {
         <form onsubmit="event.preventDefault(); optplusSaveChildRecord();" class="space-y-6 no-print">
           <!-- SECTION 1: BARANGAY & SESSION -->
           <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-            <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+            <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
               <div class="flex items-center gap-2.5">
-                <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
-                <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Barangay &amp; Session</h3>
+                <span class="w-6 h-6 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-xs flex items-center justify-center">1</span>
+                <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">Barangay &amp; Session</h3>
               </div>
-              <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">DOH / NNC Operation Timbang Plus</span>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100">DOH / NNC Operation Timbang Plus</span>
             </div>
 
             <div class="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
@@ -702,17 +702,17 @@ export function buildOptPlusWorkspaceHTML(appState: any): string {
 
           <!-- SECTION 2: CHILD & HOUSEHOLD -->
           <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-            <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+            <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
               <div class="flex items-center gap-2.5">
-                <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">2</span>
-                <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Child &amp; Household Identification</h3>
+                <span class="w-6 h-6 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-xs flex items-center justify-center">2</span>
+                <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">Child &amp; Household Identification</h3>
               </div>
               <span id="optplus-age-validation-pill" class="text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
                 ageMonths === null || ageMonths < 0
-                  ? 'bg-slate-800 text-slate-300'
+                  ? 'bg-teal-950/50 text-teal-100 border border-teal-500/30'
                   : ageMonths <= 59
-                  ? 'bg-teal-500/25 text-teal-200 border border-teal-400/40'
-                  : 'bg-rose-500/30 text-rose-200 border border-rose-400/40'
+                  ? 'bg-white/20 text-white border border-white/30'
+                  : 'bg-rose-500/30 text-rose-100 border border-rose-300/40'
               }">
                 ${
                   ageMonths === null || ageMonths < 0
@@ -779,12 +779,12 @@ export function buildOptPlusWorkspaceHTML(appState: any): string {
             <!-- Left 7 Cols: Anthropometrics & Services -->
             <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex flex-col justify-between">
               <div>
-                <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+                <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
                   <div class="flex items-center gap-2.5">
-                    <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">3</span>
-                    <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Measurements &amp; Nutrition Services</h3>
+                    <span class="w-6 h-6 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-xs flex items-center justify-center">3</span>
+                    <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">Measurements &amp; Nutrition Services</h3>
                   </div>
-                  <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">Anthropometry &amp; Micronutrients</span>
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100">Anthropometry &amp; Micronutrients</span>
                 </div>
 
                 <div class="p-6 grid grid-cols-2 sm:grid-cols-5 gap-3.5">
@@ -838,11 +838,11 @@ export function buildOptPlusWorkspaceHTML(appState: any): string {
             </div>
 
             <!-- Right 5 Cols: Streamlined Live WHO-CGS Status Strip -->
-            <div class="lg:col-span-5 bg-slate-900 text-white rounded-2xl p-5 shadow-md border border-slate-800 flex flex-col justify-between gap-4">
-              <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div class="lg:col-span-5 bg-gradient-to-br from-teal-800 via-teal-900 to-slate-900 text-white rounded-2xl p-5 shadow-md border border-teal-700/50 flex flex-col justify-between gap-4">
+              <div class="flex items-center justify-between border-b border-teal-700/60 pb-3">
                 <div>
-                  <span class="text-xs font-extrabold uppercase tracking-wider text-teal-400 block">WHO-CGS Live Classification</span>
-                  <span class="text-[11px] text-slate-400">Auto-computes Z-scores &amp; PIMAM MUAC/Edema rules</span>
+                  <span class="medflow-title text-sm font-extrabold uppercase tracking-wide text-white block">WHO-CGS Live Classification</span>
+                  <span class="text-[11px] text-teal-100/80">Auto-computes Z-scores &amp; PIMAM MUAC/Edema rules</span>
                 </div>
                 <span id="optplus-overall-action-tag" class="text-xs font-extrabold px-2.5 py-1 rounded-lg ${actionTagClass}">
                   ${escapeHTML(actionTagText)}
@@ -913,12 +913,12 @@ export function buildOptPlusWorkspaceHTML(appState: any): string {
             <!-- LEFT COLUMN (4 Cols): Parameters & Annual Reduction Target Sliders -->
             <div class="lg:col-span-4 space-y-6">
               <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-                <div class="bg-slate-900 px-5 py-3.5 flex items-center justify-between gap-2">
+                <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-5 py-3.5 flex items-center justify-between gap-2">
                   <div class="flex items-center gap-2">
-                    <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
-                    <h3 class="text-xs font-extrabold uppercase tracking-wider text-white">Target Parameters</h3>
+                    <span class="w-6 h-6 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-xs flex items-center justify-center">1</span>
+                    <h3 class="medflow-title text-sm font-extrabold uppercase tracking-wide text-white">Target Parameters</h3>
                   </div>
-                  <button type="button" onclick="optplusExportGoalReportPdf()" class="px-3 py-1 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-[11px] font-extrabold transition cursor-pointer">
+                  <button type="button" onclick="optplusExportGoalReportPdf()" class="px-3 py-1 rounded-lg bg-white text-teal-900 hover:bg-teal-50 text-[11px] font-extrabold transition cursor-pointer">
                     Goal Report PDF
                   </button>
                 </div>
@@ -954,10 +954,10 @@ export function buildOptPlusWorkspaceHTML(appState: any): string {
 
               <!-- Annual Reduction Target Sliders -->
               <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-                <div class="bg-slate-900 px-5 py-3.5 flex items-center justify-between gap-2">
+                <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-5 py-3.5 flex items-center justify-between gap-2">
                   <div class="flex items-center gap-2">
-                    <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">2</span>
-                    <h3 class="text-xs font-extrabold uppercase tracking-wider text-white">Annual Reduction Targets (BNAP)</h3>
+                    <span class="w-6 h-6 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-xs flex items-center justify-center">2</span>
+                    <h3 class="medflow-title text-sm font-extrabold uppercase tracking-wide text-white">Annual Reduction Targets (BNAP)</h3>
                   </div>
                 </div>
 
@@ -1025,12 +1025,12 @@ export function buildOptPlusWorkspaceHTML(appState: any): string {
 
               <!-- Prevalence vs Target Goal Table -->
               <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-                <div class="bg-slate-900 px-6 py-3.5 flex items-center justify-between">
+                <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-6 py-3.5 flex items-center justify-between">
                   <div class="flex items-center gap-2.5">
-                    <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">3</span>
-                    <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Prevalence vs. Target Goal</h3>
+                    <span class="w-6 h-6 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-xs flex items-center justify-center">3</span>
+                    <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">Prevalence vs. Target Goal</h3>
                   </div>
-                  <span class="text-xs font-mono font-bold text-teal-300">n = ${measuredCount}</span>
+                  <span class="text-xs font-mono font-bold text-teal-100">n = ${measuredCount}</span>
                 </div>
                 <div class="overflow-x-auto p-4">
                   <table class="w-full text-left border-collapse text-xs">
@@ -1068,10 +1068,10 @@ export function buildOptPlusWorkspaceHTML(appState: any): string {
               </div>
 
               <!-- Commodity Forecast -->
-              <div class="bg-slate-900 text-white rounded-2xl p-5 shadow-md border border-slate-800">
+              <div class="bg-gradient-to-br from-teal-800 via-teal-900 to-slate-900 text-white rounded-2xl p-5 shadow-md border border-teal-700/50">
                 <div class="flex items-center justify-between mb-3">
-                  <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-teal-400">DOH / NNC Nutrition Commodity Forecast</h3>
-                  <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">PIMAM &amp; Micronutrient Standards</span>
+                  <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">DOH / NNC Nutrition Commodity Forecast</h3>
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100/80">PIMAM &amp; Micronutrient Standards</span>
                 </div>
                 <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
                   <div class="bg-slate-800/90 rounded-xl p-3 border border-rose-500/30">

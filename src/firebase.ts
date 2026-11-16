@@ -143,26 +143,41 @@ function fromFirestoreFields<T>(fields: Record<string, Record<string, unknown>> 
   return out as T;
 }
 
-async function testConnection(): Promise<void> {
-  try {
-    // Keep SDK network disabled initially so it never opens a 10s hanging WebChannel before REST verification
+export async function probeFirestoreConnectivity(): Promise<boolean> {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    firestoreSdkOnline = false;
     await disableNetwork(db).catch(() => {});
+    return false;
+  }
+  try {
     const probeUrl = `${FIRESTORE_REST_BASE}/test/connection?key=${encodeURIComponent(firebaseConfig.apiKey)}`;
     const res = await fetchWithTimeout(probeUrl, { method: 'GET' }, 3000);
     if (res.ok || res.status === 404) {
-      firestoreSdkOnline = true;
-      await enableNetwork(db).catch(() => {});
-      await withTimeout(getDocFromServer(doc(db, 'test', 'connection')), 3000).catch(() => {});
-    } else {
-      firestoreSdkOnline = false;
-      await disableNetwork(db).catch(() => {});
+      if (!firestoreSdkOnline) {
+        firestoreSdkOnline = true;
+        await enableNetwork(db).catch(() => {});
+        await withTimeout(getDocFromServer(doc(db, 'test', 'connection')), 3000).catch(() => {});
+      }
+      return true;
     }
+    firestoreSdkOnline = false;
+    await disableNetwork(db).catch(() => {});
+    return false;
   } catch {
     firestoreSdkOnline = false;
     await disableNetwork(db).catch(() => {});
+    return false;
   }
 }
-testConnection();
+
+async function testConnection(): Promise<void> {
+  await disableNetwork(db).catch(() => {});
+  const connected = await probeFirestoreConnectivity();
+  if (connected) {
+    void flushOfflineSyncQueue();
+  }
+}
+void testConnection();
 
 export interface ClinicianAccount {
   id: string;
@@ -190,11 +205,44 @@ export interface ClinicianAccount {
   createdAt: string;
 }
 
+export interface PendingWorkspaceSyncItem {
+  clinicianId: string;
+  patientsJson: string;
+  bakunxtJson?: string;
+  optplusJson?: string;
+  updatedAt: string;
+}
+
+export interface RemoteWorkspaceSnapshot {
+  patients: unknown[];
+  bakunxtPatients?: unknown[];
+  optplusRecords?: unknown[];
+  updatedAt: string;
+}
+
 const PENDING_CLINICIANS_SYNC_KEY = 'medflow_ph_pending_clinicians_sync';
 const PENDING_WORKSPACES_SYNC_KEY = 'medflow_ph_pending_workspaces_sync';
 
 function isBrowserOnline(): boolean {
   return typeof navigator === 'undefined' ? true : navigator.onLine;
+}
+
+function hasPendingSyncItems(): boolean {
+  try {
+    const rawClinicians = localStorage.getItem(PENDING_CLINICIANS_SYNC_KEY);
+    if (rawClinicians) {
+      const map = JSON.parse(rawClinicians) as Record<string, unknown>;
+      if (Object.keys(map).length > 0) return true;
+    }
+    const rawWorkspaces = localStorage.getItem(PENDING_WORKSPACES_SYNC_KEY);
+    if (rawWorkspaces) {
+      const map = JSON.parse(rawWorkspaces) as Record<string, unknown>;
+      if (Object.keys(map).length > 0) return true;
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return false;
 }
 
 function queuePendingClinicianSync(account: ClinicianAccount): void {
@@ -208,18 +256,68 @@ function queuePendingClinicianSync(account: ClinicianAccount): void {
   }
 }
 
-function queuePendingWorkspaceSync(clinicianId: string, patients: unknown[], updatedAt: string): void {
+function removeSyncedClinicianFromQueue(clinicianId: string, syncedCreatedAt: string): void {
+  try {
+    const raw = localStorage.getItem(PENDING_CLINICIANS_SYNC_KEY);
+    if (!raw) return;
+    const map: Record<string, ClinicianAccount> = JSON.parse(raw);
+    if (map[clinicianId] && map[clinicianId].createdAt === syncedCreatedAt) {
+      delete map[clinicianId];
+      if (Object.keys(map).length === 0) {
+        localStorage.removeItem(PENDING_CLINICIANS_SYNC_KEY);
+      } else {
+        localStorage.setItem(PENDING_CLINICIANS_SYNC_KEY, JSON.stringify(map));
+      }
+    }
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function queuePendingWorkspaceSync(
+  clinicianId: string,
+  patients: unknown[],
+  bakunxtPatients: unknown[] | undefined,
+  optplusRecords: unknown[] | undefined,
+  updatedAt: string
+): PendingWorkspaceSyncItem {
+  const item: PendingWorkspaceSyncItem = {
+    clinicianId,
+    patientsJson: JSON.stringify(patients ?? []),
+    updatedAt
+  };
+  if (Array.isArray(bakunxtPatients)) {
+    item.bakunxtJson = JSON.stringify(bakunxtPatients);
+  }
+  if (Array.isArray(optplusRecords)) {
+    item.optplusJson = JSON.stringify(optplusRecords);
+  }
   try {
     const raw = localStorage.getItem(PENDING_WORKSPACES_SYNC_KEY);
-    const map: Record<string, { clinicianId: string; patientsJson: string; updatedAt: string }> = raw ? JSON.parse(raw) : {};
-    map[clinicianId] = {
-      clinicianId,
-      patientsJson: JSON.stringify(patients),
-      updatedAt
-    };
+    const map: Record<string, PendingWorkspaceSyncItem> = raw ? JSON.parse(raw) : {};
+    map[clinicianId] = item;
     localStorage.setItem(PENDING_WORKSPACES_SYNC_KEY, JSON.stringify(map));
   } catch {
     // Ignore storage quota errors
+  }
+  return item;
+}
+
+function removeSyncedWorkspaceFromQueue(clinicianId: string, syncedUpdatedAt: string): void {
+  try {
+    const raw = localStorage.getItem(PENDING_WORKSPACES_SYNC_KEY);
+    if (!raw) return;
+    const map: Record<string, PendingWorkspaceSyncItem> = JSON.parse(raw);
+    if (map[clinicianId] && map[clinicianId].updatedAt === syncedUpdatedAt) {
+      delete map[clinicianId];
+      if (Object.keys(map).length === 0) {
+        localStorage.removeItem(PENDING_WORKSPACES_SYNC_KEY);
+      } else {
+        localStorage.setItem(PENDING_WORKSPACES_SYNC_KEY, JSON.stringify(map));
+      }
+    }
+  } catch {
+    // Ignore storage errors
   }
 }
 
@@ -247,61 +345,166 @@ async function restUpsertDoc(collectionName: string, docId: string, data: Record
   }
 }
 
+let isFlushingSyncQueue = false;
+let pendingFlushRequested = false;
+let workspaceSyncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleBackgroundSyncFlush(delayMs = 450): void {
+  if (workspaceSyncDebounceTimer !== null) {
+    clearTimeout(workspaceSyncDebounceTimer);
+  }
+  workspaceSyncDebounceTimer = setTimeout(() => {
+    workspaceSyncDebounceTimer = null;
+    void flushOfflineSyncQueue();
+  }, delayMs);
+}
+
 export async function flushOfflineSyncQueue(): Promise<void> {
-  if (!isBrowserOnline() || !firestoreSdkOnline) return;
+  if (!isBrowserOnline()) return;
 
-  try {
-    const rawClinicians = localStorage.getItem(PENDING_CLINICIANS_SYNC_KEY);
-    if (rawClinicians) {
-      const map: Record<string, ClinicianAccount> = JSON.parse(rawClinicians);
-      const entries = Object.values(map);
-      for (const acc of entries) {
-        await restUpsertDoc('clinicians', acc.id, acc as unknown as Record<string, unknown>);
-      }
-      localStorage.removeItem(PENDING_CLINICIANS_SYNC_KEY);
-    }
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, 'clinicians');
+  if (isFlushingSyncQueue) {
+    pendingFlushRequested = true;
+    return;
   }
 
+  if (!hasPendingSyncItems() && firestoreSdkOnline) {
+    return;
+  }
+
+  isFlushingSyncQueue = true;
   try {
-    const rawWorkspaces = localStorage.getItem(PENDING_WORKSPACES_SYNC_KEY);
-    if (rawWorkspaces) {
-      const map: Record<string, { clinicianId: string; patientsJson: string; updatedAt: string }> = JSON.parse(rawWorkspaces);
-      const entries = Object.values(map);
-      for (const item of entries) {
-        await restUpsertDoc('workspaces', item.clinicianId, item as unknown as Record<string, unknown>);
-      }
-      localStorage.removeItem(PENDING_WORKSPACES_SYNC_KEY);
+    if (!firestoreSdkOnline) {
+      const reachable = await probeFirestoreConnectivity();
+      if (!reachable) return;
     }
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, 'workspaces');
+
+    try {
+      const rawClinicians = localStorage.getItem(PENDING_CLINICIANS_SYNC_KEY);
+      if (rawClinicians) {
+        const map: Record<string, ClinicianAccount> = JSON.parse(rawClinicians);
+        const entries = Object.values(map);
+        for (const acc of entries) {
+          if (!isBrowserOnline()) break;
+          try {
+            await restUpsertDoc('clinicians', acc.id, acc as unknown as Record<string, unknown>);
+            removeSyncedClinicianFromQueue(acc.id, acc.createdAt);
+          } catch (err) {
+            if (firestoreSdkOnline) {
+              await withTimeout(setDoc(doc(db, 'clinicians', acc.id), acc, { merge: true }), 3500);
+              removeSyncedClinicianFromQueue(acc.id, acc.createdAt);
+            } else {
+              throw err;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'clinicians');
+    }
+
+    try {
+      const rawWorkspaces = localStorage.getItem(PENDING_WORKSPACES_SYNC_KEY);
+      if (rawWorkspaces) {
+        const map: Record<string, PendingWorkspaceSyncItem> = JSON.parse(rawWorkspaces);
+        const entries = Object.values(map);
+        for (const item of entries) {
+          if (!isBrowserOnline()) break;
+          const payload: Record<string, unknown> = {
+            clinicianId: item.clinicianId,
+            patientsJson: item.patientsJson,
+            updatedAt: item.updatedAt
+          };
+          if (typeof item.bakunxtJson === 'string') {
+            payload.bakunxtJson = item.bakunxtJson;
+          }
+          if (typeof item.optplusJson === 'string') {
+            payload.optplusJson = item.optplusJson;
+          }
+          try {
+            await restUpsertDoc('workspaces', item.clinicianId, payload);
+            removeSyncedWorkspaceFromQueue(item.clinicianId, item.updatedAt);
+          } catch (err) {
+            if (firestoreSdkOnline) {
+              await withTimeout(setDoc(doc(db, 'workspaces', item.clinicianId), payload, { merge: true }), 3500);
+              removeSyncedWorkspaceFromQueue(item.clinicianId, item.updatedAt);
+            } else {
+              throw err;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'workspaces');
+    }
+  } finally {
+    isFlushingSyncQueue = false;
+    if (pendingFlushRequested && isBrowserOnline()) {
+      pendingFlushRequested = false;
+      scheduleBackgroundSyncFlush(250);
+    } else {
+      pendingFlushRequested = false;
+    }
   }
 }
 
-if (typeof window !== 'undefined') {
+let backgroundSyncStarted = false;
+
+export function startBackgroundSyncService(): void {
+  if (backgroundSyncStarted || typeof window === 'undefined') return;
+  backgroundSyncStarted = true;
+
   window.addEventListener('online', () => {
-    flushOfflineSyncQueue();
+    void flushOfflineSyncQueue();
   });
+
+  window.addEventListener('offline', () => {
+    firestoreSdkOnline = false;
+    void disableNetwork(db).catch(() => {});
+  });
+
+  window.addEventListener('focus', () => {
+    if (isBrowserOnline() && (hasPendingSyncItems() || !firestoreSdkOnline)) {
+      void flushOfflineSyncQueue();
+    }
+  });
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && isBrowserOnline() && (hasPendingSyncItems() || !firestoreSdkOnline)) {
+        void flushOfflineSyncQueue();
+      }
+    });
+  }
+
+  setInterval(() => {
+    if (isBrowserOnline() && (hasPendingSyncItems() || !firestoreSdkOnline)) {
+      void flushOfflineSyncQueue();
+    }
+  }, 15000);
 }
+
+startBackgroundSyncService();
 
 export async function syncClinicianToFirestore(account: ClinicianAccount): Promise<void> {
+  queuePendingClinicianSync(account);
   if (!isBrowserOnline()) {
-    queuePendingClinicianSync(account);
     return;
   }
   try {
     await restUpsertDoc('clinicians', account.id, account as unknown as Record<string, unknown>);
+    removeSyncedClinicianFromQueue(account.id, account.createdAt);
+    firestoreSdkOnline = true;
   } catch {
     if (!firestoreSdkOnline) {
-      queuePendingClinicianSync(account);
+      scheduleBackgroundSyncFlush(1500);
       return;
     }
     try {
       await withTimeout(setDoc(doc(db, 'clinicians', account.id), account, { merge: true }), 3500);
+      removeSyncedClinicianFromQueue(account.id, account.createdAt);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `clinicians/${account.id}`);
-      queuePendingClinicianSync(account);
+      scheduleBackgroundSyncFlush(2000);
     }
   }
 }
@@ -330,6 +533,7 @@ export async function fetchAllCliniciansFromFirestore(): Promise<ClinicianAccoun
     const url = `${FIRESTORE_REST_BASE}/clinicians?pageSize=200&key=${encodeURIComponent(firebaseConfig.apiKey)}`;
     const res = await fetchWithTimeout(url, { method: 'GET' }, 3500);
     if (res.ok) {
+      firestoreSdkOnline = true;
       const json = (await res.json()) as {
         documents?: Array<{ fields?: Record<string, Record<string, unknown>> }>;
       };
@@ -357,44 +561,79 @@ export async function fetchAllCliniciansFromFirestore(): Promise<ClinicianAccoun
   }
 }
 
-export async function syncWorkspaceToFirestore(clinicianId: string, patients: unknown[]): Promise<void> {
+export async function syncWorkspaceToFirestore(
+  clinicianId: string,
+  patients: unknown[],
+  bakunxtPatients?: unknown[],
+  optplusRecords?: unknown[]
+): Promise<void> {
+  if (!clinicianId) return;
   const updatedAt = new Date().toISOString();
   try {
     localStorage.setItem(`medflow_ph_workspace_ts_${clinicianId}`, updatedAt);
   } catch {
-    // Ignore
+    // Ignore storage errors
   }
 
+  // Always enqueue the latest snapshot immediately in localStorage so no record update is ever lost offline
+  queuePendingWorkspaceSync(clinicianId, patients, bakunxtPatients, optplusRecords, updatedAt);
+
   if (!isBrowserOnline()) {
-    queuePendingWorkspaceSync(clinicianId, patients, updatedAt);
     return;
   }
 
-  const payload = {
-    clinicianId,
-    patientsJson: JSON.stringify(patients),
-    updatedAt
-  };
+  // Schedule a debounced background flush so rapid form edits coalesce into a clean Firestore write
+  scheduleBackgroundSyncFlush(450);
+}
+
+function parseRemoteWorkspaceFields(data: {
+  clinicianId?: string;
+  patientsJson?: string;
+  bakunxtJson?: string;
+  optplusJson?: string;
+  updatedAt?: string;
+}): RemoteWorkspaceSnapshot | null {
+  if (!data || typeof data.patientsJson !== 'string') return null;
+  let patients: unknown[] = [];
+  let bakunxtPatients: unknown[] | undefined;
+  let optplusRecords: unknown[] | undefined;
 
   try {
-    await restUpsertDoc('workspaces', clinicianId, payload);
+    const parsedPatients = JSON.parse(data.patientsJson);
+    if (Array.isArray(parsedPatients)) patients = parsedPatients;
   } catch {
-    if (!firestoreSdkOnline) {
-      queuePendingWorkspaceSync(clinicianId, patients, updatedAt);
-      return;
-    }
+    patients = [];
+  }
+
+  if (typeof data.bakunxtJson === 'string' && data.bakunxtJson.trim()) {
     try {
-      await withTimeout(setDoc(doc(db, 'workspaces', clinicianId), payload, { merge: true }), 3500);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `workspaces/${clinicianId}`);
-      queuePendingWorkspaceSync(clinicianId, patients, updatedAt);
+      const parsedBaku = JSON.parse(data.bakunxtJson);
+      if (Array.isArray(parsedBaku)) bakunxtPatients = parsedBaku;
+    } catch {
+      // Ignore malformed JSON
     }
   }
+
+  if (typeof data.optplusJson === 'string' && data.optplusJson.trim()) {
+    try {
+      const parsedOpt = JSON.parse(data.optplusJson);
+      if (Array.isArray(parsedOpt)) optplusRecords = parsedOpt;
+    } catch {
+      // Ignore malformed JSON
+    }
+  }
+
+  return {
+    patients,
+    bakunxtPatients,
+    optplusRecords,
+    updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : ''
+  };
 }
 
 export async function fetchWorkspaceFromFirestore(
   clinicianId: string
-): Promise<{ patients: unknown[]; updatedAt: string } | null> {
+): Promise<RemoteWorkspaceSnapshot | null> {
   if (!isBrowserOnline()) {
     return null;
   }
@@ -405,16 +644,16 @@ export async function fetchWorkspaceFromFirestore(
     )}`;
     const res = await fetchWithTimeout(url, { method: 'GET' }, 3500);
     if (res.ok) {
+      firestoreSdkOnline = true;
       const json = (await res.json()) as { fields?: Record<string, Record<string, unknown>> };
-      const data = fromFirestoreFields<{ clinicianId?: string; patientsJson?: string; updatedAt?: string }>(
-        json.fields
-      );
-      if (data && typeof data.patientsJson === 'string') {
-        return {
-          patients: JSON.parse(data.patientsJson),
-          updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : ''
-        };
-      }
+      const data = fromFirestoreFields<{
+        clinicianId?: string;
+        patientsJson?: string;
+        bakunxtJson?: string;
+        optplusJson?: string;
+        updatedAt?: string;
+      }>(json.fields);
+      return parseRemoteWorkspaceFields(data);
     } else if (res.status === 404) {
       return null;
     }
@@ -425,13 +664,14 @@ export async function fetchWorkspaceFromFirestore(
 
     const snap = await withTimeout(getDoc(doc(db, 'workspaces', clinicianId)), 3500);
     if (snap.exists()) {
-      const data = snap.data();
-      if (data && typeof data.patientsJson === 'string') {
-        return {
-          patients: JSON.parse(data.patientsJson),
-          updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : ''
-        };
-      }
+      const data = snap.data() as {
+        clinicianId?: string;
+        patientsJson?: string;
+        bakunxtJson?: string;
+        optplusJson?: string;
+        updatedAt?: string;
+      };
+      return parseRemoteWorkspaceFields(data);
     }
     return null;
   } catch (error) {

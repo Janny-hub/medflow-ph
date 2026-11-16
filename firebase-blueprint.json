@@ -38,6 +38,8 @@
       "properties": {
         "clinicianId": { "type": "string", "description": "Owner clinician account ID" },
         "patientsJson": { "type": "string", "description": "Serialized JSON array of the clinician's private patient records" },
+        "bakunxtJson": { "type": "string", "description": "Serialized JSON array of the clinician's BakuNxt immunization records" },
+        "optplusJson": { "type": "string", "description": "Serialized JSON array of the clinician's OPTPlus nutrition records" },
         "updatedAt": { "type": "string", "description": "ISO timestamp of last sync" }
       },
       "required": ["clinicianId", "patientsJson", "updatedAt"]

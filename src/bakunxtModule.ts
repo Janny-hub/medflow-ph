@@ -868,16 +868,16 @@ export function buildBakuNxtWorkspaceHTML(appState: any): string {
 
   return `
     <div class="space-y-6">
-      <!-- MedFlow Standard Teal-to-Slate Header Banner -->
-      <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-4 no-print">
+      <!-- MedFlow Unified Clinical Teal Header Banner -->
+      <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-900 border border-teal-600/30 rounded-2xl p-6 text-white shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-4 no-print">
         <div class="flex items-start sm:items-center gap-3.5">
-          <div class="w-11 h-11 rounded-xl bg-teal-600/90 border border-teal-400/40 flex items-center justify-center text-white shadow-sm shrink-0">
+          <div class="w-11 h-11 rounded-xl bg-white/15 border border-white/25 flex items-center justify-center text-white shadow-sm shrink-0">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
             </svg>
           </div>
           <div>
-            <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">BakuNxt PH — National Immunization Program (EPI)</h2>
+            <h2 class="medflow-title text-xl sm:text-2xl font-extrabold tracking-wide">BakuNxt PH — National Immunization Program (EPI)</h2>
           </div>
         </div>
         <div class="flex items-center gap-2 self-start lg:self-auto">
@@ -1007,12 +1007,12 @@ export function buildBakuNxtWorkspaceHTML(appState: any): string {
           <form id="bakunxt-epi-intake-form" onsubmit="event.preventDefault(); bakunxtSaveCurrentPatient();" class="space-y-6">
             <!-- SECTION 1: CLIENT & FAMILY IDENTIFICATION -->
             <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-              <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+              <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
                 <div class="flex items-center gap-2.5">
-                  <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
-                  <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Client &amp; Family Identification</h3>
+                  <span class="w-6 h-6 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-xs flex items-center justify-center">1</span>
+                  <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">Client &amp; Family Identification</h3>
                 </div>
-                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">DOH FHSIS / PhilHealth Konsulta</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100">DOH FHSIS / PhilHealth Konsulta</span>
               </div>
 
               <div class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1079,12 +1079,12 @@ export function buildBakuNxtWorkspaceHTML(appState: any): string {
 
             <!-- SECTION 2: BIRTH & MATERNAL PROTECTION BASELINE -->
             <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-              <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+              <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
                 <div class="flex items-center gap-2.5">
-                  <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">2</span>
-                  <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Birth &amp; Maternal Protection Baseline (CPAB &amp; IYCF)</h3>
+                  <span class="w-6 h-6 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-xs flex items-center justify-center">2</span>
+                  <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">Birth &amp; Maternal Protection Baseline (CPAB &amp; IYCF)</h3>
                 </div>
-                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">Newborn &amp; Maternal Baseline</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100">Newborn &amp; Maternal Baseline</span>
               </div>
 
               <div class="p-6 space-y-5">
@@ -1196,12 +1196,12 @@ export function buildBakuNxtWorkspaceHTML(appState: any): string {
 
             <!-- SECTION 3: PRE-VACCINATION CLINICAL, GROWTH & NUTRITION ASSESSMENT -->
             <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-              <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+              <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
                 <div class="flex items-center gap-2.5">
-                  <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">3</span>
-                  <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Pre-Vaccination Clinical, Growth &amp; Nutrition Assessment</h3>
+                  <span class="w-6 h-6 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-xs flex items-center justify-center">3</span>
+                  <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">Pre-Vaccination Clinical, Growth &amp; Nutrition Assessment</h3>
                 </div>
-                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">WHO Growth &amp; Safety Screening</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100">WHO Growth &amp; Safety Screening</span>
               </div>
 
               <div class="p-6 space-y-5">
@@ -1309,12 +1309,12 @@ export function buildBakuNxtWorkspaceHTML(appState: any): string {
 
             <!-- SECTION 4: ACTUAL VACCINATION & COLD-CHAIN LOGISTICS MATRIX -->
             <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-              <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+              <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
                 <div class="flex items-center gap-2.5">
-                  <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">4</span>
-                  <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Actual Vaccination &amp; Cold-Chain Logistics Log (DOH Philippine EPI)</h3>
+                  <span class="w-6 h-6 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-xs flex items-center justify-center">4</span>
+                  <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">Actual Vaccination &amp; Cold-Chain Logistics Log (DOH Philippine EPI)</h3>
                 </div>
-                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">DOH EPI Schedule</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100">DOH EPI Schedule</span>
               </div>
 
               <div class="overflow-x-auto">
@@ -1389,12 +1389,12 @@ export function buildBakuNxtWorkspaceHTML(appState: any): string {
 
             <!-- SECTION 5: POST-VACCINATION COUNSELING, AEFI & FOLLOW-UP -->
             <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-              <div class="bg-slate-900 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
+              <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-teal-800 border-b border-teal-600/30 px-6 py-3.5 flex flex-wrap items-center justify-between gap-2">
                 <div class="flex items-center gap-2.5">
-                  <span class="w-6 h-6 rounded-lg bg-teal-600 text-white font-extrabold text-xs flex items-center justify-center">5</span>
-                  <h3 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Post-Vaccination Counseling, AEFI &amp; Next-Visit Schedule</h3>
+                  <span class="w-6 h-6 rounded-lg bg-white text-teal-900 shadow-2xs font-extrabold text-xs flex items-center justify-center">5</span>
+                  <h3 class="medflow-title text-sm sm:text-[15px] font-extrabold uppercase tracking-wide text-white">Post-Vaccination Counseling, AEFI &amp; Next-Visit Schedule</h3>
                 </div>
-                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">AEFI Surveillance &amp; Defaulter Prevention</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-100">AEFI Surveillance &amp; Defaulter Prevention</span>
               </div>
 
               <div class="p-6 space-y-4">

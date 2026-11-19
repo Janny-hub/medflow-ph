@@ -406,12 +406,12 @@ function queuePendingClinicianSync(account: ClinicianAccount): void {
   }
 }
 
-function removeSyncedClinicianFromQueue(clinicianId: string, syncedCreatedAt: string): void {
+function removeSyncedClinicianFromQueue(clinicianId: string, _syncedCreatedAt?: string): void {
   try {
     const raw = localStorage.getItem(PENDING_CLINICIANS_SYNC_KEY);
     if (!raw) return;
     const map: Record<string, ClinicianAccount> = JSON.parse(raw);
-    if (map[clinicianId] && map[clinicianId].createdAt === syncedCreatedAt) {
+    if (map[clinicianId]) {
       delete map[clinicianId];
       if (Object.keys(map).length === 0) {
         localStorage.removeItem(PENDING_CLINICIANS_SYNC_KEY);
@@ -761,9 +761,9 @@ export async function deleteClinicianFromFirestore(
   }
 }
 
-export async function fetchAllCliniciansFromFirestore(): Promise<ClinicianAccount[]> {
+export async function fetchAllCliniciansFromFirestore(): Promise<ClinicianAccount[] | null> {
   if (!isBrowserOnline()) {
-    return [];
+    return null;
   }
   try {
     await flushOfflineSyncQueue();
@@ -785,8 +785,9 @@ export async function fetchAllCliniciansFromFirestore(): Promise<ClinicianAccoun
           }
           const localPending = pendingSyncMap[parsed.id];
           const finalAcc: ClinicianAccount = localPending ? { ...parsed, ...localPending } : parsed;
-          if (isClinicianBannedLocally(finalAcc.id, finalAcc.email, finalAcc.username)) {
+          if (finalAcc.approvalStatus === 'banned' || isClinicianBannedLocally(finalAcc.id, finalAcc.email, finalAcc.username)) {
             finalAcc.approvalStatus = 'banned';
+            markClinicianBannedLocally(finalAcc.id, finalAcc.email, finalAcc.username);
           }
           list.push(finalAcc);
         }
@@ -794,7 +795,7 @@ export async function fetchAllCliniciansFromFirestore(): Promise<ClinicianAccoun
       return list;
     }
     if (!firestoreSdkOnline) {
-      return [];
+      return null;
     }
     const snap = await withTimeout(getDocs(collection(db, 'clinicians')), 3500);
     const list: ClinicianAccount[] = [];
@@ -803,8 +804,9 @@ export async function fetchAllCliniciansFromFirestore(): Promise<ClinicianAccoun
       if (parsed && parsed.id && !isClinicianDeletedLocally(parsed.id, parsed.email, parsed.username)) {
         const localPending = pendingSyncMap[parsed.id];
         const finalAcc: ClinicianAccount = localPending ? { ...parsed, ...localPending } : parsed;
-        if (isClinicianBannedLocally(finalAcc.id, finalAcc.email, finalAcc.username)) {
+        if (finalAcc.approvalStatus === 'banned' || isClinicianBannedLocally(finalAcc.id, finalAcc.email, finalAcc.username)) {
           finalAcc.approvalStatus = 'banned';
+          markClinicianBannedLocally(finalAcc.id, finalAcc.email, finalAcc.username);
         }
         list.push(finalAcc);
       }
@@ -812,7 +814,7 @@ export async function fetchAllCliniciansFromFirestore(): Promise<ClinicianAccoun
     return list;
   } catch (error) {
     handleFirestoreError(error, OperationType.LIST, 'clinicians');
-    return [];
+    return null;
   }
 }
 

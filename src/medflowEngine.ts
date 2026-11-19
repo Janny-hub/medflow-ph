@@ -74,7 +74,8 @@ declare global {
 const LEGACY_DUMMY_ACCOUNT_IDS = new Set([
   'doc-santos-001',
   'clerk-juan-002',
-  'intern-bea-003'
+  'intern-bea-003',
+  'clinician-1794825933686'
 ]);
 
 const ACCOUNTS_STORAGE_KEY = 'medflow_ph_clinician_accounts_v4';
@@ -118,7 +119,7 @@ function calculateMonthsBetweenDates(startStr: string, endStr: string): number {
 }
 
 export function initMedFlowEngine(): void {
-  // Purge all legacy/dummy storage keys so the login screen starts completely clean
+  // Purge all legacy/dummy storage keys and previously deleted account caches
   [
     'medflow_ph_clinician_accounts_v1',
     'medflow_ph_clinician_accounts_v2',
@@ -131,6 +132,26 @@ export function initMedFlowEngine(): void {
     localStorage.removeItem(getWorkspaceStorageKey(dummyId));
     localStorage.removeItem(getWorkspaceTimestampKey(dummyId));
   });
+  // Ensure any pre-tombstone deleted account cached in localStorage is permanently tombstoned
+  try {
+    const rawCached = localStorage.getItem(ACCOUNTS_STORAGE_KEY);
+    if (rawCached) {
+      const parsedCached = JSON.parse(rawCached);
+      if (Array.isArray(parsedCached)) {
+        for (const cachedAcc of parsedCached) {
+          if (cachedAcc && cachedAcc.id && LEGACY_DUMMY_ACCOUNT_IDS.has(cachedAcc.id)) {
+            markClinicianDeletedLocally(cachedAcc.id, cachedAcc.email, cachedAcc.username);
+            if (localStorage.getItem(SESSION_STORAGE_KEY) === cachedAcc.id) {
+              localStorage.removeItem(SESSION_STORAGE_KEY);
+            }
+          }
+        }
+      }
+    }
+  } catch {
+    // Ignore storage parse errors
+  }
+  markClinicianDeletedLocally('clinician-1794825933686');
 
   const todayInitStr = new Date().toISOString().split('T')[0];
   const defaultOneMonthEndStr = addMonthsToDateStr(todayInitStr, 1);
@@ -305,6 +326,106 @@ export function initMedFlowEngine(): void {
     return canClinicianAccessApp(inRegistry);
   }
 
+  function reconcileCliniciansWithServer(remoteAccounts: ClinicianAccount[]): void {
+    const pendingSyncMap = getPendingClinicianSyncMap();
+    const remoteIdSet = new Set(remoteAccounts.map((r) => r.id));
+
+    // Any locally cached account that does not exist on the Firestore server AND is not pending an offline creation/update
+    // was deleted from the database (e.g., deleted before tombstones existed or from another session).
+    // Immediately record its deletion tombstone so it can never log in online or offline again.
+    for (const localAcc of appState.clinicianAccounts || []) {
+      if (!localAcc || !localAcc.id) continue;
+      if (!remoteIdSet.has(localAcc.id) && !pendingSyncMap[localAcc.id]) {
+        markClinicianDeletedLocally(localAcc.id, localAcc.email, localAcc.username);
+        localStorage.removeItem(getWorkspaceStorageKey(localAcc.id));
+        localStorage.removeItem(getWorkspaceTimestampKey(localAcc.id));
+        if (localStorage.getItem(SESSION_STORAGE_KEY) === localAcc.id) {
+          localStorage.removeItem(SESSION_STORAGE_KEY);
+        }
+      }
+    }
+
+    const reconciledMap = new Map<string, ClinicianAccount>();
+
+    // Add un-flushed offline creations/updates that haven't been deleted
+    for (const pendingAcc of Object.values(pendingSyncMap)) {
+      if (
+        pendingAcc &&
+        pendingAcc.id &&
+        !LEGACY_DUMMY_ACCOUNT_IDS.has(pendingAcc.id) &&
+        !isClinicianDeletedLocally(pendingAcc.id, pendingAcc.email, pendingAcc.username)
+      ) {
+        if (pendingAcc.approvalStatus === 'banned' || isClinicianBannedLocally(pendingAcc.id, pendingAcc.email, pendingAcc.username)) {
+          pendingAcc.approvalStatus = 'banned';
+          markClinicianBannedLocally(pendingAcc.id, pendingAcc.email, pendingAcc.username);
+        }
+        reconciledMap.set(pendingAcc.id, pendingAcc);
+      }
+    }
+
+    // Add authoritative remote accounts from Firestore
+    for (const rem of remoteAccounts) {
+      if (
+        rem &&
+        rem.id &&
+        !LEGACY_DUMMY_ACCOUNT_IDS.has(rem.id) &&
+        !isClinicianDeletedLocally(rem.id, rem.email, rem.username)
+      ) {
+        const localPending = pendingSyncMap[rem.id];
+        const finalAcc: ClinicianAccount = localPending ? { ...rem, ...localPending } : { ...rem };
+        if (finalAcc.approvalStatus === 'banned' || isClinicianBannedLocally(finalAcc.id, finalAcc.email, finalAcc.username)) {
+          finalAcc.approvalStatus = 'banned';
+          markClinicianBannedLocally(finalAcc.id, finalAcc.email, finalAcc.username);
+        }
+        reconciledMap.set(finalAcc.id, finalAcc);
+      }
+    }
+
+    appState.clinicianAccounts = sanitizeAndFilterClinicianAccounts(Array.from(reconciledMap.values()));
+    saveClinicianAccounts();
+
+    if (appState.activeClinician) {
+      const updatedSelf = reconciledMap.get(appState.activeClinician.id);
+      if (
+        !updatedSelf ||
+        isClinicianDeletedLocally(
+          appState.activeClinician.id,
+          appState.activeClinician.email,
+          appState.activeClinician.username
+        )
+      ) {
+        markClinicianDeletedLocally(
+          appState.activeClinician.id,
+          appState.activeClinician.email,
+          appState.activeClinician.username
+        );
+        appState.activeClinician = null;
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+        updateHeaderDoctorName();
+        if (!isHiddenAdminPortalRoute()) {
+          renderAuthScreen();
+        }
+      } else if (
+        updatedSelf.approvalStatus === 'banned' ||
+        isClinicianBannedLocally(updatedSelf.id, updatedSelf.email, updatedSelf.username)
+      ) {
+        appState.activeClinician = null;
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+        updateHeaderDoctorName();
+        if (!isHiddenAdminPortalRoute()) {
+          renderAuthScreen();
+        }
+      } else {
+        appState.activeClinician = updatedSelf;
+        syncDoctorFromClinician(updatedSelf);
+        updateHeaderDoctorName();
+        if (!isHiddenAdminPortalRoute() && !canClinicianAccessApp(updatedSelf)) {
+          renderAuthScreen();
+        }
+      }
+    }
+  }
+
   function loadClinicianAccounts(): void {
     try {
       const raw = localStorage.getItem(ACCOUNTS_STORAGE_KEY);
@@ -323,53 +444,10 @@ export function initMedFlowEngine(): void {
     }
     saveClinicianAccounts();
 
-    // Background sync with Firestore to pull any real registered accounts (respecting local offline bans & deletions)
+    // Reconcile with Firestore to purge any accounts deleted on the server and pull registered accounts
     fetchAllCliniciansFromFirestore().then((remoteAccounts) => {
-      if (remoteAccounts && remoteAccounts.length > 0) {
-        const pendingSyncMap = getPendingClinicianSyncMap();
-        const mergedMap = new Map<string, ClinicianAccount>();
-        appState.clinicianAccounts.forEach((acc: ClinicianAccount) => {
-          if (acc && !LEGACY_DUMMY_ACCOUNT_IDS.has(acc.id) && !isClinicianDeletedLocally(acc.id, acc.email, acc.username)) {
-            mergedMap.set(acc.id, acc);
-          }
-        });
-        remoteAccounts.forEach((rem: ClinicianAccount) => {
-          if (rem && !LEGACY_DUMMY_ACCOUNT_IDS.has(rem.id) && !isClinicianDeletedLocally(rem.id, rem.email, rem.username)) {
-            const localPending = pendingSyncMap[rem.id];
-            const finalAcc: ClinicianAccount = localPending ? { ...rem, ...localPending } : { ...rem };
-            if (isClinicianBannedLocally(finalAcc.id, finalAcc.email, finalAcc.username)) {
-              finalAcc.approvalStatus = 'banned';
-            }
-            mergedMap.set(finalAcc.id, finalAcc);
-          }
-        });
-        appState.clinicianAccounts = sanitizeAndFilterClinicianAccounts(Array.from(mergedMap.values()));
-        saveClinicianAccounts();
-        if (appState.activeClinician) {
-          const updatedSelf = mergedMap.get(appState.activeClinician.id);
-          if (!updatedSelf || isClinicianDeletedLocally(appState.activeClinician.id, appState.activeClinician.email, appState.activeClinician.username)) {
-            appState.activeClinician = null;
-            localStorage.removeItem(SESSION_STORAGE_KEY);
-            updateHeaderDoctorName();
-            if (!isHiddenAdminPortalRoute()) {
-              renderAuthScreen();
-            }
-          } else if (updatedSelf.approvalStatus === 'banned' || isClinicianBannedLocally(updatedSelf.id, updatedSelf.email, updatedSelf.username)) {
-            appState.activeClinician = null;
-            localStorage.removeItem(SESSION_STORAGE_KEY);
-            updateHeaderDoctorName();
-            if (!isHiddenAdminPortalRoute()) {
-              renderAuthScreen();
-            }
-          } else {
-            appState.activeClinician = updatedSelf;
-            syncDoctorFromClinician(updatedSelf);
-            updateHeaderDoctorName();
-            if (!isHiddenAdminPortalRoute() && !canClinicianAccessApp(updatedSelf)) {
-              renderAuthScreen();
-            }
-          }
-        }
+      if (remoteAccounts !== null) {
+        reconcileCliniciansWithServer(remoteAccounts);
         if (isHiddenAdminPortalRoute()) {
           renderHiddenAdminPortal();
         }
@@ -1160,26 +1238,8 @@ export function initMedFlowEngine(): void {
   window.refreshAdminPortalAccounts = async () => {
     showToast('Syncing clinician accounts from Firestore...');
     const remoteAccounts = await fetchAllCliniciansFromFirestore();
-    if (remoteAccounts && remoteAccounts.length > 0) {
-      const pendingSyncMap = getPendingClinicianSyncMap();
-      const mergedMap = new Map<string, ClinicianAccount>();
-      appState.clinicianAccounts.forEach((acc: ClinicianAccount) => {
-        if (acc && !LEGACY_DUMMY_ACCOUNT_IDS.has(acc.id) && !isClinicianDeletedLocally(acc.id, acc.email, acc.username)) {
-          mergedMap.set(acc.id, acc);
-        }
-      });
-      remoteAccounts.forEach((rem: ClinicianAccount) => {
-        if (rem && !LEGACY_DUMMY_ACCOUNT_IDS.has(rem.id) && !isClinicianDeletedLocally(rem.id, rem.email, rem.username)) {
-          const localPending = pendingSyncMap[rem.id];
-          const finalAcc: ClinicianAccount = localPending ? { ...rem, ...localPending } : { ...rem };
-          if (isClinicianBannedLocally(finalAcc.id, finalAcc.email, finalAcc.username)) {
-            finalAcc.approvalStatus = 'banned';
-          }
-          mergedMap.set(finalAcc.id, finalAcc);
-        }
-      });
-      appState.clinicianAccounts = sanitizeAndFilterClinicianAccounts(Array.from(mergedMap.values()));
-      saveClinicianAccounts();
+    if (remoteAccounts !== null) {
+      reconcileCliniciansWithServer(remoteAccounts);
     }
     renderHiddenAdminPortal();
     showToast('Admin registry synced.');
@@ -1803,27 +1863,23 @@ service cloud.firestore {
 
     if (navigator.onLine) {
       const remoteList = await fetchAllCliniciansFromFirestore();
-      if (remoteList && remoteList.length > 0) {
-        const pendingSyncMap = getPendingClinicianSyncMap();
-        const mergedMap = new Map<string, ClinicianAccount>();
-        appState.clinicianAccounts.forEach((acc: ClinicianAccount) => {
-          if (acc && !LEGACY_DUMMY_ACCOUNT_IDS.has(acc.id) && !isClinicianDeletedLocally(acc.id, acc.email, acc.username)) {
-            mergedMap.set(acc.id, acc);
-          }
-        });
-        remoteList.forEach((rem: ClinicianAccount) => {
-          if (rem && !LEGACY_DUMMY_ACCOUNT_IDS.has(rem.id) && !isClinicianDeletedLocally(rem.id, rem.email, rem.username)) {
-            const localPending = pendingSyncMap[rem.id];
-            const finalAcc: ClinicianAccount = localPending ? { ...rem, ...localPending } : { ...rem };
-            if (isClinicianBannedLocally(finalAcc.id, finalAcc.email, finalAcc.username)) {
-              finalAcc.approvalStatus = 'banned';
-            }
-            mergedMap.set(finalAcc.id, finalAcc);
-          }
-        });
-        appState.clinicianAccounts = sanitizeAndFilterClinicianAccounts(Array.from(mergedMap.values()));
-        saveClinicianAccounts();
+      if (remoteList !== null) {
+        reconcileCliniciansWithServer(remoteList);
       }
+    }
+
+    if (isClinicianDeletedLocally(undefined, identifier, identifier)) {
+      appState.activeClinician = null;
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      showToast('This account has been deleted by the Administrator and can no longer sign in.', 'warning');
+      return;
+    }
+
+    if (isClinicianBannedLocally(undefined, identifier, identifier)) {
+      appState.activeClinician = null;
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      showToast('This account has been banned or suspended by the Administrator.', 'warning');
+      return;
     }
 
     const found = appState.clinicianAccounts.find(
@@ -1979,14 +2035,8 @@ service cloud.firestore {
     showToast('Checking Admin approval & subscription status...');
     if (navigator.onLine) {
       const remoteList = await fetchAllCliniciansFromFirestore();
-      if (remoteList && appState.activeClinician) {
-        const match = remoteList.find((r) => r.id === appState.activeClinician.id);
-        if (match) {
-          appState.activeClinician = match;
-          const idx = appState.clinicianAccounts.findIndex((x: ClinicianAccount) => x.id === match.id);
-          if (idx >= 0) appState.clinicianAccounts[idx] = match;
-          saveClinicianAccounts();
-        }
+      if (remoteList !== null) {
+        reconcileCliniciansWithServer(remoteList);
       }
     } else if (appState.activeClinician) {
       const localMatch = appState.clinicianAccounts.find(

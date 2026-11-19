@@ -62,7 +62,8 @@ import {
   markClinicianBannedLocally,
   unmarkClinicianBannedLocally,
   isClinicianBannedLocally,
-  getPendingClinicianSyncMap
+  getPendingClinicianSyncMap,
+  verifyClinicianOnFirestore
 } from './firebase';
 
 declare global {
@@ -75,7 +76,8 @@ const LEGACY_DUMMY_ACCOUNT_IDS = new Set([
   'doc-santos-001',
   'clerk-juan-002',
   'intern-bea-003',
-  'clinician-1794825933686'
+  'clinician-1794825933686',
+  'clinician-1794591448823'
 ]);
 
 const ACCOUNTS_STORAGE_KEY = 'medflow_ph_clinician_accounts_v4';
@@ -126,7 +128,8 @@ export function initMedFlowEngine(): void {
     'medflow_ph_clinician_accounts_v3',
     'medflow_ph_active_clinician_id_v1',
     'medflow_ph_active_clinician_id_v2',
-    'medflow_ph_active_clinician_id_v3'
+    'medflow_ph_active_clinician_id_v3',
+    'medflow_ph_pending_clinicians_sync'
   ].forEach((k) => localStorage.removeItem(k));
   LEGACY_DUMMY_ACCOUNT_IDS.forEach((dummyId) => {
     localStorage.removeItem(getWorkspaceStorageKey(dummyId));
@@ -152,6 +155,7 @@ export function initMedFlowEngine(): void {
     // Ignore storage parse errors
   }
   markClinicianDeletedLocally('clinician-1794825933686');
+  markClinicianDeletedLocally('clinician-1794591448823');
 
   const todayInitStr = new Date().toISOString().split('T')[0];
   const defaultOneMonthEndStr = addMonthsToDateStr(todayInitStr, 1);
@@ -1893,6 +1897,26 @@ service cloud.firestore {
       localStorage.removeItem(SESSION_STORAGE_KEY);
       showToast('Invalid Email/Username or Password, or account has been removed.', 'warning');
       return;
+    }
+
+    if (navigator.onLine) {
+      const serverCheck = await verifyClinicianOnFirestore(found.id, found.email, found.username);
+      if (serverCheck === 'deleted') {
+        appState.clinicianAccounts = appState.clinicianAccounts.filter((a: ClinicianAccount) => a.id !== found.id);
+        saveClinicianAccounts();
+        appState.activeClinician = null;
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+        showToast('This account has been deleted by the Administrator and can no longer sign in.', 'warning');
+        return;
+      }
+      if (serverCheck === 'banned') {
+        found.approvalStatus = 'banned';
+        saveClinicianAccounts();
+        appState.activeClinician = null;
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+        showToast('This account has been banned or suspended by the Administrator.', 'warning');
+        return;
+      }
     }
 
     if (found.approvalStatus === 'banned' || isClinicianBannedLocally(found.id, found.email, found.username)) {
@@ -6189,6 +6213,38 @@ service cloud.firestore {
       switchView(appState.currentView || 'home');
     } else {
       renderAuthScreen();
+    }
+  });
+
+  window.addEventListener('focus', () => {
+    if (navigator.onLine) {
+      fetchAllCliniciansFromFirestore().then((remoteAccounts) => {
+        if (remoteAccounts !== null) {
+          reconcileCliniciansWithServer(remoteAccounts);
+          if (isHiddenAdminPortalRoute()) {
+            renderHiddenAdminPortal();
+          }
+        }
+      });
+    } else if (!isHiddenAdminPortalRoute() && !enforceActiveSessionValidity()) {
+      renderAuthScreen();
+    }
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      if (navigator.onLine) {
+        fetchAllCliniciansFromFirestore().then((remoteAccounts) => {
+          if (remoteAccounts !== null) {
+            reconcileCliniciansWithServer(remoteAccounts);
+            if (isHiddenAdminPortalRoute()) {
+              renderHiddenAdminPortal();
+            }
+          }
+        });
+      } else if (!isHiddenAdminPortalRoute() && !enforceActiveSessionValidity()) {
+        renderAuthScreen();
+      }
     }
   });
 

@@ -46,11 +46,81 @@ export default function App() {
         {/* Left Vertical Clinical Workflow Navigation Sidebar */}
         <nav
           id="bottom-nav"
-          className="w-56 lg:w-64 shrink-0 sticky top-16 h-[calc(100vh-4rem)] z-30 bg-white/95 backdrop-blur-md border-r border-slate-200/90 shadow-xs flex flex-col justify-between p-3 overflow-y-auto no-print"
+          className="w-60 lg:w-64 shrink-0 sticky top-16 h-[calc(100vh-4rem)] z-30 bg-white/95 backdrop-blur-md border-r border-slate-200/90 shadow-xs flex flex-col justify-between p-3 overflow-y-auto no-print"
         >
           {/* Top / Primary Vertical Navigation Links */}
           <div className="space-y-1">
-            <div className="px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-widest text-teal-800/80">
+            {/* Global Patient Search Bar & Quick Switcher */}
+            <div id="sidebar-global-search-wrapper" className="relative mb-2.5 pb-2.5 border-b border-slate-200/80">
+              <div className="flex items-center justify-between px-1 mb-1.5">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-teal-800/90">
+                  Patient Quick Find
+                </span>
+                <span
+                  id="sidebar-total-patients-badge"
+                  className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200/70"
+                  title="Total Patient Records Across All Registries"
+                >
+                  0 Records
+                </span>
+              </div>
+              <div className="relative">
+                <svg
+                  className="w-3.5 h-3.5 text-teal-700/70 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+                <input
+                  id="sidebar-global-patient-search"
+                  type="text"
+                  autoComplete="off"
+                  placeholder="Search patient name, ID..."
+                  onInput={(e) =>
+                    (window as any).handleGlobalPatientSearchInput &&
+                    (window as any).handleGlobalPatientSearchInput((e.target as HTMLInputElement).value)
+                  }
+                  onFocus={() =>
+                    (window as any).handleGlobalPatientSearchFocus &&
+                    (window as any).handleGlobalPatientSearchFocus()
+                  }
+                  onKeyDown={(e) =>
+                    (window as any).handleGlobalPatientSearchKeyDown &&
+                    (window as any).handleGlobalPatientSearchKeyDown(e)
+                  }
+                  className="w-full pl-8 pr-7 py-2 rounded-xl bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-teal-600 focus:ring-2 focus:ring-teal-500/20 text-xs font-semibold text-slate-800 placeholder:text-slate-400 outline-none transition"
+                />
+                <button
+                  id="sidebar-global-search-clear"
+                  type="button"
+                  onClick={() =>
+                    (window as any).clearGlobalPatientSearch && (window as any).clearGlobalPatientSearch()
+                  }
+                  className="hidden absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 items-center justify-center text-xs font-bold cursor-pointer"
+                  title="Clear search"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Active Patient Status Pill */}
+              <div id="sidebar-active-patient-chip" className="mt-1.5"></div>
+
+              {/* Global Patient Search Results List */}
+              <div
+                id="sidebar-global-search-results"
+                className="hidden mt-1.5 bg-white rounded-xl border border-teal-300 shadow-lg max-h-72 overflow-y-auto divide-y divide-slate-100 z-50"
+              ></div>
+            </div>
+
+            <div className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-teal-800/80">
               Clinical Navigation
             </div>
             <button onClick={() => (window as any).switchView('home')} id="bnav-home" className="w-full justify-start whitespace-nowrap px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-3 shrink-0 cursor-pointer">

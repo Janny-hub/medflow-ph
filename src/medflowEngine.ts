@@ -55,7 +55,14 @@ import {
   deleteClinicianFromFirestore,
   fetchAllCliniciansFromFirestore,
   syncWorkspaceToFirestore,
-  fetchWorkspaceFromFirestore
+  fetchWorkspaceFromFirestore,
+  markClinicianDeletedLocally,
+  unmarkClinicianDeletedLocally,
+  isClinicianDeletedLocally,
+  markClinicianBannedLocally,
+  unmarkClinicianBannedLocally,
+  isClinicianBannedLocally,
+  getPendingClinicianSyncMap
 } from './firebase';
 
 declare global {
@@ -175,6 +182,8 @@ export function initMedFlowEngine(): void {
     openCpgIds: [] as string[],
     recordsActiveTab: 'all',
     recordsSearchQuery: '',
+    globalPatientSearchQuery: '',
+    globalPatientSearchOpen: false,
     registryOpenFolderPatientId: '',
     registryPreviewPatientId: '',
     registryPreviewDocType: '',
@@ -227,9 +236,73 @@ export function initMedFlowEngine(): void {
 
   function canClinicianAccessApp(acc: ClinicianAccount | null): boolean {
     if (!acc) return false;
+    if (isClinicianDeletedLocally(acc.id, acc.email, acc.username)) return false;
+    if (isClinicianBannedLocally(acc.id, acc.email, acc.username)) return false;
     if (acc.approvalStatus !== 'approved') return false;
+    const existsInRegistry = appState.clinicianAccounts.some(
+      (a: ClinicianAccount) => a.id === acc.id && a.approvalStatus === 'approved'
+    );
+    if (!existsInRegistry) return false;
     if (isClinicianSubscriptionExpired(acc)) return false;
     return true;
+  }
+
+  function sanitizeAndFilterClinicianAccounts(accounts: ClinicianAccount[]): ClinicianAccount[] {
+    const pendingSyncMap = getPendingClinicianSyncMap();
+    const cleaned: ClinicianAccount[] = [];
+    for (const rawAcc of accounts) {
+      if (!rawAcc || !rawAcc.id || LEGACY_DUMMY_ACCOUNT_IDS.has(rawAcc.id)) continue;
+      if (isClinicianDeletedLocally(rawAcc.id, rawAcc.email, rawAcc.username)) continue;
+      const pendingLocal = pendingSyncMap[rawAcc.id];
+      const acc: ClinicianAccount = pendingLocal ? { ...rawAcc, ...pendingLocal } : { ...rawAcc };
+      if (isClinicianBannedLocally(acc.id, acc.email, acc.username)) {
+        acc.approvalStatus = 'banned';
+      }
+      cleaned.push(acc);
+    }
+    return cleaned;
+  }
+
+  function enforceActiveSessionValidity(): boolean {
+    const active = appState.activeClinician;
+    if (!active) return false;
+
+    if (isClinicianDeletedLocally(active.id, active.email, active.username)) {
+      appState.activeClinician = null;
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      localStorage.removeItem(getWorkspaceStorageKey(active.id));
+      localStorage.removeItem(getWorkspaceTimestampKey(active.id));
+      updateHeaderDoctorName();
+      if (!isHiddenAdminPortalRoute()) {
+        renderAuthScreen();
+      }
+      return false;
+    }
+
+    const inRegistry = appState.clinicianAccounts.find((a: ClinicianAccount) => a.id === active.id);
+    if (!inRegistry) {
+      appState.activeClinician = null;
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      updateHeaderDoctorName();
+      if (!isHiddenAdminPortalRoute()) {
+        renderAuthScreen();
+      }
+      return false;
+    }
+
+    if (isClinicianBannedLocally(inRegistry.id, inRegistry.email, inRegistry.username) || inRegistry.approvalStatus === 'banned') {
+      inRegistry.approvalStatus = 'banned';
+      appState.activeClinician = null;
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      updateHeaderDoctorName();
+      if (!isHiddenAdminPortalRoute()) {
+        renderAuthScreen();
+      }
+      return false;
+    }
+
+    appState.activeClinician = inRegistry;
+    return canClinicianAccessApp(inRegistry);
   }
 
   function loadClinicianAccounts(): void {
@@ -238,9 +311,7 @@ export function initMedFlowEngine(): void {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-          appState.clinicianAccounts = parsed.filter(
-            (acc: ClinicianAccount) => acc && !LEGACY_DUMMY_ACCOUNT_IDS.has(acc.id)
-          );
+          appState.clinicianAccounts = sanitizeAndFilterClinicianAccounts(parsed);
         } else {
           appState.clinicianAccounts = [];
         }
@@ -250,24 +321,47 @@ export function initMedFlowEngine(): void {
     } catch {
       appState.clinicianAccounts = [];
     }
+    saveClinicianAccounts();
 
-    // Background sync with Firestore to pull any real registered accounts (filtering out legacy dummy accounts)
+    // Background sync with Firestore to pull any real registered accounts (respecting local offline bans & deletions)
     fetchAllCliniciansFromFirestore().then((remoteAccounts) => {
       if (remoteAccounts && remoteAccounts.length > 0) {
+        const pendingSyncMap = getPendingClinicianSyncMap();
         const mergedMap = new Map<string, ClinicianAccount>();
         appState.clinicianAccounts.forEach((acc: ClinicianAccount) => {
-          if (!LEGACY_DUMMY_ACCOUNT_IDS.has(acc.id)) mergedMap.set(acc.id, acc);
-        });
-        remoteAccounts.forEach((rem: ClinicianAccount) => {
-          if (rem && !LEGACY_DUMMY_ACCOUNT_IDS.has(rem.id)) {
-            mergedMap.set(rem.id, rem);
+          if (acc && !LEGACY_DUMMY_ACCOUNT_IDS.has(acc.id) && !isClinicianDeletedLocally(acc.id, acc.email, acc.username)) {
+            mergedMap.set(acc.id, acc);
           }
         });
-        appState.clinicianAccounts = Array.from(mergedMap.values());
-        localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(appState.clinicianAccounts));
+        remoteAccounts.forEach((rem: ClinicianAccount) => {
+          if (rem && !LEGACY_DUMMY_ACCOUNT_IDS.has(rem.id) && !isClinicianDeletedLocally(rem.id, rem.email, rem.username)) {
+            const localPending = pendingSyncMap[rem.id];
+            const finalAcc: ClinicianAccount = localPending ? { ...rem, ...localPending } : { ...rem };
+            if (isClinicianBannedLocally(finalAcc.id, finalAcc.email, finalAcc.username)) {
+              finalAcc.approvalStatus = 'banned';
+            }
+            mergedMap.set(finalAcc.id, finalAcc);
+          }
+        });
+        appState.clinicianAccounts = sanitizeAndFilterClinicianAccounts(Array.from(mergedMap.values()));
+        saveClinicianAccounts();
         if (appState.activeClinician) {
           const updatedSelf = mergedMap.get(appState.activeClinician.id);
-          if (updatedSelf) {
+          if (!updatedSelf || isClinicianDeletedLocally(appState.activeClinician.id, appState.activeClinician.email, appState.activeClinician.username)) {
+            appState.activeClinician = null;
+            localStorage.removeItem(SESSION_STORAGE_KEY);
+            updateHeaderDoctorName();
+            if (!isHiddenAdminPortalRoute()) {
+              renderAuthScreen();
+            }
+          } else if (updatedSelf.approvalStatus === 'banned' || isClinicianBannedLocally(updatedSelf.id, updatedSelf.email, updatedSelf.username)) {
+            appState.activeClinician = null;
+            localStorage.removeItem(SESSION_STORAGE_KEY);
+            updateHeaderDoctorName();
+            if (!isHiddenAdminPortalRoute()) {
+              renderAuthScreen();
+            }
+          } else {
             appState.activeClinician = updatedSelf;
             syncDoctorFromClinician(updatedSelf);
             updateHeaderDoctorName();
@@ -285,6 +379,7 @@ export function initMedFlowEngine(): void {
 
   function saveClinicianAccounts(): void {
     try {
+      appState.clinicianAccounts = sanitizeAndFilterClinicianAccounts(appState.clinicianAccounts || []);
       localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(appState.clinicianAccounts));
     } catch (e) {
       console.error('Error saving clinician accounts:', e);
@@ -394,6 +489,7 @@ export function initMedFlowEngine(): void {
         if (appState.currentView === 'records') {
           renderPatientRecords();
         }
+        updateSidebarGlobalSearchUI();
       } else if (hasLocalData && (!remoteTs || (localTs && localTs > remoteTs))) {
         syncWorkspaceToFirestore(
           clinicianId,
@@ -402,11 +498,14 @@ export function initMedFlowEngine(): void {
           appState.optplusRecords || []
         );
       }
+      updateSidebarGlobalSearchUI();
     });
+    updateSidebarGlobalSearchUI();
   }
 
   function saveState(): void {
     if (!appState.activeClinician) return;
+    if (!enforceActiveSessionValidity()) return;
     const cid = appState.activeClinician.id;
     try {
       const nowIso = new Date().toISOString();
@@ -418,6 +517,7 @@ export function initMedFlowEngine(): void {
         appState.bakunxtPatients || [],
         appState.optplusRecords || []
       );
+      updateSidebarGlobalSearchUI();
     } catch (e) {
       console.error('Error saving isolated clinician state:', e);
     }
@@ -508,7 +608,346 @@ export function initMedFlowEngine(): void {
         btn.className = 'w-full justify-start whitespace-nowrap px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-3 shrink-0 text-slate-600 hover:text-teal-900 hover:bg-teal-50/80 cursor-pointer';
       }
     });
+    updateSidebarGlobalSearchUI();
   }
+
+  // ============================================================================
+  // GLOBAL PATIENT SEARCH BAR & QUICK SWITCHER IN SIDEBAR NAVIGATION
+  // ============================================================================
+  interface GlobalSearchPatientEntry {
+    id: string;
+    name: string;
+    category: 'regular' | 'antenatal' | 'immunization' | 'optplus';
+    badgeLabel: string;
+    badgeClass: string;
+    subtitle: string;
+    searchText: string;
+    isActive: boolean;
+  }
+
+  function getAllGlobalPatientSearchItems(): GlobalSearchPatientEntry[] {
+    const items: GlobalSearchPatientEntry[] = [];
+    const activeOpdAncId = appState.activePatientId;
+    const activeBakuId = appState.bakunxtCurrentPatient?.id || '';
+    const activeOptId = appState.optplusForm?.id || '';
+
+    for (const p of appState.patients || []) {
+      if (!p || !p.id) continue;
+      const isAnc = p.patientType === 'antenatal';
+      const sexInitial = (p.sex || 'U').charAt(0).toUpperCase();
+      const agePart = p.age !== undefined && p.age !== '' ? `${p.age}y` : '';
+      const ccPart = p.chiefComplaint || (isAnc ? 'Prenatal Visit' : 'Outpatient Consult');
+      items.push({
+        id: p.id,
+        name: p.name || 'Unnamed Patient',
+        category: isAnc ? 'antenatal' : 'regular',
+        badgeLabel: isAnc ? 'ANC' : 'OPD',
+        badgeClass: isAnc
+          ? 'bg-teal-100 text-teal-900 border-teal-300'
+          : 'bg-slate-100 text-slate-800 border-slate-300',
+        subtitle: `${p.id} • ${agePart ? `${agePart}/${sexInitial}` : sexInitial} • ${ccPart}`,
+        searchText: `${p.name || ''} ${p.id || ''} ${p.chiefComplaint || ''} ${p.address || ''} ${p.contact || ''} ${p.philhealth || ''} ${isAnc ? 'anc antenatal prenatal maternal' : 'opd general outpatient'}`.toLowerCase(),
+        isActive: activeOpdAncId === p.id
+      });
+    }
+
+    for (const b of appState.bakunxtPatients || []) {
+      if (!b || !b.id) continue;
+      items.push({
+        id: b.id,
+        name: b.childName || 'Unnamed Child',
+        category: 'immunization',
+        badgeLabel: 'EPI',
+        badgeClass: 'bg-teal-50 text-teal-800 border-teal-200',
+        subtitle: `${b.fsn || b.id} • ${b.sex || 'Child'} • Mother: ${b.motherName || '—'}`,
+        searchText: `${b.childName || ''} ${b.id || ''} ${b.fsn || ''} ${b.motherName || ''} ${b.fatherName || ''} ${b.address || ''} epi bakunxt immunization vaccine`.toLowerCase(),
+        isActive: activeBakuId === b.id
+      });
+    }
+
+    for (const o of appState.optplusRecords || []) {
+      if (!o || !o.id) continue;
+      items.push({
+        id: o.id,
+        name: o.childName || 'Unnamed Child',
+        category: 'optplus',
+        badgeLabel: 'OPT+',
+        badgeClass: 'bg-teal-50 text-teal-900 border-teal-200',
+        subtitle: `${o.id} • ${o.ageMonths ?? 0}m • Brgy. ${o.barangay || '—'}`,
+        searchText: `${o.childName || ''} ${o.id || ''} ${o.motherName || ''} ${o.barangay || ''} ${o.purok || ''} optplus nutrition growth`.toLowerCase(),
+        isActive: activeOptId === o.id
+      });
+    }
+
+    return items;
+  }
+
+  function updateSidebarGlobalSearchUI(): void {
+    const badgeEl = document.getElementById('sidebar-total-patients-badge');
+    const clearBtn = document.getElementById('sidebar-global-search-clear');
+    const chipEl = document.getElementById('sidebar-active-patient-chip');
+    const resultsEl = document.getElementById('sidebar-global-search-results');
+    const searchInput = document.getElementById('sidebar-global-patient-search') as HTMLInputElement | null;
+
+    const allItems = getAllGlobalPatientSearchItems();
+    if (badgeEl) {
+      badgeEl.textContent = `${allItems.length} ${allItems.length === 1 ? 'Record' : 'Records'}`;
+    }
+
+    const query = (appState.globalPatientSearchQuery || '').trim();
+    if (searchInput && document.activeElement !== searchInput && searchInput.value !== query) {
+      searchInput.value = query;
+    }
+
+    if (clearBtn) {
+      if (query.length > 0 || appState.globalPatientSearchOpen) {
+        clearBtn.classList.remove('hidden');
+        clearBtn.classList.add('flex');
+      } else {
+        clearBtn.classList.add('hidden');
+        clearBtn.classList.remove('flex');
+      }
+    }
+
+    // Update Active Patient Context Chip
+    if (chipEl) {
+      let activeEntry: GlobalSearchPatientEntry | null = null;
+      if (appState.currentView === 'bakunxt' && appState.bakunxtCurrentPatient?.childName) {
+        activeEntry = allItems.find((i) => i.category === 'immunization' && i.id === appState.bakunxtCurrentPatient.id) || null;
+      } else if (appState.currentView === 'optplus' && appState.optplusForm?.childName) {
+        activeEntry = allItems.find((i) => i.category === 'optplus' && i.id === appState.optplusForm.id) || null;
+      } else if (appState.currentView === 'anc') {
+        const ancP = getActiveAncPatient();
+        if (ancP) activeEntry = allItems.find((i) => i.id === ancP.id) || null;
+      } else {
+        const curP = getActivePatient();
+        if (curP) activeEntry = allItems.find((i) => i.id === curP.id) || null;
+      }
+
+      if (activeEntry) {
+        chipEl.innerHTML = `
+          <div class="flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-xl bg-teal-50/80 border border-teal-200/80 text-[11px]">
+            <button
+              type="button"
+              onclick="selectPatientFromGlobalSearch('${escapeHTML(activeEntry.id)}', '${activeEntry.category}', 'workspace')"
+              class="flex items-center gap-1.5 min-w-0 text-left flex-1 cursor-pointer group"
+              title="Active Patient: ${escapeHTML(activeEntry.name)} — Click to open clinical workspace"
+            >
+              <span class="w-1.5 h-1.5 rounded-full bg-teal-600 shrink-0"></span>
+              <span class="px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase border ${activeEntry.badgeClass} shrink-0">${escapeHTML(activeEntry.badgeLabel)}</span>
+              <span class="font-bold text-slate-900 group-hover:text-teal-800 truncate">${escapeHTML(activeEntry.name)}</span>
+            </button>
+            <button
+              type="button"
+              onclick="selectPatientFromGlobalSearch('${escapeHTML(activeEntry.id)}', '${activeEntry.category}', 'folder')"
+              class="px-1.5 py-0.5 rounded-md bg-white hover:bg-teal-700 text-teal-800 hover:text-white border border-teal-200 text-[9.5px] font-bold transition shrink-0 cursor-pointer"
+              title="Open Patient Folder in Records"
+            >
+              Folder
+            </button>
+          </div>
+        `;
+      } else {
+        chipEl.innerHTML = `
+          <div class="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200/70 text-[10.5px] text-slate-400 font-medium">
+            No active patient selected
+          </div>
+        `;
+      }
+    }
+
+    if (!resultsEl) return;
+
+    if (!appState.globalPatientSearchOpen && query.length === 0) {
+      resultsEl.classList.add('hidden');
+      resultsEl.innerHTML = '';
+      return;
+    }
+
+    const qLower = query.toLowerCase();
+    const matched = qLower
+      ? allItems.filter((item) => item.searchText.includes(qLower))
+      : allItems.slice(0, 15);
+
+    resultsEl.classList.remove('hidden');
+
+    if (matched.length === 0) {
+      resultsEl.innerHTML = `
+        <div class="p-3 text-center text-xs text-slate-500 space-y-1.5">
+          <p class="font-semibold text-slate-700">No matching patient found</p>
+          <p class="text-[10.5px] text-slate-400">Try searching by patient name, ID, chief complaint, or barangay.</p>
+          <button
+            type="button"
+            onclick="clearGlobalPatientSearch(); switchView('registration')"
+            class="mt-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-700 hover:bg-teal-800 text-white text-[10.5px] font-bold transition cursor-pointer"
+          >
+            + Register New Patient
+          </button>
+        </div>
+      `;
+      return;
+    }
+
+    resultsEl.innerHTML = matched
+      .map(
+        (item) => `
+        <div class="p-2 hover:bg-teal-50/70 transition flex items-center justify-between gap-1.5 ${
+          item.isActive ? 'bg-teal-50/50' : 'bg-white'
+        }">
+          <button
+            type="button"
+            onclick="selectPatientFromGlobalSearch('${escapeHTML(item.id)}', '${item.category}', 'workspace')"
+            class="flex-1 min-w-0 text-left cursor-pointer"
+            title="Switch to ${escapeHTML(item.name)}"
+          >
+            <div class="flex items-center gap-1.5">
+              <span class="px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase border ${item.badgeClass} shrink-0">
+                ${escapeHTML(item.badgeLabel)}
+              </span>
+              <span class="text-xs font-extrabold text-slate-900 truncate">${escapeHTML(item.name)}</span>
+            </div>
+            <div class="text-[10px] text-slate-500 truncate mt-0.5">${escapeHTML(item.subtitle)}</div>
+          </button>
+          <button
+            type="button"
+            onclick="event.stopPropagation(); selectPatientFromGlobalSearch('${escapeHTML(item.id)}', '${item.category}', 'folder')"
+            class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-teal-700 text-slate-700 hover:text-white text-[9.5px] font-bold transition shrink-0 cursor-pointer"
+            title="View Patient Files in Patient Records"
+          >
+            Folder
+          </button>
+        </div>
+      `
+      )
+      .join('');
+  }
+
+  window.handleGlobalPatientSearchInput = (val: string) => {
+    appState.globalPatientSearchQuery = val || '';
+    appState.globalPatientSearchOpen = true;
+    updateSidebarGlobalSearchUI();
+  };
+
+  window.handleGlobalPatientSearchFocus = () => {
+    appState.globalPatientSearchOpen = true;
+    updateSidebarGlobalSearchUI();
+  };
+
+  window.clearGlobalPatientSearch = () => {
+    appState.globalPatientSearchQuery = '';
+    appState.globalPatientSearchOpen = false;
+    const searchInput = document.getElementById('sidebar-global-patient-search') as HTMLInputElement | null;
+    if (searchInput) searchInput.value = '';
+    updateSidebarGlobalSearchUI();
+  };
+
+  window.handleGlobalPatientSearchKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      window.clearGlobalPatientSearch();
+      (e.target as HTMLInputElement)?.blur();
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const qLower = (appState.globalPatientSearchQuery || '').trim().toLowerCase();
+      const allItems = getAllGlobalPatientSearchItems();
+      const matched = qLower ? allItems.filter((item) => item.searchText.includes(qLower)) : allItems;
+      if (matched.length > 0) {
+        window.selectPatientFromGlobalSearch(matched[0].id, matched[0].category, 'workspace');
+      }
+    }
+  };
+
+  window.selectPatientFromGlobalSearch = (
+    recordId: string,
+    category: 'regular' | 'antenatal' | 'immunization' | 'optplus',
+    action: 'workspace' | 'folder' = 'workspace'
+  ) => {
+    if (!recordId) return;
+    appState.globalPatientSearchOpen = false;
+    appState.globalPatientSearchQuery = '';
+    const searchInput = document.getElementById('sidebar-global-patient-search') as HTMLInputElement | null;
+    if (searchInput) searchInput.value = '';
+
+    if (action === 'folder') {
+      if (category === 'regular' || category === 'antenatal') {
+        appState.activePatientId = recordId;
+      }
+      appState.recordsActiveTab = category;
+      const found = findAnyRegistryRecord(recordId);
+      appState.registryOpenFolderPatientId = recordId;
+      appState.registryOpenVisitFolderKey = `${recordId}__${found.defaultDate}`;
+      switchView('records');
+      showToast(`Opened patient folder in Patient Records.`);
+      return;
+    }
+
+    if (category === 'immunization') {
+      const b = (appState.bakunxtPatients || []).find((x: any) => x.id === recordId);
+      if (b) {
+        appState.bakunxtCurrentPatient = JSON.parse(JSON.stringify(b));
+        appState.bakunxtActiveTab = 'intake';
+        switchView('bakunxt');
+        showToast(`Switched to ${b.childName} in BakuNxt Immunization.`);
+      }
+      return;
+    }
+
+    if (category === 'optplus') {
+      const o = (appState.optplusRecords || []).find((x: any) => x.id === recordId);
+      if (o) {
+        window.optplusEditRecord(o.id);
+        switchView('optplus');
+        showToast(`Switched to ${o.childName} in OPTPlus Nutrition.`);
+      }
+      return;
+    }
+
+    // OPD or Antenatal Patient
+    const p = (appState.patients || []).find((x: any) => x.id === recordId);
+    if (!p) return;
+    appState.activePatientId = p.id;
+    saveState();
+
+    const curView = appState.currentView;
+    if (category === 'antenatal') {
+      if (['anc', 'soap', 'rx', 'diagnostics'].includes(curView)) {
+        switchView(curView);
+      } else if (curView === 'records') {
+        appState.recordsActiveTab = 'antenatal';
+        const found = findAnyRegistryRecord(p.id);
+        appState.registryOpenFolderPatientId = p.id;
+        appState.registryOpenVisitFolderKey = `${p.id}__${found.defaultDate}`;
+        switchView('records');
+      } else {
+        switchView('anc');
+      }
+      showToast(`Switched active patient to ${p.name} (Antenatal Care).`);
+    } else {
+      if (['soap', 'rx', 'diagnostics'].includes(curView)) {
+        switchView(curView);
+      } else if (curView === 'records') {
+        appState.recordsActiveTab = 'regular';
+        const found = findAnyRegistryRecord(p.id);
+        appState.registryOpenFolderPatientId = p.id;
+        appState.registryOpenVisitFolderKey = `${p.id}__${found.defaultDate}`;
+        switchView('records');
+      } else {
+        switchView('soap');
+      }
+      showToast(`Switched active patient to ${p.name}.`);
+    }
+  };
+
+  document.addEventListener('click', (e: MouseEvent) => {
+    const wrapper = document.getElementById('sidebar-global-search-wrapper');
+    if (wrapper && !wrapper.contains(e.target as Node)) {
+      if (appState.globalPatientSearchOpen) {
+        appState.globalPatientSearchOpen = false;
+        updateSidebarGlobalSearchUI();
+      }
+    }
+  });
 
   // ============================================================================
   // HIDDEN ADMINISTRATOR PORTAL (DIRECT LINK ONLY: ?portal=admin OR #admin)
@@ -658,8 +1097,12 @@ export function initMedFlowEngine(): void {
     }
 
     const monthsCount = calculateMonthsBetweenDates(startDate, endDate);
+    const currentAcc = appState.clinicianAccounts[idx];
+    unmarkClinicianBannedLocally(currentAcc.id, currentAcc.email, currentAcc.username);
+    unmarkClinicianDeletedLocally(currentAcc.id, currentAcc.email, currentAcc.username);
+
     const updated: ClinicianAccount = {
-      ...appState.clinicianAccounts[idx],
+      ...currentAcc,
       approvalStatus: 'approved',
       subscriptionStartDate: startDate,
       subscriptionEndDate: endDate,
@@ -680,47 +1123,62 @@ export function initMedFlowEngine(): void {
   window.adminBanClinicianAccount = (clinicianId: string) => {
     const idx = appState.clinicianAccounts.findIndex((a: ClinicianAccount) => a.id === clinicianId);
     if (idx < 0) return;
+    const targetAcc = appState.clinicianAccounts[idx];
+    markClinicianBannedLocally(targetAcc.id, targetAcc.email, targetAcc.username);
+
     const updated: ClinicianAccount = {
-      ...appState.clinicianAccounts[idx],
+      ...targetAcc,
       approvalStatus: 'banned'
     };
     appState.clinicianAccounts[idx] = updated;
-    if (appState.activeClinician?.id === clinicianId) {
-      appState.activeClinician = updated;
+    if (appState.activeClinician?.id === clinicianId || localStorage.getItem(SESSION_STORAGE_KEY) === clinicianId) {
+      appState.activeClinician = null;
+      localStorage.removeItem(SESSION_STORAGE_KEY);
     }
     saveClinicianAccounts();
     syncClinicianToFirestore(updated);
     renderHiddenAdminPortal();
-    showToast(`Banned & suspended account: ${updated.name}`, 'warning');
+    showToast(`Banned & suspended account: ${updated.name}. Offline and online sign-in blocked.`, 'warning');
   };
 
   window.adminDeleteClinicianAccount = (clinicianId: string) => {
     const target = appState.clinicianAccounts.find((a: ClinicianAccount) => a.id === clinicianId);
+    markClinicianDeletedLocally(clinicianId, target?.email, target?.username);
     appState.clinicianAccounts = appState.clinicianAccounts.filter((a: ClinicianAccount) => a.id !== clinicianId);
-    if (appState.activeClinician?.id === clinicianId) {
+    if (appState.activeClinician?.id === clinicianId || localStorage.getItem(SESSION_STORAGE_KEY) === clinicianId) {
       appState.activeClinician = null;
       localStorage.removeItem(SESSION_STORAGE_KEY);
     }
     localStorage.removeItem(getWorkspaceStorageKey(clinicianId));
     localStorage.removeItem(getWorkspaceTimestampKey(clinicianId));
     saveClinicianAccounts();
-    deleteClinicianFromFirestore(clinicianId);
+    void deleteClinicianFromFirestore(clinicianId, target?.email, target?.username);
     renderHiddenAdminPortal();
-    showToast(`Deleted account ${target?.name || clinicianId}`);
+    showToast(`Permanently deleted account ${target?.name || clinicianId}. Offline and online login revoked.`);
   };
 
   window.refreshAdminPortalAccounts = async () => {
     showToast('Syncing clinician accounts from Firestore...');
     const remoteAccounts = await fetchAllCliniciansFromFirestore();
     if (remoteAccounts && remoteAccounts.length > 0) {
+      const pendingSyncMap = getPendingClinicianSyncMap();
       const mergedMap = new Map<string, ClinicianAccount>();
       appState.clinicianAccounts.forEach((acc: ClinicianAccount) => {
-        if (!LEGACY_DUMMY_ACCOUNT_IDS.has(acc.id)) mergedMap.set(acc.id, acc);
+        if (acc && !LEGACY_DUMMY_ACCOUNT_IDS.has(acc.id) && !isClinicianDeletedLocally(acc.id, acc.email, acc.username)) {
+          mergedMap.set(acc.id, acc);
+        }
       });
       remoteAccounts.forEach((rem: ClinicianAccount) => {
-        if (rem && !LEGACY_DUMMY_ACCOUNT_IDS.has(rem.id)) mergedMap.set(rem.id, rem);
+        if (rem && !LEGACY_DUMMY_ACCOUNT_IDS.has(rem.id) && !isClinicianDeletedLocally(rem.id, rem.email, rem.username)) {
+          const localPending = pendingSyncMap[rem.id];
+          const finalAcc: ClinicianAccount = localPending ? { ...rem, ...localPending } : { ...rem };
+          if (isClinicianBannedLocally(finalAcc.id, finalAcc.email, finalAcc.username)) {
+            finalAcc.approvalStatus = 'banned';
+          }
+          mergedMap.set(finalAcc.id, finalAcc);
+        }
       });
-      appState.clinicianAccounts = Array.from(mergedMap.values());
+      appState.clinicianAccounts = sanitizeAndFilterClinicianAccounts(Array.from(mergedMap.values()));
       saveClinicianAccounts();
     }
     renderHiddenAdminPortal();
@@ -1316,17 +1774,54 @@ service cloud.firestore {
     const identifier = ((document.getElementById('signin-identifier') as HTMLInputElement)?.value || '').trim().toLowerCase();
     const password = ((document.getElementById('signin-password') as HTMLInputElement)?.value || '').trim();
 
+    // Always re-read latest local accounts & revocation ledgers so offline bans/deletions take effect immediately
+    try {
+      const raw = localStorage.getItem(ACCOUNTS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          appState.clinicianAccounts = sanitizeAndFilterClinicianAccounts(parsed);
+        }
+      }
+    } catch {
+      // Ignore parse errors
+    }
+
+    if (isClinicianDeletedLocally(undefined, identifier, identifier)) {
+      appState.activeClinician = null;
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      showToast('This account has been deleted by the Administrator and can no longer sign in.', 'warning');
+      return;
+    }
+
+    if (isClinicianBannedLocally(undefined, identifier, identifier)) {
+      appState.activeClinician = null;
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      showToast('This account has been banned or suspended by the Administrator.', 'warning');
+      return;
+    }
+
     if (navigator.onLine) {
       const remoteList = await fetchAllCliniciansFromFirestore();
       if (remoteList && remoteList.length > 0) {
+        const pendingSyncMap = getPendingClinicianSyncMap();
         const mergedMap = new Map<string, ClinicianAccount>();
         appState.clinicianAccounts.forEach((acc: ClinicianAccount) => {
-          if (!LEGACY_DUMMY_ACCOUNT_IDS.has(acc.id)) mergedMap.set(acc.id, acc);
+          if (acc && !LEGACY_DUMMY_ACCOUNT_IDS.has(acc.id) && !isClinicianDeletedLocally(acc.id, acc.email, acc.username)) {
+            mergedMap.set(acc.id, acc);
+          }
         });
         remoteList.forEach((rem: ClinicianAccount) => {
-          if (rem && !LEGACY_DUMMY_ACCOUNT_IDS.has(rem.id)) mergedMap.set(rem.id, rem);
+          if (rem && !LEGACY_DUMMY_ACCOUNT_IDS.has(rem.id) && !isClinicianDeletedLocally(rem.id, rem.email, rem.username)) {
+            const localPending = pendingSyncMap[rem.id];
+            const finalAcc: ClinicianAccount = localPending ? { ...rem, ...localPending } : { ...rem };
+            if (isClinicianBannedLocally(finalAcc.id, finalAcc.email, finalAcc.username)) {
+              finalAcc.approvalStatus = 'banned';
+            }
+            mergedMap.set(finalAcc.id, finalAcc);
+          }
         });
-        appState.clinicianAccounts = Array.from(mergedMap.values());
+        appState.clinicianAccounts = sanitizeAndFilterClinicianAccounts(Array.from(mergedMap.values()));
         saveClinicianAccounts();
       }
     }
@@ -1337,17 +1832,23 @@ service cloud.firestore {
         a.passwordHash === password
     );
 
-    if (!found) {
-      showToast('Invalid Email/Username or Password. Please check your credentials.', 'warning');
+    if (!found || isClinicianDeletedLocally(found.id, found.email, found.username)) {
+      appState.activeClinician = null;
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      showToast('Invalid Email/Username or Password, or account has been removed.', 'warning');
       return;
     }
 
-    if (found.approvalStatus === 'banned') {
+    if (found.approvalStatus === 'banned' || isClinicianBannedLocally(found.id, found.email, found.username)) {
+      appState.activeClinician = null;
+      localStorage.removeItem(SESSION_STORAGE_KEY);
       showToast('This account has been banned or suspended by the Administrator.', 'warning');
       return;
     }
 
     if (found.approvalStatus === 'rejected') {
+      appState.activeClinician = null;
+      localStorage.removeItem(SESSION_STORAGE_KEY);
       showToast('Your account enrollment was declined by the Administrator.', 'warning');
       return;
     }
@@ -1408,6 +1909,11 @@ service cloud.firestore {
       return;
     }
 
+    if (isClinicianBannedLocally(undefined, email, username)) {
+      showToast('This email or username has been banned by the Administrator.', 'warning');
+      return;
+    }
+
     if (subEndDate < subStartDate) {
       showToast('Subscription End Date cannot be earlier than Starting Date.', 'warning');
       return;
@@ -1420,6 +1926,8 @@ service cloud.firestore {
       showToast('Username or Email Address is already registered. Please sign in.', 'warning');
       return;
     }
+
+    unmarkClinicianDeletedLocally(undefined, email, username);
 
     const newAccount: ClinicianAccount = {
       id: `clinician-${Date.now()}`,
@@ -1487,6 +1995,37 @@ service cloud.firestore {
       if (localMatch) appState.activeClinician = localMatch;
     }
 
+    if (
+      appState.activeClinician &&
+      isClinicianDeletedLocally(
+        appState.activeClinician.id,
+        appState.activeClinician.email,
+        appState.activeClinician.username
+      )
+    ) {
+      appState.activeClinician = null;
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      renderAuthScreen();
+      showToast('This account was deleted by the Administrator.', 'warning');
+      return;
+    }
+
+    if (
+      appState.activeClinician &&
+      (appState.activeClinician.approvalStatus === 'banned' ||
+        isClinicianBannedLocally(
+          appState.activeClinician.id,
+          appState.activeClinician.email,
+          appState.activeClinician.username
+        ))
+    ) {
+      appState.activeClinician = null;
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      renderAuthScreen();
+      showToast('Account is suspended/banned by Administrator.', 'warning');
+      return;
+    }
+
     if (canClinicianAccessApp(appState.activeClinician)) {
       const bottomNav = document.getElementById('bottom-nav');
       if (bottomNav) bottomNav.style.display = '';
@@ -1496,9 +2035,7 @@ service cloud.firestore {
     }
 
     renderAuthScreen();
-    if (appState.activeClinician?.approvalStatus === 'banned') {
-      showToast('Account is suspended/banned by Administrator.', 'warning');
-    } else if (
+    if (
       appState.activeClinician?.approvalStatus === 'approved' &&
       isClinicianSubscriptionExpired(appState.activeClinician)
     ) {
@@ -2226,7 +2763,7 @@ service cloud.firestore {
       renderHiddenAdminPortal();
       return;
     }
-    if (!canClinicianAccessApp(appState.activeClinician)) {
+    if (!enforceActiveSessionValidity() || !canClinicianAccessApp(appState.activeClinician)) {
       renderAuthScreen();
       return;
     }
@@ -5537,18 +6074,58 @@ service cloud.firestore {
   loadClinicianAccounts();
   const savedSessionId = localStorage.getItem(SESSION_STORAGE_KEY);
   if (savedSessionId) {
-    const found = appState.clinicianAccounts.find((a: ClinicianAccount) => a.id === savedSessionId);
-    if (found) {
-      appState.activeClinician = found;
-      syncDoctorFromClinician(found);
-      loadClinicianWorkspace(found.id);
+    if (isClinicianDeletedLocally(savedSessionId) || isClinicianBannedLocally(savedSessionId)) {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      appState.activeClinician = null;
+    } else {
+      const found = appState.clinicianAccounts.find((a: ClinicianAccount) => a.id === savedSessionId);
+      if (
+        found &&
+        !isClinicianDeletedLocally(found.id, found.email, found.username) &&
+        !isClinicianBannedLocally(found.id, found.email, found.username) &&
+        found.approvalStatus !== 'banned'
+      ) {
+        appState.activeClinician = found;
+        syncDoctorFromClinician(found);
+        loadClinicianWorkspace(found.id);
+      } else {
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+        appState.activeClinician = null;
+      }
     }
   }
+
+  // Listen for cross-tab storage changes (e.g., Admin bans or deletes an account while user is open in another tab offline)
+  window.addEventListener('storage', (ev: StorageEvent) => {
+    if (
+      ev.key === ACCOUNTS_STORAGE_KEY ||
+      ev.key === SESSION_STORAGE_KEY ||
+      ev.key === 'medflow_ph_deleted_clinicians_tombstones_v1' ||
+      ev.key === 'medflow_ph_banned_clinicians_ledger_v1'
+    ) {
+      try {
+        const raw = localStorage.getItem(ACCOUNTS_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            appState.clinicianAccounts = sanitizeAndFilterClinicianAccounts(parsed);
+          }
+        }
+      } catch {
+        // Ignore parse errors
+      }
+      if (!isHiddenAdminPortalRoute()) {
+        if (!enforceActiveSessionValidity()) {
+          renderAuthScreen();
+        }
+      }
+    }
+  });
 
   window.addEventListener('hashchange', () => {
     if (isHiddenAdminPortalRoute()) {
       renderHiddenAdminPortal();
-    } else if (canClinicianAccessApp(appState.activeClinician)) {
+    } else if (enforceActiveSessionValidity() && canClinicianAccessApp(appState.activeClinician)) {
       switchView(appState.currentView || 'home');
     } else {
       renderAuthScreen();
@@ -5558,7 +6135,7 @@ service cloud.firestore {
   window.addEventListener('popstate', () => {
     if (isHiddenAdminPortalRoute()) {
       renderHiddenAdminPortal();
-    } else if (canClinicianAccessApp(appState.activeClinician)) {
+    } else if (enforceActiveSessionValidity() && canClinicianAccessApp(appState.activeClinician)) {
       switchView(appState.currentView || 'home');
     } else {
       renderAuthScreen();
@@ -5568,7 +6145,7 @@ service cloud.firestore {
   updateHeaderDoctorName();
   if (isHiddenAdminPortalRoute()) {
     renderHiddenAdminPortal();
-  } else if (canClinicianAccessApp(appState.activeClinician)) {
+  } else if (enforceActiveSessionValidity() && canClinicianAccessApp(appState.activeClinician)) {
     switchView('home');
   } else {
     renderAuthScreen();

@@ -222,6 +222,150 @@ export interface RemoteWorkspaceSnapshot {
 
 const PENDING_CLINICIANS_SYNC_KEY = 'medflow_ph_pending_clinicians_sync';
 const PENDING_WORKSPACES_SYNC_KEY = 'medflow_ph_pending_workspaces_sync';
+const PENDING_CLINICIAN_DELETIONS_KEY = 'medflow_ph_pending_clinician_deletions';
+const DELETED_CLINICIANS_TOMBSTONES_KEY = 'medflow_ph_deleted_clinicians_tombstones_v1';
+const BANNED_CLINICIANS_LEDGER_KEY = 'medflow_ph_banned_clinicians_ledger_v1';
+
+interface RevokedLedgerMap {
+  ids: Record<string, string>;
+  emails: Record<string, string>;
+  usernames: Record<string, string>;
+}
+
+function readRevokedLedger(storageKey: string): RevokedLedgerMap {
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        ids: parsed?.ids && typeof parsed.ids === 'object' ? parsed.ids : {},
+        emails: parsed?.emails && typeof parsed.emails === 'object' ? parsed.emails : {},
+        usernames: parsed?.usernames && typeof parsed.usernames === 'object' ? parsed.usernames : {}
+      };
+    }
+  } catch {
+    // Ignore storage errors
+  }
+  return { ids: {}, emails: {}, usernames: {} };
+}
+
+function writeRevokedLedger(storageKey: string, ledger: RevokedLedgerMap): void {
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(ledger));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+export function markClinicianDeletedLocally(clinicianId: string, email?: string, username?: string): void {
+  if (!clinicianId) return;
+  const nowIso = new Date().toISOString();
+  const ledger = readRevokedLedger(DELETED_CLINICIANS_TOMBSTONES_KEY);
+  ledger.ids[clinicianId] = nowIso;
+  if (email && email.trim()) ledger.emails[email.trim().toLowerCase()] = nowIso;
+  if (username && username.trim()) ledger.usernames[username.trim().toLowerCase()] = nowIso;
+  writeRevokedLedger(DELETED_CLINICIANS_TOMBSTONES_KEY, ledger);
+
+  // Also remove any pending clinician or workspace upsert so a deleted account is never resurrected
+  try {
+    const rawClinicians = localStorage.getItem(PENDING_CLINICIANS_SYNC_KEY);
+    if (rawClinicians) {
+      const map: Record<string, ClinicianAccount> = JSON.parse(rawClinicians);
+      if (map[clinicianId]) {
+        delete map[clinicianId];
+        localStorage.setItem(PENDING_CLINICIANS_SYNC_KEY, JSON.stringify(map));
+      }
+    }
+  } catch {
+    // Ignore
+  }
+  try {
+    const rawWorkspaces = localStorage.getItem(PENDING_WORKSPACES_SYNC_KEY);
+    if (rawWorkspaces) {
+      const map: Record<string, PendingWorkspaceSyncItem> = JSON.parse(rawWorkspaces);
+      if (map[clinicianId]) {
+        delete map[clinicianId];
+        localStorage.setItem(PENDING_WORKSPACES_SYNC_KEY, JSON.stringify(map));
+      }
+    }
+  } catch {
+    // Ignore
+  }
+
+  // Enqueue deletion for Firestore when online
+  try {
+    const rawDel = localStorage.getItem(PENDING_CLINICIAN_DELETIONS_KEY);
+    const delMap: Record<string, string> = rawDel ? JSON.parse(rawDel) : {};
+    delMap[clinicianId] = nowIso;
+    localStorage.setItem(PENDING_CLINICIAN_DELETIONS_KEY, JSON.stringify(delMap));
+  } catch {
+    // Ignore
+  }
+}
+
+export function unmarkClinicianDeletedLocally(clinicianId?: string, email?: string, username?: string): void {
+  const ledger = readRevokedLedger(DELETED_CLINICIANS_TOMBSTONES_KEY);
+  if (clinicianId) delete ledger.ids[clinicianId];
+  if (email && email.trim()) delete ledger.emails[email.trim().toLowerCase()];
+  if (username && username.trim()) delete ledger.usernames[username.trim().toLowerCase()];
+  writeRevokedLedger(DELETED_CLINICIANS_TOMBSTONES_KEY, ledger);
+}
+
+export function isClinicianDeletedLocally(clinicianId?: string, email?: string, username?: string): boolean {
+  const ledger = readRevokedLedger(DELETED_CLINICIANS_TOMBSTONES_KEY);
+  if (clinicianId && ledger.ids[clinicianId]) return true;
+  if (email && email.trim() && ledger.emails[email.trim().toLowerCase()]) return true;
+  if (username && username.trim() && ledger.usernames[username.trim().toLowerCase()]) return true;
+  try {
+    const rawDel = localStorage.getItem(PENDING_CLINICIAN_DELETIONS_KEY);
+    if (rawDel && clinicianId) {
+      const delMap: Record<string, string> = JSON.parse(rawDel);
+      if (delMap[clinicianId]) return true;
+    }
+  } catch {
+    // Ignore
+  }
+  return false;
+}
+
+export function markClinicianBannedLocally(clinicianId: string, email?: string, username?: string): void {
+  if (!clinicianId) return;
+  const nowIso = new Date().toISOString();
+  const ledger = readRevokedLedger(BANNED_CLINICIANS_LEDGER_KEY);
+  ledger.ids[clinicianId] = nowIso;
+  if (email && email.trim()) ledger.emails[email.trim().toLowerCase()] = nowIso;
+  if (username && username.trim()) ledger.usernames[username.trim().toLowerCase()] = nowIso;
+  writeRevokedLedger(BANNED_CLINICIANS_LEDGER_KEY, ledger);
+}
+
+export function unmarkClinicianBannedLocally(clinicianId?: string, email?: string, username?: string): void {
+  const ledger = readRevokedLedger(BANNED_CLINICIANS_LEDGER_KEY);
+  if (clinicianId) delete ledger.ids[clinicianId];
+  if (email && email.trim()) delete ledger.emails[email.trim().toLowerCase()];
+  if (username && username.trim()) delete ledger.usernames[username.trim().toLowerCase()];
+  writeRevokedLedger(BANNED_CLINICIANS_LEDGER_KEY, ledger);
+}
+
+export function isClinicianBannedLocally(clinicianId?: string, email?: string, username?: string): boolean {
+  const ledger = readRevokedLedger(BANNED_CLINICIANS_LEDGER_KEY);
+  if (clinicianId && ledger.ids[clinicianId]) return true;
+  if (email && email.trim() && ledger.emails[email.trim().toLowerCase()]) return true;
+  if (username && username.trim() && ledger.usernames[username.trim().toLowerCase()]) return true;
+  return false;
+}
+
+export function getPendingClinicianSyncMap(): Record<string, ClinicianAccount> {
+  try {
+    const raw = localStorage.getItem(PENDING_CLINICIANS_SYNC_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') return parsed;
+    }
+  } catch {
+    // Ignore
+  }
+  return {};
+}
 
 function isBrowserOnline(): boolean {
   return typeof navigator === 'undefined' ? true : navigator.onLine;
@@ -229,6 +373,11 @@ function isBrowserOnline(): boolean {
 
 function hasPendingSyncItems(): boolean {
   try {
+    const rawDeletions = localStorage.getItem(PENDING_CLINICIAN_DELETIONS_KEY);
+    if (rawDeletions) {
+      const map = JSON.parse(rawDeletions) as Record<string, unknown>;
+      if (Object.keys(map).length > 0) return true;
+    }
     const rawClinicians = localStorage.getItem(PENDING_CLINICIANS_SYNC_KEY);
     if (rawClinicians) {
       const map = JSON.parse(rawClinicians) as Record<string, unknown>;
@@ -246,6 +395,7 @@ function hasPendingSyncItems(): boolean {
 }
 
 function queuePendingClinicianSync(account: ClinicianAccount): void {
+  if (isClinicianDeletedLocally(account.id, account.email, account.username)) return;
   try {
     const raw = localStorage.getItem(PENDING_CLINICIANS_SYNC_KEY);
     const map: Record<string, ClinicianAccount> = raw ? JSON.parse(raw) : {};
@@ -274,6 +424,24 @@ function removeSyncedClinicianFromQueue(clinicianId: string, syncedCreatedAt: st
   }
 }
 
+function removeSyncedClinicianDeletionFromQueue(clinicianId: string): void {
+  try {
+    const raw = localStorage.getItem(PENDING_CLINICIAN_DELETIONS_KEY);
+    if (!raw) return;
+    const map: Record<string, string> = JSON.parse(raw);
+    if (map[clinicianId]) {
+      delete map[clinicianId];
+      if (Object.keys(map).length === 0) {
+        localStorage.removeItem(PENDING_CLINICIAN_DELETIONS_KEY);
+      } else {
+        localStorage.setItem(PENDING_CLINICIAN_DELETIONS_KEY, JSON.stringify(map));
+      }
+    }
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 function queuePendingWorkspaceSync(
   clinicianId: string,
   patients: unknown[],
@@ -291,6 +459,9 @@ function queuePendingWorkspaceSync(
   }
   if (Array.isArray(optplusRecords)) {
     item.optplusJson = JSON.stringify(optplusRecords);
+  }
+  if (isClinicianDeletedLocally(clinicianId)) {
+    return item;
   }
   try {
     const raw = localStorage.getItem(PENDING_WORKSPACES_SYNC_KEY);
@@ -345,6 +516,16 @@ async function restUpsertDoc(collectionName: string, docId: string, data: Record
   }
 }
 
+async function restDeleteDoc(collectionName: string, docId: string): Promise<void> {
+  const url = `${FIRESTORE_REST_BASE}/${collectionName}/${encodeURIComponent(docId)}?key=${encodeURIComponent(
+    firebaseConfig.apiKey
+  )}`;
+  const res = await fetchWithTimeout(url, { method: 'DELETE' }, 3500);
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`Firestore REST DELETE failed (${res.status})`);
+  }
+}
+
 let isFlushingSyncQueue = false;
 let pendingFlushRequested = false;
 let workspaceSyncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -378,6 +559,34 @@ export async function flushOfflineSyncQueue(): Promise<void> {
       if (!reachable) return;
     }
 
+    // 1. Flush any pending clinician deletions first so deleted accounts are purged from Firestore
+    try {
+      const rawDeletions = localStorage.getItem(PENDING_CLINICIAN_DELETIONS_KEY);
+      if (rawDeletions) {
+        const delMap: Record<string, string> = JSON.parse(rawDeletions);
+        const delIds = Object.keys(delMap);
+        for (const delId of delIds) {
+          if (!isBrowserOnline()) break;
+          try {
+            await restDeleteDoc('clinicians', delId);
+            await restDeleteDoc('workspaces', delId).catch(() => {});
+            removeSyncedClinicianDeletionFromQueue(delId);
+          } catch (err) {
+            if (firestoreSdkOnline) {
+              await withTimeout(deleteDoc(doc(db, 'clinicians', delId)), 3500);
+              await withTimeout(deleteDoc(doc(db, 'workspaces', delId)), 3500).catch(() => {});
+              removeSyncedClinicianDeletionFromQueue(delId);
+            } else {
+              throw err;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'clinicians');
+    }
+
+    // 2. Flush pending clinician account updates (including offline bans & approvals)
     try {
       const rawClinicians = localStorage.getItem(PENDING_CLINICIANS_SYNC_KEY);
       if (rawClinicians) {
@@ -385,6 +594,13 @@ export async function flushOfflineSyncQueue(): Promise<void> {
         const entries = Object.values(map);
         for (const acc of entries) {
           if (!isBrowserOnline()) break;
+          if (isClinicianDeletedLocally(acc.id, acc.email, acc.username)) {
+            removeSyncedClinicianFromQueue(acc.id, acc.createdAt);
+            continue;
+          }
+          if (isClinicianBannedLocally(acc.id, acc.email, acc.username)) {
+            acc.approvalStatus = 'banned';
+          }
           try {
             await restUpsertDoc('clinicians', acc.id, acc as unknown as Record<string, unknown>);
             removeSyncedClinicianFromQueue(acc.id, acc.createdAt);
@@ -402,6 +618,7 @@ export async function flushOfflineSyncQueue(): Promise<void> {
       handleFirestoreError(error, OperationType.WRITE, 'clinicians');
     }
 
+    // 3. Flush pending workspace updates
     try {
       const rawWorkspaces = localStorage.getItem(PENDING_WORKSPACES_SYNC_KEY);
       if (rawWorkspaces) {
@@ -409,6 +626,10 @@ export async function flushOfflineSyncQueue(): Promise<void> {
         const entries = Object.values(map);
         for (const item of entries) {
           if (!isBrowserOnline()) break;
+          if (isClinicianDeletedLocally(item.clinicianId)) {
+            removeSyncedWorkspaceFromQueue(item.clinicianId, item.updatedAt);
+            continue;
+          }
           const payload: Record<string, unknown> = {
             clinicianId: item.clinicianId,
             patientsJson: item.patientsJson,
@@ -486,6 +707,9 @@ export function startBackgroundSyncService(): void {
 startBackgroundSyncService();
 
 export async function syncClinicianToFirestore(account: ClinicianAccount): Promise<void> {
+  if (isClinicianDeletedLocally(account.id, account.email, account.username)) {
+    return;
+  }
   queuePendingClinicianSync(account);
   if (!isBrowserOnline()) {
     return;
@@ -509,18 +733,31 @@ export async function syncClinicianToFirestore(account: ClinicianAccount): Promi
   }
 }
 
-export async function deleteClinicianFromFirestore(clinicianId: string): Promise<void> {
+export async function deleteClinicianFromFirestore(
+  clinicianId: string,
+  email?: string,
+  username?: string
+): Promise<void> {
+  markClinicianDeletedLocally(clinicianId, email, username);
   if (!isBrowserOnline()) return;
   try {
-    const url = `${FIRESTORE_REST_BASE}/clinicians/${encodeURIComponent(clinicianId)}?key=${encodeURIComponent(
-      firebaseConfig.apiKey
-    )}`;
-    const res = await fetchWithTimeout(url, { method: 'DELETE' }, 3500);
-    if (!res.ok && firestoreSdkOnline) {
-      await withTimeout(deleteDoc(doc(db, 'clinicians', clinicianId)), 3500);
-    }
+    await restDeleteDoc('clinicians', clinicianId);
+    await restDeleteDoc('workspaces', clinicianId).catch(() => {});
+    removeSyncedClinicianDeletionFromQueue(clinicianId);
   } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, `clinicians/${clinicianId}`);
+    if (firestoreSdkOnline) {
+      try {
+        await withTimeout(deleteDoc(doc(db, 'clinicians', clinicianId)), 3500);
+        await withTimeout(deleteDoc(doc(db, 'workspaces', clinicianId)), 3500).catch(() => {});
+        removeSyncedClinicianDeletionFromQueue(clinicianId);
+        return;
+      } catch (sdkErr) {
+        handleFirestoreError(sdkErr, OperationType.DELETE, `clinicians/${clinicianId}`);
+      }
+    } else {
+      handleFirestoreError(error, OperationType.DELETE, `clinicians/${clinicianId}`);
+    }
+    scheduleBackgroundSyncFlush(1500);
   }
 }
 
@@ -530,6 +767,7 @@ export async function fetchAllCliniciansFromFirestore(): Promise<ClinicianAccoun
   }
   try {
     await flushOfflineSyncQueue();
+    const pendingSyncMap = getPendingClinicianSyncMap();
     const url = `${FIRESTORE_REST_BASE}/clinicians?pageSize=200&key=${encodeURIComponent(firebaseConfig.apiKey)}`;
     const res = await fetchWithTimeout(url, { method: 'GET' }, 3500);
     if (res.ok) {
@@ -541,7 +779,16 @@ export async function fetchAllCliniciansFromFirestore(): Promise<ClinicianAccoun
       for (const docItem of json.documents || []) {
         const parsed = fromFirestoreFields<ClinicianAccount>(docItem.fields);
         if (parsed && parsed.id) {
-          list.push(parsed);
+          if (isClinicianDeletedLocally(parsed.id, parsed.email, parsed.username)) {
+            void deleteClinicianFromFirestore(parsed.id, parsed.email, parsed.username);
+            continue;
+          }
+          const localPending = pendingSyncMap[parsed.id];
+          const finalAcc: ClinicianAccount = localPending ? { ...parsed, ...localPending } : parsed;
+          if (isClinicianBannedLocally(finalAcc.id, finalAcc.email, finalAcc.username)) {
+            finalAcc.approvalStatus = 'banned';
+          }
+          list.push(finalAcc);
         }
       }
       return list;
@@ -552,7 +799,15 @@ export async function fetchAllCliniciansFromFirestore(): Promise<ClinicianAccoun
     const snap = await withTimeout(getDocs(collection(db, 'clinicians')), 3500);
     const list: ClinicianAccount[] = [];
     snap.forEach((d) => {
-      list.push(d.data() as ClinicianAccount);
+      const parsed = d.data() as ClinicianAccount;
+      if (parsed && parsed.id && !isClinicianDeletedLocally(parsed.id, parsed.email, parsed.username)) {
+        const localPending = pendingSyncMap[parsed.id];
+        const finalAcc: ClinicianAccount = localPending ? { ...parsed, ...localPending } : parsed;
+        if (isClinicianBannedLocally(finalAcc.id, finalAcc.email, finalAcc.username)) {
+          finalAcc.approvalStatus = 'banned';
+        }
+        list.push(finalAcc);
+      }
     });
     return list;
   } catch (error) {
